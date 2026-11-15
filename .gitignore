@@ -1,0 +1,47 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+.env
+.data/
+.neon
+
+# Local secrets and deployment-only files
+.env*
+!.env.example
+.mcp.json
+.neon
+*.bak
+*.backup
+*.backup-*
+render-deployment-backup-*/
+
+# Local agent library and historical project backups
+.agents/
+*.backup*
+database.js.broken
+new_database.js
+update-server.js
+neon.ts
+temp

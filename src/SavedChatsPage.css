@@ -1,0 +1,339 @@
+.saved-chats-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 68% 0%, #1d231233, transparent 38%),
+    #0e0f0e;
+  color: #f0f1ed;
+}
+
+.saved-chats-nav {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  gap: 30px;
+  border-bottom: 1px solid #30312d;
+  padding: 0 24px;
+  background: #0c0c0c;
+}
+
+.saved-chats-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #f4f5f2;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.saved-chats-brand > span {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 6px 6px 6px 2px;
+  background: #76b900;
+  color: #10120b;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.saved-chats-nav nav {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 8px;
+}
+
+.saved-chats-nav nav button {
+  min-height: 100%;
+  border: 0;
+  padding: 0 11px;
+  background: transparent;
+  color: #b7bab4;
+  font-size: 12px;
+}
+
+.saved-chats-nav nav button:hover {
+  color: #fff;
+}
+
+.saved-chats-nav > .account-menu {
+  margin-left: auto;
+}
+
+.saved-chats-main {
+  width: min(1050px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 48px 0 70px;
+}
+
+.saved-chats-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.saved-chats-eyebrow {
+  margin: 0 0 9px;
+  color: #9da294;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.saved-chats-heading h1 {
+  margin: 0;
+  color: #f7f8f5;
+  font: 600 clamp(26px, 4vw, 36px) 'Space Grotesk', 'DM Sans', sans-serif;
+  letter-spacing: -0.8px;
+}
+
+.saved-chats-heading p:not(.saved-chats-eyebrow) {
+  margin: 9px 0 0;
+  color: #aeb2a9;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.saved-chats-warning {
+  margin: 0 0 16px;
+  border: 1px solid #765247;
+  border-radius: 7px;
+  padding: 11px 13px;
+  background: #211613;
+  color: #ffd2c5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.saved-chats-notice {
+  margin: 0 0 16px;
+  border: 1px solid #536e38;
+  border-radius: 7px;
+  padding: 11px 13px;
+  background: #171d10;
+  color: #d7edb4;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.saved-chats-notice p {
+  margin: 0 0 8px;
+}
+
+.saved-chats-clear,
+.saved-chats-open,
+.saved-chats-delete,
+.saved-chat-confirm-actions button,
+.saved-chats-confirm button {
+  display: inline-flex;
+  min-height: 35px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #4b4d45;
+  border-radius: 6px;
+  padding: 0 11px;
+  background: #161814;
+  color: #e6e8e2;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.saved-chats-open {
+  border-color: #76b900;
+  background: #76b900;
+  color: #10120b;
+}
+
+.saved-chats-open:hover:not(:disabled) {
+  background: #91d426;
+}
+
+.saved-chats-delete {
+  border-color: #68443c;
+  color: #ffb7a5;
+}
+
+.saved-chats-delete:hover:not(:disabled) {
+  border-color: #9a5c4d;
+  background: #261815;
+}
+
+.saved-chats-clear:hover:not(:disabled),
+.saved-chat-confirm-actions button:hover:not(:disabled),
+.saved-chats-confirm button:hover:not(:disabled) {
+  border-color: #76b900;
+  background: #1b2014;
+}
+
+.saved-chats-clear:disabled,
+.saved-chats-open:disabled,
+.saved-chats-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.saved-chats-toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #9da294;
+  font-size: 10px;
+}
+
+.saved-chats-toolbar input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #393a36;
+  border-radius: 7px;
+  padding: 0 12px;
+  background: #111310;
+  color: #f1f2ee;
+  font-size: 12px;
+}
+
+.saved-chats-toolbar input:focus {
+  border-color: #76b900;
+  outline: 2px solid #76b90044;
+  outline-offset: 1px;
+}
+
+.saved-chats-list {
+  border-top: 1px solid #383a34;
+}
+
+.saved-chat-row {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #30312d;
+  padding: 13px 4px;
+}
+
+.saved-chat-copy {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.saved-chat-copy strong {
+  overflow: hidden;
+  color: #f0f1ed;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-chat-copy span {
+  color: #8e9388;
+  font-size: 10px;
+}
+
+.saved-chat-actions,
+.saved-chat-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.saved-chat-confirm-actions > span {
+  color: #d3d5d0;
+  font-size: 10px;
+}
+
+.saved-chats-confirm {
+  margin: 0 0 13px;
+  border: 1px solid #654139;
+  border-radius: 8px;
+  padding: 12px;
+  background: #241714;
+}
+
+.saved-chats-confirm p {
+  margin: 0 0 10px;
+  color: #ffc0ae;
+  font-size: 11px;
+}
+
+.saved-chats-confirm button {
+  margin-right: 7px;
+}
+
+.saved-chats-empty {
+  border: 1px dashed #3c3e37;
+  border-radius: 10px;
+  padding: 28px;
+  text-align: center;
+}
+
+.saved-chats-empty strong {
+  color: #e8ebe5;
+  font-size: 13px;
+}
+
+.saved-chats-empty p {
+  margin: 8px auto 16px;
+  color: #989d93;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .saved-chats-nav {
+    min-height: 58px;
+    gap: 14px;
+    padding: 0 14px;
+  }
+
+  .saved-chats-nav nav {
+    gap: 0;
+  }
+
+  .saved-chats-nav nav button {
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .saved-chats-main {
+    width: calc(100% - 28px);
+    padding-top: 28px;
+  }
+
+  .saved-chats-toolbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .saved-chats-toolbar label {
+    grid-column: 1 / -1;
+  }
+
+  .saved-chat-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 11px;
+    padding: 15px 3px;
+  }
+
+  .saved-chat-actions,
+  .saved-chat-confirm-actions {
+    justify-content: flex-start;
+  }
+
+  .saved-chats-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
