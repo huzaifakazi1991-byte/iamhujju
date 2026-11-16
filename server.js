@@ -919,7 +919,34 @@ export function createApp({
           },
           effectiveOpenRouterKey
         );
-        models.push(...openRouterModels.map(openRouterModel));
+
+        // If user connected their own personal key, show their full catalog;
+        // if using the shared server key on free tier, filter to free-tier models:
+        const hasPersonalKey = Boolean(openRouterKey);
+        const isFreeTierWithoutKey = (!user || user.tier === 'free') && !hasPersonalKey;
+        const filteredOpenRouter = isFreeTierWithoutKey
+          ? openRouterModels.filter(m => {
+              const id = m.id || '';
+              const promptPrice = m.pricing?.prompt;
+              const compPrice = m.pricing?.completion;
+              return id.endsWith(':free') ||
+                id === 'openrouter/free' ||
+                id === 'openrouter/auto' ||
+                (promptPrice === '0' && compPrice === '0');
+            })
+          : openRouterModels;
+
+        // Auto/recommended model at top
+        const mapped = filteredOpenRouter.map(openRouterModel);
+        mapped.sort((a, b) => {
+          if (a.id === 'openrouter:openrouter/free') return -1;
+          if (b.id === 'openrouter:openrouter/free') return 1;
+          if (a.id === 'openrouter:openrouter/auto') return -1;
+          if (b.id === 'openrouter:openrouter/auto') return 1;
+          return 0;
+        });
+
+        models.push(...mapped);
       }
 
       if (models.length === 0) {
@@ -983,11 +1010,15 @@ export function createApp({
       });
     }
 
+    const hasPersonalKey = usesOpenRouter && user ? Boolean(await getOpenRouterKeyForUser(user.id)) : false;
+    const isFreeTierUsingServerKey = (!user || user.tier === 'free') && !hasPersonalKey;
     const requestBody = usesOpenRouter
       ? {
           ...body,
           model: sourceModel,
-          ...(body.max_tokens !== undefined ? { max_tokens: Math.min(Number(body.max_tokens) || 2048, 4096) } : {})
+          ...(isFreeTierUsingServerKey
+            ? { max_tokens: Math.min(Number(body.max_tokens) || 2048, 2048) }
+            : (body.max_tokens !== undefined ? { max_tokens: Number(body.max_tokens) } : {}))
         }
       : body;
     const providerName = usesOpenRouter ? 'OpenRouter' : 'FreeLLMAPI';

@@ -481,12 +481,24 @@ function HomePage({
 
       <main className="home-main">
         <section className="home-hero" aria-labelledby="home-title">
-          <span className="home-eyebrow">
-            <Icon name="sparkle" size={15} />
-            YOUR LOCAL AI WORKSPACE
-          </span>
-          <h1 id="home-title">Start building with AI models</h1>
-          <p>Explore live models through your local gateway. Your conversations sync to your account database.</p>
+          <div className="home-hero-layout">
+            <div className="home-hero-mascot-card" aria-hidden="true">
+              <img
+                src="/mascot.jpg"
+                alt="iamhujju.com - Your AI Companion"
+                className="home-hero-mascot-img"
+              />
+              <div className="home-hero-mascot-glow" />
+            </div>
+            <div className="home-hero-content">
+              <span className="home-eyebrow">
+                <Icon name="sparkle" size={15} />
+                YOUR FREE AI WORKSPACE
+              </span>
+              <h1 id="home-title">Start building with AI models</h1>
+              <p>Explore live free models directly in your browser. Conversations sync to your cloud account.</p>
+            </div>
+          </div>
 
           <form className="home-search" role="search" onSubmit={submitSearch}>
             <label className="sr-only" htmlFor="model-search">
