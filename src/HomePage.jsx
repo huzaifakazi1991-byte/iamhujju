@@ -19,7 +19,14 @@ function Icon({ name, size = 20 }) {
     layers: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></>,
     terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
     code: <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
-    check: <polyline points="20 6 9 17 4 12" />
+    check: <polyline points="20 6 9 17 4 12" />,
+    key: <><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.8 12.2 7.7-7.7M17 6l2 2M15 8l2 2" /></>,
+    tool: <><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></>,
+    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    chart: <><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></>,
+    credit: <><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></>,
+    plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+    minus: <line x1="5" y1="12" x2="19" y2="12" />
   };
 
   return (
@@ -298,6 +305,7 @@ function HomePage({
 }) {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('chat');
+  const [expandedFeature, setExpandedFeature] = useState(null);
   const [authOpen, setAuthOpen] = useState(Boolean(requestedModelId));
   const [authMode, setAuthMode] = useState('signup');
   const [authBusy, setAuthBusy] = useState(false);
@@ -627,8 +635,16 @@ function HomePage({
                 className={`any-tab-btn ${activeTab === 'chat' ? 'is-active' : ''}`}
                 onClick={() => setActiveTab('chat')}
               >
-                <Icon name="chat" size={16} />
                 <span>AnyChat</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'cli'}
+                className={`any-tab-btn ${activeTab === 'cli' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('cli')}
+              >
+                <span>AnyCLI</span>
               </button>
               <button
                 type="button"
@@ -637,18 +653,7 @@ function HomePage({
                 className={`any-tab-btn ${activeTab === 'routing' ? 'is-active' : ''}`}
                 onClick={() => setActiveTab('routing')}
               >
-                <Icon name="zap" size={16} />
                 <span>Smart Routing</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'hub'}
-                className={`any-tab-btn ${activeTab === 'hub' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('hub')}
-              >
-                <Icon name="grid" size={16} />
-                <span>Model Hub</span>
               </button>
               <button
                 type="button"
@@ -657,8 +662,7 @@ function HomePage({
                 className={`any-tab-btn ${activeTab === 'analytics' ? 'is-active' : ''}`}
                 onClick={() => setActiveTab('analytics')}
               >
-                <Icon name="cpu" size={16} />
-                <span>Logs & Insights</span>
+                <span>Logs & Analytics</span>
               </button>
             </div>
 
@@ -672,7 +676,7 @@ function HomePage({
                   <span className="dot dot-green" />
                 </div>
                 <div className="any-chrome-title">
-                  iamhujju - {activeTab === 'chat' ? 'AnyChat' : activeTab === 'routing' ? 'Smart Router' : activeTab === 'hub' ? 'Model Hub' : 'Analytics & Observability'}
+                  iamhujju - {activeTab === 'chat' ? 'AnyChat' : activeTab === 'cli' ? 'AnyCLI Terminal' : activeTab === 'routing' ? 'Smart Router' : 'Logs & Analytics'}
                 </div>
                 <div className="any-chrome-status">
                   <span className="status-live-dot" />
@@ -683,64 +687,176 @@ function HomePage({
               {/* Mockup Body Content depending on active tab */}
               <div className="any-mockup-body">
                 {activeTab === 'chat' && (
-                  <div className="any-mockup-chat-layout">
-                    {/* Mockup Sidebar */}
-                    <div className="any-mockup-sidebar">
-                      <div className="any-sidebar-item is-active">
-                        <Icon name="chat" size={16} />
-                        <span>Current Session</span>
+                  <div className="any-mockup-anychat-3col">
+                    {/* Column 1: Mini Navigation Sidebar */}
+                    <div className="anychat-mini-sidebar">
+                      <div className="anychat-brand">
+                        <span className="anychat-brand-logo">A</span>
+                        <strong>AnyAPi</strong>
                       </div>
-                      <div className="any-sidebar-item">
-                        <Icon name="layers" size={16} />
-                        <span>Multi-Model Auto</span>
+                      <nav className="anychat-nav-list">
+                        <div className="anychat-nav-item"><Icon name="key" size={13} /><span>API Keys</span></div>
+                        <div className="anychat-nav-item is-active"><Icon name="chat" size={13} /><span>AnyChat</span></div>
+                        <div className="anychat-nav-item"><Icon name="tool" size={13} /><span>Tools</span></div>
+                        <div className="anychat-nav-item"><Icon name="grid" size={13} /><span>Model Hub</span></div>
+                        <div className="anychat-nav-item"><Icon name="users" size={13} /><span>Team</span></div>
+                        <div className="anychat-nav-item"><Icon name="terminal" size={13} /><span>Logs</span></div>
+                        <div className="anychat-nav-item"><Icon name="credit" size={13} /><span>Billing</span></div>
+                        <div className="anychat-nav-item"><Icon name="chart" size={13} /><span>Usage</span></div>
+                      </nav>
+                      <div className="anychat-quick-links">
+                        <span className="quick-label">Quick Links</span>
+                        <div className="anychat-nav-item"><Icon name="code" size={13} /><span>API Docs</span></div>
                       </div>
-                      <div className="any-sidebar-item">
-                        <Icon name="shield" size={16} />
-                        <span>Encrypted Keys</span>
-                      </div>
-                      <div className="any-sidebar-divider" />
-                      <div className="any-sidebar-label">RECENT CONVERSATIONS</div>
-                      <div className="any-sidebar-chat-title">Architecting AI Swarms</div>
-                      <div className="any-sidebar-chat-title">Fullstack React 19 App</div>
                     </div>
 
-                    {/* Mockup Chat Screen */}
-                    <div className="any-mockup-chat-main">
-                      <div className="any-mock-msg user">
-                        <div className="any-mock-avatar">U</div>
-                        <div className="any-mock-bubble">
-                          How can I run multiple AI models seamlessly without configuring separate provider billing?
+                    {/* Column 2: Parameters & Configuration Panel */}
+                    <div className="anychat-config-panel">
+                      <div className="config-panel-top">
+                        <div className="config-tabs">
+                          <span className="cfg-tab is-active">Configurations</span>
+                          <span className="cfg-tab">Chat History</span>
+                          <span className="cfg-add">+</span>
+                        </div>
+                        <div className="config-balance">
+                          <span className="balance-symbol">₳</span>
+                          <span className="balance-amount">93,218</span>
+                          <span className="balance-gear">⚙️</span>
                         </div>
                       </div>
 
-                      <div className="any-mock-msg assistant">
-                        <div className="any-mock-avatar ai">
-                          <img src="/mascot.jpg" alt="AI mascot" className="any-mock-ai-icon" />
+                      <div className="config-field-group">
+                        <label className="cfg-label">API Key Source</label>
+                        <div className="cfg-select-box">
+                          <span>Current UI Session</span>
+                          <span className="cfg-chevron">▾</span>
                         </div>
-                        <div className="any-mock-bubble">
-                          <div className="any-mock-model-pill">
-                            <span className="pill-provider">google/gemini-2.5-flash-free</span>
-                            <span className="pill-metric">182ms · 1M context · 100% Free</span>
+                      </div>
+
+                      <div className="config-field-group">
+                        <label className="cfg-label">Model</label>
+                        <div className="cfg-select-box model-select-box">
+                          <span className="cfg-model-plus">+</span>
+                          <span className="cfg-model-val">google/gemini-2.5-flash-lite</span>
+                          <span className="cfg-chevron">▾</span>
+                        </div>
+                      </div>
+
+                      <div className="config-field-group">
+                        <label className="cfg-label">Endpoint Type</label>
+                        <div className="cfg-select-box">
+                          <span className="cfg-mono">/v1/chat/completions</span>
+                          <span className="cfg-chevron">▾</span>
+                        </div>
+                      </div>
+
+                      <div className="config-field-group">
+                        <label className="cfg-label">Capabilities</label>
+                        <div className="cfg-chips-wrap">
+                          <span className="cfg-chip">Vision</span>
+                          <span className="cfg-chip">Audio Input</span>
+                          <span className="cfg-chip">Video Input</span>
+                          <span className="cfg-chip">System Messages</span>
+                          <span className="cfg-chip">Native Streaming</span>
+                          <span className="cfg-chip">JSON Schema</span>
+                        </div>
+                      </div>
+
+                      <div className="config-field-group">
+                        <label className="cfg-label">Tools</label>
+                        <div className="cfg-chips-wrap">
+                          <span className="cfg-chip">Function Calling</span>
+                          <span className="cfg-chip">Web Search</span>
+                        </div>
+                      </div>
+
+                      <div className="config-field-group">
+                        <label className="cfg-label">Options</label>
+                        <div className="cfg-chips-wrap">
+                          <span className="cfg-chip">Prompt Caching</span>
+                          <span className="cfg-chip">Response Schema</span>
+                        </div>
+                      </div>
+
+                      <div className="config-field-group">
+                        <label className="cfg-label">Playback</label>
+                        <div className="cfg-chips-wrap">
+                          <span className="cfg-chip">Seed</span>
+                          <span className="cfg-chip">Assistant Prefix</span>
+                          <span className="cfg-chip">Reasoning</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 3: Live Courtroom Chat Interaction */}
+                    <div className="anychat-conversation-area">
+                      <div className="conversation-top-bar">
+                        <span className="top-model-params">⚙ Model Parameters</span>
+                      </div>
+
+                      <div className="conversation-scroll">
+                        {/* User Message */}
+                        <div className="conv-msg-user">
+                          <span className="user-tag-pill">User</span>
+                          <div className="user-bubble-content">
+                            My friend says pineapple on pizza is a crime. Build my defence as a courtroom lawyer.
                           </div>
-                          <p>
-                            With <strong>iamhujju</strong>, you have unified access to over 400 models. Our smart auto-routing instantly connects your prompt to the fastest free provider:
-                          </p>
-                          <div className="any-mock-code">
-                            <code>{`// Free instant multi-model inference\nconst response = await ai.chat.completions.create({\n  model: "auto", // intelligently selects optimal free model\n  messages: [{ role: "user", content: "Optimize this pipeline" }]\n});`}</code>
+                        </div>
+
+                        {/* Assistant Message */}
+                        <div className="conv-msg-assistant">
+                          <div className="assistant-tag-pill">
+                            <span className="asst-role">assistant</span>
+                            <span className="asst-model">google/gemini-2.5-flash-lite</span>
+                          </div>
+                          <div className="assistant-bubble-content">
+                            <p>May it please the Tribunal of Taste, esteemed colleagues, and especially, my distinguished opponent, the staunch defender of the orthodox pizza.</p>
+                            <p>We stand here today not in a court of law, but in a much more sacred chamber: the chamber of personal culinary preference. My client, the humble, yet often maligned, pineapple topping, stands accused by my friend — the prosecution, if you will — of a grave offense: being a &ldquo;crime&rdquo; on a pizza.</p>
+                            <p>I submit to you, Your Honor, that this accusation is not only unfounded but a gross mischaracterization of a culinary delight. I stand before you to dismantle this baseless claim and present the irrefutable defense of pineapple on pizza.</p>
+                            <strong>Opening Statement:</strong>
+                            <p>Your Honor, the prosecution has painted a picture of anarchy, of gastronomic heresy. They claim the addition of pineapple is an act so egregious it borders on criminal. I say to you, this is an assault on freedom, an attack on innovation, and a betrayal of the very spirit of pizza — a dish born from humble origins and perfected through countless variations! My client, pineapple, is not a criminal; it is a catalyst. It is an enhancer. It is, dare I say, a visionary.</p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Mockup input box */}
-                      <div className="any-mock-input-bar">
+                      {/* Mockup Bottom Input Bar */}
+                      <div className="anychat-mockup-input">
                         <input
                           type="text"
                           readOnly
-                          value="Ask iamhujju anything across 400+ models..."
+                          placeholder="Type your message here... (Shift+Enter for new line; Alt+R to record)"
                         />
-                        <button type="button" className="any-mock-send" aria-label="Send">
-                          <Icon name="arrow" size={16} />
-                        </button>
+                        <div className="mockup-input-actions">
+                          <span className="input-icon-mic">🎙️</span>
+                          <button type="button" className="input-send-btn" aria-label="Send">
+                            <Icon name="arrow" size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'cli' && (
+                  <div className="any-mockup-cli-layout">
+                    <div className="cli-terminal-mock">
+                      <div className="cli-terminal-header">
+                        <span className="dot dot-red" />
+                        <span className="dot dot-yellow" />
+                        <span className="dot dot-green" />
+                        <span className="cli-title">bash - iamhujju-cli v2.4.0</span>
+                      </div>
+                      <div className="cli-terminal-body">
+                        <p className="cli-line"><span className="cli-prompt">$</span> npx iamhujju chat --model &ldquo;auto&rdquo;</p>
+                        <p className="cli-line dim">→ Discovering available models...</p>
+                        <p className="cli-line success">✓ Connected to gateway. 435 models ready.</p>
+                        <p className="cli-line info">✦ Auto-selected: Google Gemini 2.5 Flash [100% Free Tier]</p>
+                        <p className="cli-line dim">→ Latency: 142ms | Context: 1049K tokens</p>
+                        <p className="cli-line prompt-text"><span className="cli-prompt">&gt;</span> Build a high-throughput multi-agent API router in Node.js</p>
+                        <p className="cli-line stream-response">Streaming response (184 tok/s)...</p>
+                        <div className="cli-code-block">
+                          <code>{`// Drop-in compatible with OpenAI SDK\nimport OpenAI from 'openai';\nconst client = new OpenAI({\n  baseURL: 'https://iamhujju.com/api/v1',\n  apiKey: 'iamhujju-free-tier'\n});\nconst res = await client.chat.completions.create({\n  model: 'openrouter/free',\n  messages: [{ role: 'user', content: 'Ready' }]\n});`}</code>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -773,29 +889,6 @@ function HomePage({
                         <h3>Meta Llama 3.3 70B</h3>
                         <p>Open-weights powerhouse for creative writing and extraction.</p>
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'hub' && (
-                  <div className="any-mockup-hub-layout">
-                    <div className="any-hub-header">
-                      <span>400+ Discovered Models · Live Gateway Sync</span>
-                      <button type="button" className="any-hub-btn" onClick={() => onOpenModels()}>
-                        View Full Catalog →
-                      </button>
-                    </div>
-                    <div className="any-hub-list">
-                      {featuredModels.slice(0, 3).map(m => (
-                        <div key={m.id} className="any-hub-row">
-                          <div className="any-hub-col">
-                            <strong>{m.name || m.id}</strong>
-                            <span>{m.id}</span>
-                          </div>
-                          <span className="any-status-tag">Free Tier</span>
-                          <span className="any-context-tag">{contextLabel(m) || 'Standard'}</span>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}
@@ -868,8 +961,8 @@ function HomePage({
           </div>
         </section>
 
-        {/* FEATURE SECTION 1: ARCHITECTURE & UNIFIED HUB */}
-        <section className="any-feature-section">
+        {/* FEATURE SECTION 1: UNIFIED API (EXACT ANYAPI IMAGE 1 LAYOUT) */}
+        <section className="any-feature-section" id="unified-api-section">
           <div className="any-feature-header">
             <span className="any-eyebrow-tag">BUILT FOR THE AI ERA</span>
             <h2>Integrate AI into every part of your stack</h2>
@@ -879,72 +972,149 @@ function HomePage({
           </div>
 
           <div className="any-feature-content-split">
-            {/* Left Diagram Card */}
-            <div className="any-arch-diagram-card">
-              <div className="any-arch-center-node">
-                <img src="/mascot.jpg" alt="iamhujju core" className="any-arch-core-mascot" />
-                <span className="any-arch-core-label">iamhujju</span>
-              </div>
-              <div className="any-arch-branches">
-                <div className="any-arch-branch-item">
-                  <span className="branch-icon"><Icon name="code" size={17} /></span>
-                  <div className="branch-info">
-                    <strong>OpenAI SDK</strong>
-                    <span>Drop-in compatible</span>
+            {/* Left Diagram Card with Animated Fiber-Optic Tree (Image 1) */}
+            <div className="any-unified-card-container">
+              <div className="any-unified-diagram">
+                {/* Brand Hub Node on Left */}
+                <div className="any-hub-node-box">
+                  <div className="any-hub-logo-mark">
+                    <span className="any-hub-a-symbol">A</span>
                   </div>
                 </div>
-                <div className="any-arch-branch-item">
-                  <span className="branch-icon"><Icon name="zap" size={17} /></span>
-                  <div className="branch-info">
-                    <strong>Auto-routing</strong>
-                    <span>400+ models</span>
+
+                {/* SVG Glowing Fiber Conduits */}
+                <svg className="any-fiber-svg" viewBox="0 0 160 380" fill="none" preserveAspectRatio="none">
+                  <path d="M 0 190 C 80 190, 80 38, 160 38" stroke="rgba(0, 242, 254, 0.45)" strokeWidth="2" strokeDasharray="4 4" />
+                  <path d="M 0 190 C 80 190, 80 114, 160 114" stroke="rgba(0, 242, 254, 0.55)" strokeWidth="2" />
+                  <path d="M 0 190 L 160 190" stroke="rgba(0, 242, 254, 0.75)" strokeWidth="2.5" />
+                  <path d="M 0 190 C 80 190, 80 266, 160 266" stroke="rgba(0, 242, 254, 0.55)" strokeWidth="2" />
+                  <path d="M 0 190 C 80 190, 80 342, 160 342" stroke="rgba(0, 242, 254, 0.45)" strokeWidth="2" strokeDasharray="4 4" />
+
+                  <circle cx="80" cy="38" r="3.5" fill="#00f2fe" className="pulse-dot" />
+                  <circle cx="80" cy="114" r="3.5" fill="#00f2fe" className="pulse-dot" />
+                  <circle cx="80" cy="190" r="4" fill="#00f2fe" className="pulse-dot" />
+                  <circle cx="80" cy="266" r="3.5" fill="#00f2fe" className="pulse-dot" />
+                  <circle cx="80" cy="342" r="3.5" fill="#00f2fe" className="pulse-dot" />
+                </svg>
+
+                {/* 5 Feature Cards on Right */}
+                <div className="any-fiber-cards-column">
+                  <div
+                    className={`any-fiber-row ${expandedFeature === 'sdk' ? 'is-expanded' : ''}`}
+                    onClick={() => setExpandedFeature(expandedFeature === 'sdk' ? null : 'sdk')}
+                  >
+                    <div className="row-main">
+                      <span className="row-icon"><Icon name="code" size={16} /></span>
+                      <div className="row-text">
+                        <strong>OpenAI SDK</strong>
+                        <span>Drop-in compatible</span>
+                      </div>
+                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
+                        {expandedFeature === 'sdk' ? '−' : '+'}
+                      </button>
+                    </div>
+                    {expandedFeature === 'sdk' && (
+                      <div className="row-expanded-detail">
+                        <code>import OpenAI from 'openai';<br />const ai = new OpenAI({'{'} baseURL: '/api/v1' {'}'});</code>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="any-arch-branch-item">
-                  <span className="branch-icon"><Icon name="shield" size={17} /></span>
-                  <div className="branch-info">
-                    <strong>Unified Accounts</strong>
-                    <span>100% Free tier ready</span>
+
+                  <div
+                    className={`any-fiber-row ${expandedFeature === 'routing' ? 'is-expanded' : ''}`}
+                    onClick={() => setExpandedFeature(expandedFeature === 'routing' ? null : 'routing')}
+                  >
+                    <div className="row-main">
+                      <span className="row-icon"><Icon name="zap" size={16} /></span>
+                      <div className="row-text">
+                        <strong>Auto-routing</strong>
+                        <span>400+ models</span>
+                      </div>
+                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
+                        {expandedFeature === 'routing' ? '−' : '+'}
+                      </button>
+                    </div>
+                    {expandedFeature === 'routing' && (
+                      <div className="row-expanded-detail">
+                        <span>Intelligently routes requests to the fastest online model with sub-second failover.</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="any-arch-branch-item">
-                  <span className="branch-icon"><Icon name="layers" size={17} /></span>
-                  <div className="branch-info">
-                    <strong>Built-in Skills</strong>
-                    <span>Agentic toolkits</span>
+
+                  <div
+                    className={`any-fiber-row ${expandedFeature === 'billing' ? 'is-expanded' : ''}`}
+                    onClick={() => setExpandedFeature(expandedFeature === 'billing' ? null : 'billing')}
+                  >
+                    <div className="row-main">
+                      <span className="row-icon"><Icon name="credit" size={16} /></span>
+                      <div className="row-text">
+                        <strong>Unified billing</strong>
+                        <span>One invoice</span>
+                      </div>
+                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
+                        {expandedFeature === 'billing' ? '−' : '+'}
+                      </button>
+                    </div>
+                    {expandedFeature === 'billing' && (
+                      <div className="row-expanded-detail">
+                        <span>100% Free models ready instantly with zero credit cards, plus single BYOK key for Pro.</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="any-arch-branch-item">
-                  <span className="branch-icon"><Icon name="terminal" size={17} /></span>
-                  <div className="branch-info">
-                    <strong>Observability</strong>
-                    <span>Full conversation history</span>
+
+                  <div
+                    className={`any-fiber-row ${expandedFeature === 'rag' ? 'is-expanded' : ''}`}
+                    onClick={() => setExpandedFeature(expandedFeature === 'rag' ? null : 'rag')}
+                  >
+                    <div className="row-main">
+                      <span className="row-icon"><Icon name="layers" size={16} /></span>
+                      <div className="row-text">
+                        <strong>Built-in RAG</strong>
+                        <span>Vector & retrieval</span>
+                      </div>
+                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
+                        {expandedFeature === 'rag' ? '−' : '+'}
+                      </button>
+                    </div>
+                    {expandedFeature === 'rag' && (
+                      <div className="row-expanded-detail">
+                        <span>Autonomous skills, PDF upload parsing, and persistent Neon PostgreSQL vector store.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    className={`any-fiber-row ${expandedFeature === 'observability' ? 'is-expanded' : ''}`}
+                    onClick={() => setExpandedFeature(expandedFeature === 'observability' ? null : 'observability')}
+                  >
+                    <div className="row-main">
+                      <span className="row-icon"><Icon name="chart" size={16} /></span>
+                      <div className="row-text">
+                        <strong>Observability</strong>
+                        <span>Logs & spend</span>
+                      </div>
+                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
+                        {expandedFeature === 'observability' ? '−' : '+'}
+                      </button>
+                    </div>
+                    {expandedFeature === 'observability' && (
+                      <div className="row-expanded-detail">
+                        <span>Real-time per-request token counters, latency breakdown, and cloud conversation history.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Text Description */}
+            {/* Right Text Block */}
             <div className="any-feature-text-block">
-              <span className="any-tag-pill">UNIFIED API & WORKSPACE</span>
-              <h3>Unified Hub for any model</h3>
+              <span className="any-tag-pill">UNIFIED API</span>
+              <h2>Unified API for any model</h2>
               <p>
-                Access every major AI model through a single, consistent interface. No more juggling multiple SDKs or learning different formats. Just one interface to rule them all.
+                Access every major AI model through a single, consistent API. No more juggling multiple SDKs or learning different formats. Just one interface to rule them all.
               </p>
-              <ul className="any-feature-checklist">
-                <li>
-                  <Icon name="check" size={16} />
-                  <span>Free models ready instantly upon signing up</span>
-                </li>
-                <li>
-                  <Icon name="check" size={16} />
-                  <span>Capped tokens prevent surprise billing or credit rejections</span>
-                </li>
-                <li>
-                  <Icon name="check" size={16} />
-                  <span>Bring your own OpenRouter key whenever you want frontier models</span>
-                </li>
-              </ul>
+              <span className="any-feature-included-note">Included with all iamhujju plans at no extra cost.</span>
               <div className="any-feature-actions">
                 <button
                   type="button"
@@ -952,6 +1122,141 @@ function HomePage({
                   onClick={() => onOpenModels()}
                 >
                   <span>View Model Hub</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FEATURE SECTION 2: COMPARE & PROTOTYPE (IMAGE 2) */}
+        <section className="any-feature-section any-section-reverse">
+          <div className="any-feature-content-split">
+            {/* Left Copy */}
+            <div className="any-feature-text-block">
+              <span className="any-tag-pill">ANYCHAT</span>
+              <h2>Compare and prototype with leading models</h2>
+              <p>
+                Interactive developer playground to test prompts, compare model outputs side by side, debug responses, and fine-tune your AI integrations in real time before they go live.
+              </p>
+              <div className="any-feature-actions">
+                <button
+                  type="button"
+                  className="any-btn-primary"
+                  onClick={() => openChat(selectedModel)}
+                >
+                  <span>Open AnyChat</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Right 3D Visual Card (Image 2) */}
+            <div className="any-multimodel-card-container">
+              <div className="multimodel-glass-board">
+                {/* Left Prompt Node */}
+                <div className="prompt-node-box">
+                  <span className="prompt-chat-icon">💬</span>
+                </div>
+
+                {/* 4 Multi-colored Glowing Conduits to 4 Model Columns */}
+                <div className="multimodel-columns-grid">
+                  <div className="model-col-glass cyan-border">
+                    <div className="col-top-icon cyan-bg">✨</div>
+                    <span className="col-model-name">Gemini 2.5</span>
+                    <div className="col-sample-lines">
+                      <span className="sample-line" />
+                      <span className="sample-line short" />
+                    </div>
+                    <div className="col-stat-pill">142ms</div>
+                  </div>
+
+                  <div className="model-col-glass green-border">
+                    <div className="col-top-icon green-bg">🐋</div>
+                    <span className="col-model-name">DeepSeek R1</span>
+                    <div className="col-sample-lines">
+                      <span className="sample-line" />
+                      <span className="sample-line short" />
+                    </div>
+                    <div className="col-stat-pill">198ms</div>
+                  </div>
+
+                  <div className="model-col-glass amber-border">
+                    <div className="col-top-icon amber-bg">⚡</div>
+                    <span className="col-model-name">GPT-4.1</span>
+                    <div className="col-sample-lines">
+                      <span className="sample-line" />
+                      <span className="sample-line short" />
+                    </div>
+                    <div className="col-stat-pill">175ms</div>
+                  </div>
+
+                  <div className="model-col-glass purple-border">
+                    <div className="col-top-icon purple-bg">🧠</div>
+                    <span className="col-model-name">Claude 3.7</span>
+                    <div className="col-sample-lines">
+                      <span className="sample-line" />
+                      <span className="sample-line short" />
+                    </div>
+                    <div className="col-stat-pill">189ms</div>
+                  </div>
+                </div>
+
+                {/* Converging Green Checkmark Platform */}
+                <div className="converge-platform">
+                  <div className="converge-check-circle">✓</div>
+                  <span className="converge-label">Optimal Response Selected</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FEATURE SECTION 3: ANYCLI (IMAGE 3) */}
+        <section className="any-feature-section">
+          <div className="any-feature-content-split">
+            {/* Left 3D Terminal Card */}
+            <div className="any-terminal-card-container">
+              <div className="terminal-3d-box">
+                <div className="terminal-topbar">
+                  <span className="dot dot-red" />
+                  <span className="dot dot-yellow" />
+                  <span className="dot dot-green" />
+                  <span className="terminal-name">iamhujju-cli</span>
+                </div>
+                <div className="terminal-code-body">
+                  <p><span className="t-green">&gt;</span> _</p>
+                  <p className="t-cyan">$ npx iamhujju run --auto</p>
+                  <p className="t-dim">Connecting gateway... [OK]</p>
+                  <p className="t-dim">Selecting lowest latency free tier model...</p>
+                  <p className="t-green">✔ Connected: google/gemini-2.5-flash-exp (142ms)</p>
+                </div>
+                {/* Glowing Emerald Energy Conduit to Result Badge */}
+                <div className="terminal-energy-beam" />
+                <div className="terminal-result-badge">
+                  <span className="result-star">✦</span>
+                  <div className="result-lines">
+                    <span className="r-line" />
+                    <span className="r-line r-short" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Text Block */}
+            <div className="any-feature-text-block">
+              <span className="any-tag-pill">ANYCLI</span>
+              <h2>Run AI from your terminal</h2>
+              <p>
+                Powerful command-line interface for managing API keys, testing endpoints, and deploying configurations directly from your terminal.
+              </p>
+              <div className="any-feature-actions">
+                <button
+                  type="button"
+                  className="any-btn-primary"
+                  onClick={() => openChat(selectedModel)}
+                >
+                  <span>Install AnyCLI</span>
                   <Icon name="arrow" size={16} />
                 </button>
               </div>
@@ -1036,13 +1341,13 @@ function HomePage({
           </div>
         </section>
 
-        {/* BOTTOM CALL TO ACTION BANNER */}
-        <section className="any-cta-banner">
+        {/* BOTTOM CALL TO ACTION & PRICING/QUICKSTART CARDS (IMAGE 4) */}
+        <section className="any-cta-banner any-cta-landscape">
           <div className="any-cta-inner">
             <div className="any-cta-content">
               <h2>Everything you need to build on ANY model</h2>
-              <p>
-                Join developers and creators worldwide using iamhujju to chat, build, and test with leading AI models for free.
+              <p className="any-cta-subhead">
+                Gateway · Playground · CLI · Analytics · RAG · Agents
               </p>
               <div className="any-cta-buttons">
                 <button
@@ -1050,17 +1355,32 @@ function HomePage({
                   className="any-btn-primary"
                   onClick={() => openSignup(selectedModel)}
                 >
-                  <span>Get Started Free</span>
+                  <span>Get free API key</span>
                   <Icon name="arrow" size={17} />
                 </button>
                 <button
                   type="button"
                   className="any-btn-secondary"
-                  onClick={onOpenSkills}
+                  onClick={() => onOpenModels()}
                 >
-                  <Icon name="sparkle" size={17} />
-                  <span>Explore Skills</span>
+                  <span>Contact sales</span>
                 </button>
+              </div>
+
+              {/* Two Bottom Glass Cards from Image 4 */}
+              <div className="any-cta-cards-grid">
+                <div className="any-cta-glass-card" onClick={() => openSignup(selectedModel)}>
+                  <span className="cta-card-pill">PRICING ON YOUR TERMS</span>
+                  <h3>Pick the plan that fits your scale</h3>
+                  <p>Pay-as-you-go, team, and enterprise tiers with transparent per-token pricing across every provider.</p>
+                  <span className="cta-card-link">Pricing details →</span>
+                </div>
+                <div className="any-cta-glass-card" onClick={() => onOpenModels()}>
+                  <span className="cta-card-pill">START BUILDING</span>
+                  <h3>Ship your first request in minutes</h3>
+                  <p>Drop-in OpenAI-compatible SDK, copy-paste curl, and SDKs for TypeScript, Python, Go, and Rust.</p>
+                  <span className="cta-card-link">Quickstart →</span>
+                </div>
               </div>
             </div>
           </div>
