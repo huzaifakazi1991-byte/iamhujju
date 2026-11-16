@@ -1023,7 +1023,9 @@ function App() {
 
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-icon">AI</div>
+          <div className="brand-icon">
+            <img src="/mascot.jpg" alt="iamhujju mascot" className="brand-mascot-img" />
+          </div>
           <div>
             <h2>iamhujju</h2>
             <span>PERSONAL AI</span>
@@ -1142,7 +1144,9 @@ function App() {
         <section className="chat-area">
           {messages.length === 0 ? (
             <div className="welcome">
-              <div className="welcome-icon">AI</div>
+              <div className="welcome-icon">
+                <img src="/mascot.jpg" alt="iamhujju mascot" className="welcome-mascot-img" />
+              </div>
               <p className="eyebrow">WELCOME TO YOUR AI WORKSPACE</p>
               <h1>What can I help you<br /><span>create today?</span></h1>
               <p className="welcome-description">
@@ -1173,7 +1177,7 @@ function App() {
               {messages.map((message, index) => (
                 <article className={`message ${message.role}`} key={index}>
                   <div className="avatar">
-                    {message.role === 'user' ? 'U' : 'AI'}
+                    {message.role === 'user' ? 'U' : <img src="/mascot.jpg" alt="AI assistant" className="avatar-mascot-img" />}
                   </div>
 
                   <div className="message-content">

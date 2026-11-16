@@ -1,14 +1,13 @@
 .models-page {
-  --models-bg: #0e0f0e;
-  --models-card: #151716;
-  --models-lime: #76b900;
-  --models-border: #393c38;
+  --models-bg: #030712;
+  --models-card: rgba(15, 23, 42, 0.72);
+  --models-lime: #00f2fe;
+  --models-border: rgba(56, 189, 248, 0.16);
   min-height: 100vh;
-  color: #f3f5f1;
+  color: #f8fafc;
   background:
-    radial-gradient(ellipse at 8% 12%, #202716 0, transparent 34rem),
-    radial-gradient(ellipse at 94% 30%, #121b17 0, transparent 38rem),
-    url('/network-pattern.svg') center 110px / 420px auto repeat,
+    radial-gradient(ellipse at 8% 12%, rgba(0, 242, 254, 0.1) 0, transparent 34rem),
+    radial-gradient(ellipse at 94% 30%, rgba(2, 132, 199, 0.12) 0, transparent 38rem),
     var(--models-bg);
   font-family: 'DM Sans', sans-serif;
 }

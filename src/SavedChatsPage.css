@@ -1,9 +1,9 @@
 .saved-chats-page {
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at 68% 0%, #1d231233, transparent 38%),
-    #0e0f0e;
-  color: #f0f1ed;
+    radial-gradient(ellipse at 68% 0%, rgba(14, 165, 233, 0.12), transparent 38%),
+    #030712;
+  color: #f8fafc;
 }
 
 .saved-chats-nav {
@@ -13,9 +13,9 @@
   min-height: 62px;
   align-items: center;
   gap: 30px;
-  border-bottom: 1px solid #30312d;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.16);
   padding: 0 24px;
-  background: #0c0c0c;
+  background: #060b18;
 }
 
 .saved-chats-brand {
