@@ -75,6 +75,7 @@ function ModelDetailModal({ model, isOpen, onClose, onSelectModel }) {
   const benchmarks = getModelBenchmarks(model);
   const contextWindow = getModelContextWindow(model);
   const snippet = generateCodeSnippet(model.id, selectedLang);
+  const isFree = model.isFree !== false && (model.isFree || model.tier === 'free' || model.id?.includes(':free') || model.id === 'openrouter:openrouter/free' || model.id === 'openrouter:openrouter/auto');
 
   async function copyCode() {
     try {
@@ -127,7 +128,11 @@ function ModelDetailModal({ model, isOpen, onClose, onSelectModel }) {
           </div>
           <div className="spec-card">
             <span className="spec-label">Pricing Tier</span>
-            <strong className="spec-value tag-free">100% Free Tier</strong>
+            {isFree ? (
+              <strong className="spec-value tag-free">100% Free Tier</strong>
+            ) : (
+              <strong className="spec-value tag-pro">BYOK / Pro</strong>
+            )}
           </div>
         </div>
 
@@ -202,6 +207,8 @@ function ModelCard({ model, selected, signedIn, onOpenChat, onRequestSignIn, onO
   const contextWindow = getModelContextWindow(model);
   const benchmarks = getModelBenchmarks(model);
 
+  const isFree = model.isFree !== false && (model.isFree || model.tier === 'free' || model.id?.includes(':free') || model.id === 'openrouter:openrouter/free' || model.id === 'openrouter:openrouter/auto');
+
   function openModel() {
     if (signedIn) {
       onOpenChat(model.id);
@@ -248,7 +255,11 @@ function ModelCard({ model, selected, signedIn, onOpenChat, onRequestSignIn, onO
         <span className="any-tag-context">
           {contextWindow ? `${Math.round(contextWindow / 1000)}K context` : '128K context'}
         </span>
-        <span className="any-tag-free">100% Free</span>
+        {isFree ? (
+          <span className="any-tag-free">100% Free Tier</span>
+        ) : (
+          <span className="any-tag-pro">BYOK / Pro</span>
+        )}
         {benchmarks.modality.includes('vision') && <span className="any-tag-modality">Vision</span>}
         {benchmarks.modality.includes('code') && <span className="any-tag-modality">Code</span>}
       </div>
@@ -302,12 +313,23 @@ export default function ModelsPage({
 
   const providers = useMemo(() => getModelProviderOptions(models), [models]);
 
+  const freeModelsCount = useMemo(
+    () => models.filter(m => m.isFree || m.tier === 'free' || m.id?.includes(':free')).length,
+    [models]
+  );
+  const proModelsCount = useMemo(
+    () => models.length - freeModelsCount,
+    [models, freeModelsCount]
+  );
+
   // Enhanced category filtering
   const categoryFiltered = useMemo(() => {
     if (categoryFilter === 'all') return models;
     return models.filter(m => {
+      const isFree = m.isFree || m.tier === 'free' || m.id?.includes(':free');
+      if (categoryFilter === 'free') return isFree;
+      if (categoryFilter === 'pro') return !isFree;
       const b = getModelBenchmarks(m);
-      if (categoryFilter === 'free') return true;
       if (categoryFilter === 'coding') return b.coding >= 90 || m.id.toLowerCase().includes('code');
       if (categoryFilter === 'reasoning') return b.intelligence >= 92 || m.id.toLowerCase().includes('r1') || m.id.toLowerCase().includes('reason');
       if (categoryFilter === 'vision') return b.modality.includes('vision') || m.id.toLowerCase().includes('vision');
@@ -467,7 +489,14 @@ export default function ModelsPage({
             className={`cat-pill ${categoryFilter === 'free' ? 'is-active' : ''}`}
             onClick={() => { setCategoryFilter('free'); setPage(1); }}
           >
-            100% Free Tier
+            100% Free Tier ({freeModelsCount})
+          </button>
+          <button
+            type="button"
+            className={`cat-pill ${categoryFilter === 'pro' ? 'is-active' : ''}`}
+            onClick={() => { setCategoryFilter('pro'); setPage(1); }}
+          >
+            BYOK / Pro ({proModelsCount})
           </button>
           <button
             type="button"

@@ -425,15 +425,39 @@ export function createApp({
 
   function openRouterModel(model) {
     const id = typeof model.id === 'string' ? model.id : '';
+    const isFree = id.endsWith(':free') ||
+      id === 'openrouter/free' ||
+      id === 'openrouter/auto' ||
+      (model.pricing?.prompt === '0' && model.pricing?.completion === '0');
+
+    const idParts = id.split('/');
+    const brandPrefix = (idParts[0] || '').toLowerCase();
+    let brand = idParts[0] || 'OpenRouter';
+    if (brandPrefix.includes('google')) brand = 'Google';
+    else if (brandPrefix.includes('openai')) brand = 'OpenAI';
+    else if (brandPrefix.includes('anthropic')) brand = 'Anthropic';
+    else if (brandPrefix.includes('meta')) brand = 'Meta';
+    else if (brandPrefix.includes('deepseek')) brand = 'DeepSeek';
+    else if (brandPrefix.includes('mistral') || brandPrefix.includes('codestral')) brand = 'Mistral';
+    else if (brandPrefix.includes('qwen') || brandPrefix.includes('alibaba')) brand = 'Qwen';
+    else if (brandPrefix.includes('x-ai') || brandPrefix.includes('xai')) brand = 'xAI';
+    else if (brandPrefix.includes('cohere')) brand = 'Cohere';
+    else if (brandPrefix.includes('nvidia')) brand = 'Nvidia';
+    else if (brandPrefix.includes('baidu')) brand = 'Baidu';
+    else if (brandPrefix.includes('tencent')) brand = 'Tencent';
+
     return {
       ...model,
       id: `openrouter:${id}`,
       sourceId: id,
       provider: 'openrouter',
+      brand,
       name: model.name || id,
-      owned_by: 'openrouter',
+      owned_by: brand,
       context_window: model.context_length,
-      available: true
+      available: true,
+      isFree,
+      tier: isFree ? 'free' : 'pro'
     };
   }
 
@@ -910,9 +934,9 @@ export function createApp({
       }
 
       if (effectiveOpenRouterKey) {
-        const openRouterModels = await discoverModels(
+        let openRouterModels = await discoverModels(
           'OpenRouter',
-          openRouterUpstreamBase + '/models/user',
+          openRouterUpstreamBase + '/models',
           {
             Authorization: 'Bearer ' + effectiveOpenRouterKey,
             'X-OpenRouter-Title': 'iamhujju'
@@ -920,29 +944,26 @@ export function createApp({
           effectiveOpenRouterKey
         );
 
-        // If user connected their own personal key, show their full catalog;
-        // if using the shared server key on free tier, filter to free-tier models:
-        const hasPersonalKey = Boolean(openRouterKey);
-        const isFreeTierWithoutKey = (!user || user.tier === 'free') && !hasPersonalKey;
-        const filteredOpenRouter = isFreeTierWithoutKey
-          ? openRouterModels.filter(m => {
-              const id = m.id || '';
-              const promptPrice = m.pricing?.prompt;
-              const compPrice = m.pricing?.completion;
-              return id.endsWith(':free') ||
-                id === 'openrouter/free' ||
-                id === 'openrouter/auto' ||
-                (promptPrice === '0' && compPrice === '0');
-            })
-          : openRouterModels;
+        if (!openRouterModels.length) {
+          openRouterModels = await discoverModels(
+            'OpenRouter',
+            openRouterUpstreamBase + '/models/user',
+            {
+              Authorization: 'Bearer ' + effectiveOpenRouterKey,
+              'X-OpenRouter-Title': 'iamhujju'
+            },
+            effectiveOpenRouterKey
+          );
+        }
 
-        // Auto/recommended model at top
-        const mapped = filteredOpenRouter.map(openRouterModel);
+        const mapped = openRouterModels.map(openRouterModel);
         mapped.sort((a, b) => {
           if (a.id === 'openrouter:openrouter/free') return -1;
           if (b.id === 'openrouter:openrouter/free') return 1;
           if (a.id === 'openrouter:openrouter/auto') return -1;
           if (b.id === 'openrouter:openrouter/auto') return 1;
+          if (a.isFree && !b.isFree) return -1;
+          if (!a.isFree && b.isFree) return 1;
           return 0;
         });
 
@@ -1012,6 +1033,19 @@ export function createApp({
 
     const hasPersonalKey = usesOpenRouter && user ? Boolean(await getOpenRouterKeyForUser(user.id)) : false;
     const isFreeTierUsingServerKey = (!user || user.tier === 'free') && !hasPersonalKey;
+
+    const isFreeModel = sourceModel.endsWith(':free') ||
+      sourceModel === 'openrouter/free' ||
+      sourceModel === 'openrouter/auto';
+
+    if (usesOpenRouter && isFreeTierUsingServerKey && !isFreeModel) {
+      return res.status(403).json({
+        error: {
+          message: `${sourceModel} is a Pro model. Connect your personal OpenRouter API key in Account to use Pro models, or choose any of the 100% Free models.`
+        }
+      });
+    }
+
     const requestBody = usesOpenRouter
       ? {
           ...body,

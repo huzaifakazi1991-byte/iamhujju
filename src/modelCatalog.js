@@ -1,9 +1,29 @@
 export function getModelProvider(model) {
+  if (model?.brand && model.brand !== 'OpenRouter') return model.brand;
   const provider = String(model?.provider || model?.owned_by || 'Unknown provider');
   const normalized = provider.toLowerCase();
 
   if (normalized === 'freellmapi') return 'FreeLLMAPI';
-  if (normalized === 'openrouter') return 'OpenRouter';
+  if (normalized === 'openrouter') {
+    const id = String(model?.sourceId || model?.id || '');
+    const cleanId = id.startsWith('openrouter:') ? id.slice('openrouter:'.length) : id;
+    if (cleanId.includes('/')) {
+      const prefix = (cleanId.split('/')[0] || '').toLowerCase();
+      if (prefix.includes('google')) return 'Google';
+      if (prefix.includes('openai')) return 'OpenAI';
+      if (prefix.includes('anthropic')) return 'Anthropic';
+      if (prefix.includes('meta')) return 'Meta';
+      if (prefix.includes('deepseek')) return 'DeepSeek';
+      if (prefix.includes('mistral') || prefix.includes('codestral')) return 'Mistral';
+      if (prefix.includes('qwen') || prefix.includes('alibaba')) return 'Qwen';
+      if (prefix.includes('x-ai') || prefix.includes('xai')) return 'xAI';
+      if (prefix.includes('cohere')) return 'Cohere';
+      if (prefix.includes('nvidia')) return 'Nvidia';
+      if (prefix.includes('baidu')) return 'Baidu';
+      if (prefix.includes('tencent')) return 'Tencent';
+    }
+    return 'OpenRouter';
+  }
   return provider;
 }
 
