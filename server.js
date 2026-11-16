@@ -851,101 +851,92 @@ export function createApp({
       });
     }
 
-    const request = requestAbortSignal(req, res, Math.min(timeoutMs, 30000));
+    const warnings = [];
+
+    async function discoverModels(label, url, headers, key) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, 20000));
+      const abortOnDisconnect = () => controller.abort();
+      req.once('aborted', abortOnDisconnect);
+      res.once('close', abortOnDisconnect);
+
+      try {
+        const response = await fetchImpl(url, { headers, signal: controller.signal });
+        const body = await response.text();
+
+        if (!response.ok) {
+          warnings.push(safeUpstreamMessage(body, response.status, key, label));
+          return [];
+        }
+
+        let result;
+        try {
+          result = JSON.parse(body);
+        } catch {
+          warnings.push(label + ' returned an invalid model list.');
+          return [];
+        }
+        if (!Array.isArray(result?.data)) {
+          warnings.push(label + ' returned an invalid model list.');
+          return [];
+        }
+        return result.data.filter(model => model && typeof model.id === 'string');
+      } catch (error) {
+        warnings.push(
+          error?.name === 'AbortError'
+            ? label + ' did not respond in time.'
+            : 'Could not connect to ' + label + '.'
+        );
+        return [];
+      } finally {
+        clearTimeout(timer);
+        req.removeListener('aborted', abortOnDisconnect);
+        res.removeListener('close', abortOnDisconnect);
+      }
+    }
 
     try {
       const models = [];
+
       if (requestApiKey) {
-        const response = await fetchImpl(
-          `${upstreamBase}/models?available=true`,
-          {
-            headers: { Authorization: `Bearer ${requestApiKey}` },
-            signal: request.controller.signal
-          }
-        );
-        const body = await response.text();
-
-        if (!response.ok) {
-          return res.status(response.status).json({
-            error: {
-              message: safeUpstreamMessage(body, response.status, requestApiKey)
-            }
-          });
-        }
-
-        let result;
-        try {
-          result = JSON.parse(body);
-        } catch {
-          return res.status(502).json({
-            error: { message: 'FreeLLMAPI returned an invalid model list.' }
-          });
-        }
-        if (!Array.isArray(result?.data)) {
-          return res.status(502).json({
-            error: { message: 'FreeLLMAPI returned an invalid model list.' }
-          });
-        }
-        models.push(...result.data.filter(model => model && typeof model.id === 'string'));
+        models.push(...await discoverModels(
+          'FreeLLMAPI',
+          upstreamBase + '/models?available=true',
+          { Authorization: 'Bearer ' + requestApiKey },
+          requestApiKey
+        ));
       }
 
       if (openRouterKey) {
-        const response = await fetchImpl(
-          `${openRouterUpstreamBase}/models/user`,
+        const openRouterModels = await discoverModels(
+          'OpenRouter',
+          openRouterUpstreamBase + '/models/user',
           {
-            headers: {
-              Authorization: `Bearer ${openRouterKey}`,
-              'X-OpenRouter-Title': 'iamhujju'
-            },
-            signal: request.controller.signal
+            Authorization: 'Bearer ' + openRouterKey,
+            'X-OpenRouter-Title': 'iamhujju'
+          },
+          openRouterKey
+        );
+        models.push(...openRouterModels.map(openRouterModel));
+      }
+
+      if (models.length === 0) {
+        if (res.destroyed) return;
+        return res.status(503).json({
+          error: {
+            message: warnings.join(' ')
+              || 'No models could be discovered. Check your provider configuration.'
           }
-        );
-        const body = await response.text();
-
-        if (!response.ok) {
-          return res.status(response.status).json({
-            error: {
-              message: safeUpstreamMessage(
-                body,
-                response.status,
-                openRouterKey,
-                'OpenRouter'
-              )
-            }
-          });
-        }
-
-        let result;
-        try {
-          result = JSON.parse(body);
-        } catch {
-          return res.status(502).json({
-            error: { message: 'OpenRouter returned an invalid model list.' }
-          });
-        }
-        if (!Array.isArray(result?.data)) {
-          return res.status(502).json({
-            error: { message: 'OpenRouter returned an invalid model list.' }
-          });
-        }
-        models.push(
-          ...result.data
-            .filter(model => model && typeof model.id === 'string')
-            .map(openRouterModel)
-        );
+        });
       }
 
       res.set('Cache-Control', 'no-store').json({ object: 'list', data: models });
     } catch {
       if (!res.headersSent && !res.destroyed) {
-        const status = request.timedOut ? 504 : 502;
-        const message = request.timedOut
-          ? 'A configured model provider did not respond in time.'
-          : 'Could not connect to a configured model provider.';
-        res.status(status).json({ error: { message } });
+        res.status(502).json({
+          error: { message: 'Could not discover models from the configured providers.' }
+        });
       }
-    } finally {
-      request.cleanup();
     }
   });
 
