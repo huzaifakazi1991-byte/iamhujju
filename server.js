@@ -1056,13 +1056,31 @@ export function createApp({
     }
   });
 
-  app.use(express.static(DIST_DIRECTORY, { index: false }));
+  // Cache-busted immutable assets; never cache index.html or service worker.
+  app.use(
+    express.static(DIST_DIRECTORY, {
+      index: false,
+      etag: false,
+      setHeaders: (res, filePath) => {
+        if (/\.html$/.test(filePath) || filePath.endsWith("sw.js")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      }
+    })
+  );
 
-  app.get('/{*splat}', (req, res, next) => {
-    if (req.path === '/api' || req.path.startsWith('/api/')) {
+  app.get("/{*splat}", (req, res, next) => {
+    if (req.path === "/api" || req.path.startsWith("/api/")) {
       return next();
     }
 
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(INDEX_FILE, error => {
       if (error) next(error);
     });

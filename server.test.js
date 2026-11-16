@@ -29,7 +29,7 @@ async function createTestStores(t, encryptionSecret = 'test-encryption-secret-th
   });
   const { Pool } = memory.adapters.createPg();
   const pool = new Pool();
-  await migrateDatabase(pool);
+  await migrateDatabase(pool, { skipVector: true });
   t.after(() => pool.end());
   return {
     pool,

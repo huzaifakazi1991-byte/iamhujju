@@ -1,0 +1,28 @@
+# iamhujju — Render Web Service blueprint
+# https://github.com/render-community/render/tree/main/examples
+# Deploy with: render.yaml deploy --output-url
+# Or the Render dashboard: New Web Service → Import from GitHub
+
+apiVersion: render.com/v1
+kind: web
+name: iamhujju
+region: oregon
+plan: free
+runtime: node
+branch: main
+buildCommand: npm ci && npm run build
+startCommand: npm run start:api
+envVars:
+  - key: DATABASE_URL
+    fromDatabase:
+      databaseName: iamhujju
+  - key: API_KEY_ENCRYPTION_SECRET
+    sync: false
+  - key: FREELLMAPI_BASE_URL
+    sync: false
+  - key: FREELLMAPI_KEY
+    sync: false
+  - key: APP_ORIGIN
+    sync: false
+  - key: ALLOW_SHARED_FREELLMAPI_KEY
+    sync: false

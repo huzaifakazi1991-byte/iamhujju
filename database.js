@@ -112,7 +112,7 @@ export const defaultDatabase = {
   }
 };
 
-export async function migrateDatabase(pool = getDatabasePool()) {
+export async function migrateDatabase(pool = getDatabasePool(), { skipVector = false } = {}) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -142,26 +142,29 @@ export async function migrateDatabase(pool = getDatabasePool()) {
     }
 
     if (currentVersion < 2) {
-      try { await client.query('CREATE EXTENSION IF NOT EXISTS vector'); } catch (e) { console.warn('Vector extension not supported, skipping.'); }
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS document_chunks (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          conversation_id TEXT NOT NULL,
-          content TEXT NOT NULL,
-          embedding vector(1536),
-          metadata JSONB,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS document_chunks_conversation_idx
-          ON document_chunks (conversation_id);
-      `);
+      if (!skipVector) {
+        try { await client.query('CREATE EXTENSION IF NOT EXISTS vector'); } catch (e) { console.warn('Vector extension not supported, skipping.'); }
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS document_chunks (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            conversation_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            embedding vector(1536),
+            metadata JSONB,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS document_chunks_conversation_idx
+            ON document_chunks (conversation_id);
+        `);
+      }
       await client.query(
         'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
         [2]
       );
     }
 
+    await client.query('COMMIT');
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});

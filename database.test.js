@@ -32,7 +32,7 @@ async function createTestDatabase() {
   });
   const { Pool } = memory.adapters.createPg();
   const pool = new Pool();
-  await migrateDatabase(pool);
+  await migrateDatabase(pool, { skipVector: true });
   return { memory, pool };
 }
 
@@ -42,7 +42,7 @@ test('PostgreSQL schema migration is repeatable and records its version', async 
 
   await migrateDatabase(pool);
   const result = await pool.query('SELECT version FROM schema_migrations');
-  assert.deepEqual(result.rows.map(row => row.version), [1]);
+  assert.deepEqual(result.rows.map(row => row.version), [1, 2]);
 });
 
 test('account store hashes passwords and sessions and encrypts provider keys', async t => {
