@@ -112,7 +112,7 @@ async function responseErrorMessage(response, fallback) {
 
 function App() {
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('auto');
+  const [selectedModel, setSelectedModel] = useState('openrouter:openrouter/free');
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -260,11 +260,28 @@ function App() {
       }
 
       setModels(available);
-      setSelectedModel(current =>
-        available.some(model => model.id === current)
-          ? current
-          : available[0].id
+
+      const checkFree = m => Boolean(
+        m.isFree ||
+        m.tier === 'free' ||
+        m.id?.includes(':free') ||
+        m.id === 'openrouter:openrouter/free' ||
+        m.id === 'openrouter:openrouter/auto' ||
+        m.id === 'auto'
       );
+      const defaultAutoModel =
+        available.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free') ||
+        available.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto') ||
+        available.find(checkFree) ||
+        available[0];
+
+      setSelectedModel(current => {
+        const found = available.find(model => model.id === current);
+        if (found && checkFree(found)) {
+          return current;
+        }
+        return defaultAutoModel ? defaultAutoModel.id : available[0].id;
+      });
       setConnected(true);
       setError('');
       return true;
@@ -419,9 +436,65 @@ function App() {
     navigateToView('chat');
   }
 
+  const isFreeTierUser = !currentUser?.hasOpenRouterKey && (!currentUser || currentUser.tier === 'free');
+
+  function isModelFree(modelOrId) {
+    if (!modelOrId) return false;
+    const model = typeof modelOrId === 'string'
+      ? models.find(m => m.id === modelOrId)
+      : modelOrId;
+    if (model) {
+      return Boolean(
+        model.isFree ||
+        model.tier === 'free' ||
+        model.id?.includes(':free') ||
+        model.id === 'openrouter:openrouter/free' ||
+        model.id === 'openrouter:openrouter/auto' ||
+        model.id === 'auto'
+      );
+    }
+    const id = String(modelOrId);
+    return id.endsWith(':free') || id === 'openrouter:openrouter/free' || id === 'openrouter/free' || id === 'auto';
+  }
+
+  function getAutoFreeModelId() {
+    return (
+      models.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free')?.id ||
+      models.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto')?.id ||
+      models.find(isModelFree)?.id ||
+      'openrouter:openrouter/free'
+    );
+  }
+
+  const chatModelOptions = useMemo(() => {
+    if (isFreeTierUser) {
+      const freeList = models.filter(isModelFree);
+      return freeList.length ? freeList : models;
+    }
+    return models;
+  }, [models, isFreeTierUser]);
+
+  useEffect(() => {
+    if (chatModelOptions.length > 0 && !chatModelOptions.some(m => m.id === selectedModel)) {
+      const fallback =
+        chatModelOptions.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free') ||
+        chatModelOptions.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto') ||
+        chatModelOptions[0];
+      if (fallback) {
+        setSelectedModel(fallback.id);
+      }
+    }
+  }, [chatModelOptions, selectedModel]);
+
   function openChatFromHome(modelId) {
     if (modelId && models.some(model => model.id === modelId)) {
-      setSelectedModel(modelId);
+      if (isFreeTierUser && !isModelFree(modelId)) {
+        setSelectedModel(getAutoFreeModelId());
+      } else {
+        setSelectedModel(modelId);
+      }
+    } else if (isFreeTierUser && !isModelFree(selectedModel)) {
+      setSelectedModel(getAutoFreeModelId());
     }
     setError('');
     navigateToView('chat');
@@ -434,7 +507,14 @@ function App() {
     setRequestedModelId(null);
     loadChatsForUser(user.id);
     loadModels();
-    if (modelId) openChatFromHome(modelId);
+    const isFree = !user || user.tier === 'free';
+    if (modelId && (!isFree || isModelFree(modelId))) {
+      openChatFromHome(modelId);
+    } else {
+      const autoFree = getAutoFreeModelId();
+      setSelectedModel(autoFree);
+      openChatFromHome(autoFree);
+    }
   }
 
   async function handleLogout() {
@@ -1088,15 +1168,20 @@ function App() {
               id="model-select"
               value={selectedModel}
               onChange={e => setSelectedModel(e.target.value)}
-              disabled={!models.length || loading}
-              aria-label="Select a FreeLLMAPI model"
+              disabled={!chatModelOptions.length || loading}
+              aria-label="Select an AI model"
             >
-              {models.map(model => (
+              {chatModelOptions.map(model => (
                 <option key={model.id} value={model.id}>
                   {model.name || model.id}
-                  {model.provider === 'openrouter' ? ' - OpenRouter' : ''}
+                  {isModelFree(model) ? ' (100% Free)' : ''}
                 </option>
               ))}
+              {isFreeTierUser && (
+                <option value="__pro_locked__" disabled>
+                  ── 400+ Pro Models (Connect Key in Account) ──
+                </option>
+              )}
             </select>
 
             <button

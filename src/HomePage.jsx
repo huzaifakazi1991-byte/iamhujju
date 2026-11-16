@@ -557,16 +557,23 @@ function HomePage({
           <div className="any-hero-grid">
             {/* Mascot Showcase Card (Referencing Image 3 Marked Area) */}
             <div className="any-hero-mascot-card" aria-label="iamhujju AI Companion Mascot">
-              <div className="any-mascot-outer-ring">
+              <div
+                className="any-mascot-outer-ring"
+                onClick={() => openChat(selectedModel)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter') openChat(selectedModel); }}
+                title="Click to start chatting with your AI Companion"
+              >
                 <div className="any-mascot-inner-container">
                   <img
-                    src="/mascot.jpg"
+                    src="/iamhujju-mascot.jpg"
                     alt="iamhujju mascot - Your AI Companion"
                     className="any-mascot-visual"
                   />
                   <div className="any-mascot-badge">
                     <span className="any-mascot-pulse" />
-                    <span>Free AI Engine</span>
+                    <span>AI Companion Online</span>
                   </div>
                 </div>
               </div>
