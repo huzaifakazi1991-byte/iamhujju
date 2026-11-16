@@ -985,8 +985,8 @@ export function createApp({
       });
     }
 
-    const usesOpenRouter = body.model.startsWith('openrouter:');
-    const sourceModel = usesOpenRouter
+    const usesOpenRouter = body.model.startsWith('openrouter:') || body.model.startsWith('openrouter/');
+    const sourceModel = body.model.startsWith('openrouter:')
       ? body.model.slice('openrouter:'.length)
       : body.model;
     if (!sourceModel) {
