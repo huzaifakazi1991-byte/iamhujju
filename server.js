@@ -222,6 +222,7 @@ export function createApp({
   apiBase = process.env.FREELLMAPI_BASE_URL || DEFAULT_API_BASE,
   apiKey = process.env.FREELLMAPI_KEY || '',
   allowSharedGatewayKey = process.env.ALLOW_SHARED_FREELLMAPI_KEY === 'true',
+  serverOpenRouterKey = process.env.OPENROUTER_API_KEY || '',
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
@@ -845,7 +846,8 @@ export function createApp({
     const user = await getCurrentUser(req);
     const requestApiKey = await getApiKeyForRequest(req);
     const openRouterKey = user ? await getOpenRouterKeyForUser(user.id) : null;
-    if (!requestApiKey && !openRouterKey) {
+    const effectiveOpenRouterKey = openRouterKey || serverOpenRouterKey;
+    if (!requestApiKey && !effectiveOpenRouterKey) {
       return res.status(503).json({
         error: { message: 'Configure a FreeLLMAPI server key or connect a provider account.' }
       });
@@ -907,15 +909,15 @@ export function createApp({
         ));
       }
 
-      if (openRouterKey) {
+      if (effectiveOpenRouterKey) {
         const openRouterModels = await discoverModels(
           'OpenRouter',
           openRouterUpstreamBase + '/models/user',
           {
-            Authorization: 'Bearer ' + openRouterKey,
+            Authorization: 'Bearer ' + effectiveOpenRouterKey,
             'X-OpenRouter-Title': 'iamhujju'
           },
-          openRouterKey
+          effectiveOpenRouterKey
         );
         models.push(...openRouterModels.map(openRouterModel));
       }
@@ -967,7 +969,7 @@ export function createApp({
     }
 
     const requestApiKey = usesOpenRouter
-      ? await getOpenRouterKeyForUser(user.id)
+      ? (await getOpenRouterKeyForUser(user.id)) || serverOpenRouterKey
       : typeof accountStore.getApiKey === 'function'
         ? await accountStore.getApiKey(user.id) || (allowSharedGatewayKey ? apiKey : '')
         : allowSharedGatewayKey ? apiKey : '';
@@ -982,7 +984,11 @@ export function createApp({
     }
 
     const requestBody = usesOpenRouter
-      ? { ...body, model: sourceModel }
+      ? {
+          ...body,
+          model: sourceModel,
+          ...(body.max_tokens !== undefined ? { max_tokens: Math.min(Number(body.max_tokens) || 2048, 4096) } : {})
+        }
       : body;
     const providerName = usesOpenRouter ? 'OpenRouter' : 'FreeLLMAPI';
     const providerBase = usesOpenRouter ? openRouterUpstreamBase : upstreamBase;

@@ -2,14 +2,15 @@ import { Pool } from 'pg';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     password_salt TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL
+    created_at TIMESTAMPTZ NOT NULL,
+    tier TEXT NOT NULL DEFAULT 'free'
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -161,6 +162,14 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       await client.query(
         'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
         [2]
+      );
+    }
+
+    if (currentVersion < 3) {
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'free'");
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [3]
       );
     }
 

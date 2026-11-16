@@ -31,7 +31,7 @@ function validPassword(password) {
 }
 
 function publicUser(user) {
-  return { id: user.id, email: user.email };
+  return { id: user.id, email: user.email, tier: user.tier || 'free' };
 }
 
 function hashToken(token) {
@@ -229,7 +229,7 @@ export function createAccountStore({
       const normalizedEmail = validEmail(email) ? normalizeEmail(email) : '';
       const result = normalizedEmail
         ? await db.query(
-          `SELECT id, email, password_salt, password_hash
+          `SELECT id, email, password_salt, password_hash, COALESCE(tier, 'free') AS tier
            FROM users WHERE email = $1`,
           [normalizedEmail]
         )
@@ -351,7 +351,7 @@ export function createAccountStore({
     async getUserForSession(token) {
       if (typeof token !== 'string' || token.length > 128) return null;
       const result = await db.query(
-        `SELECT u.id, u.email
+        `SELECT u.id, u.email, COALESCE(u.tier, 'free') AS tier
          FROM sessions s
          JOIN users u ON u.id = s.user_id
          WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
