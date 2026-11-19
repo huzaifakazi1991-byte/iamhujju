@@ -547,11 +547,11 @@
   text-align: center;
   background-color: #070a13;
   background-image:
-    linear-gradient(180deg, rgba(7, 10, 19, 0.2) 0%, rgba(7, 10, 19, 0.45) 60%, #070a13 100%),
+    linear-gradient(rgba(7, 10, 19, 0.25) 0%, rgba(7, 10, 19, 0.55) 55%, rgb(7, 10, 19) 100%),
     url('/hero-greenery-bg.png');
-  background-position: 50% 0;
-  background-repeat: no-repeat;
-  background-size: 1440px auto;
+  background-position: 0 0, 50% 0;
+  background-repeat: repeat, no-repeat;
+  background-size: auto, cover;
   border-radius: 0;
   overflow: hidden;
   border: none;
@@ -1809,11 +1809,11 @@
   margin-top: 80px;
   background-color: #070a13;
   background-image:
-    linear-gradient(180deg, #070a13 0%, rgba(7, 10, 19, 0.25) 50%, #070a13 100%),
+    linear-gradient(rgb(7, 10, 19) 0%, rgba(7, 10, 19, 0.25) 49% 55%, rgb(7, 10, 19) 100%),
     url('/cta-horizon-bg.avif');
-  background-position: 50% 0;
-  background-repeat: no-repeat;
-  background-size: 1440px auto;
+  background-position: 0 0, 50% 50%;
+  background-repeat: repeat, no-repeat;
+  background-size: auto, cover;
   border-radius: 0;
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -3245,22 +3245,37 @@
   margin: 0;
 }
 
-/* On-Page About & Bento Grid Section */
+/* On-Page About & Bento Grid Section (Exact AnyAPI .lv_band Full-Bleed Atmosphere) */
 .any-about-home-section {
-  padding: 80px 24px 60px;
-  max-width: 1140px;
-  margin: 40px auto 0;
+  width: 100vw;
   position: relative;
-  background-color: #070a13;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  padding: 112px 0 80px;
+  margin-top: 60px;
+  background-color: #1f2333;
   background-image:
-    linear-gradient(180deg, rgba(7, 10, 19, 0.85) 0%, rgba(7, 10, 19, 0.5) 50%, #070a13 100%),
+    linear-gradient(180deg, rgba(7, 10, 19, 0.85) 0%, rgba(7, 10, 19, 0.75) 50%, rgba(7, 10, 19, 0.95) 100%),
     url('/enterprise-bg.avif');
-  background-position: 50% 50%;
-  background-repeat: no-repeat;
-  background-size: cover;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-position: 0 0, 50% 50%;
+  background-repeat: repeat, no-repeat;
+  background-size: auto, cover;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.any-about-home-section > * {
+  max-width: 1140px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+  box-sizing: border-box;
 }
 
 .any-bento-home-grid {
@@ -3550,10 +3565,11 @@
     margin-right: -16px !important;
     margin-inline: -16px !important;
     transform: none !important;
-    padding: 36px 0 24px !important;
+    padding: 56px 0 40px !important;
     box-sizing: border-box !important;
-    background-size: 900px auto !important;
-    background-position: 50% 0 !important;
+    background-size: auto, cover !important;
+    background-position: 0 0, 50% 0 !important;
+    background-repeat: repeat, no-repeat !important;
   }
   .any-hero-container {
     padding: 0 16px !important;
@@ -3839,10 +3855,27 @@
 
   /* On-Page About & Bento Grid */
   .any-about-home-section {
-    padding: 40px 16px 36px !important;
-    margin: 28px auto 0 !important;
-    border-radius: 16px !important;
-    width: 100% !important;
+    position: relative !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    width: calc(100% + 32px) !important;
+    max-width: calc(100% + 32px) !important;
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    margin-inline: -16px !important;
+    transform: none !important;
+    padding: 64px 0 40px !important;
+    margin-top: 28px !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    background-size: auto, cover !important;
+    background-position: 0 0, 50% 50% !important;
+    background-repeat: repeat, no-repeat !important;
+  }
+  .any-about-home-section > * {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
   }
   .any-bento-home-grid {
     grid-template-columns: 1fr !important;
@@ -3879,11 +3912,12 @@
     margin-right: -16px !important;
     margin-inline: -16px !important;
     transform: none !important;
-    padding: 48px 0 !important;
+    padding: 56px 0 !important;
     margin-top: 36px !important;
     box-sizing: border-box !important;
-    background-size: 900px auto !important;
-    background-position: 50% 0 !important;
+    background-size: auto, cover !important;
+    background-position: 0 0, 50% 50% !important;
+    background-repeat: repeat, no-repeat !important;
   }
   .any-cta-inner {
     padding: 0 16px !important;
