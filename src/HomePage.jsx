@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import AccountMenu from './AccountMenu.jsx';
 import DocsModal from './DocsModal.jsx';
 import ContactModal from './ContactModal.jsx';
@@ -6,6 +6,58 @@ import AboutModal from './AboutModal.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
 import './HomePage.css';
+
+const pricingFaqs = [
+  {
+    q: "How does iamhujju intelligent model routing work?",
+    a: "iamhujju dynamically evaluates current model latency, provider uptime, and prompt complexity to automatically route your prompt to the fastest, smartest, or most cost-effective model without breaking conversation context."
+  },
+  {
+    q: "Do you markup provider token prices?",
+    a: "No. iamhujju provides direct-to-provider routing with zero predatory token markups. You get unlimited access to 100% free tier models (DeepSeek R1, Gemini 2.5 Flash, Qwen 2.5 Coder) at $0, and transparent rates across all 400+ frontier engines."
+  },
+  {
+    q: "Is my prompt data used for model training? (Zero Data Retention guarantee)",
+    a: "Absolutely not. Your prompts, completions, and files are never used to train any AI foundation model. You can also toggle Zero Data Retention (ZDR) mode at any time so conversations are not stored in cloud databases."
+  },
+  {
+    q: "How does the Side-by-Side Model Arena work?",
+    a: "The Arena submits your single prompt simultaneously across 2 to 4 independent frontier models (e.g. Claude 3.7 Sonnet, DeepSeek R1, GPT-4o, and Gemini 2.5 Pro) and streams their responses in real time side-by-side with token speed, thought traces, and response diffing."
+  },
+  {
+    q: "Can I bring my own OpenAI, Anthropic, or OpenRouter API keys?",
+    a: "Yes! iamhujju includes a dedicated client-side BYOK (Bring Your Own Keys) vault encrypted with AES-256 in your browser session so you can route queries through your own provider credentials with zero rate limits."
+  }
+];
+
+const comparisonCategories = [
+  {
+    category: "Models & Routing",
+    features: [
+      { name: "Access to 400+ AI Models", free: "Free Tier Fleet", pro: "Unlimited 400+ Fleet", team: "Unlimited Fleet + Early Access" },
+      { name: "Model Auto-Routing & Failover", free: "Standard Failover", pro: "Latency-Optimized Routing", team: "Custom Routing Policies" },
+      { name: "Side-by-Side Model Arena", free: "2 Models Parallel", pro: "Up to 4 Models Parallel", team: "Unlimited Parallel Arena" },
+      { name: "Extended Thinking Traces", free: "Included (DeepSeek R1)", pro: "Full Hybrid (Claude 3.7 & o3)", team: "Full Hybrid + Custom Budget" }
+    ]
+  },
+  {
+    category: "Developer & Integration",
+    features: [
+      { name: "OpenAI-Compatible Drop-in API", free: "Public Gateway", pro: "Dedicated API Gateway Key", team: "Team API Keys & Quotas" },
+      { name: "Rate Limits", free: "60 req / min", pro: "1,000 req / min", team: "Custom / Unlimited" },
+      { name: "Maximum Context Window", free: "Up to 1M (Gemini Flash)", pro: "Full 200k / 1M Tokens", team: "Full 1M+ & Dedicated Queue" },
+      { name: "Specialized Role Presets (Skills)", free: "Core Presets", pro: "20+ Agent Skills", team: "Custom Squad Skills & Workflows" }
+    ]
+  },
+  {
+    category: "Security & Support",
+    features: [
+      { name: "Zero Data Retention (ZDR) Option", free: "Manual Clear", pro: "1-Click ZDR Toggle", team: "Enterprise ZDR SLA" },
+      { name: "Persistent Cloud Firestore Sync", free: "Single Device", pro: "Multi-Device Realtime", team: "Shared Team Workspaces" },
+      { name: "Founder & Technical Support", free: "Telegram Community", pro: "Priority Telegram & Email", team: "24/7 Dedicated Founder Hotline" }
+    ]
+  }
+];
 
 export default function HomePage({
   models = [],
@@ -35,7 +87,8 @@ export default function HomePage({
 }) {
   // Navigation & Dropdown States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null); // 'models' | 'products' | null
+  const [openDropdown, setOpenDropdown] = useState(null); // 'models' | 'products' | 'resources' | null
+  const [openFaq, setOpenFaq] = useState(null);
 
   // Pricing & Billing Toggle
   const [pricingCycle, setPricingCycle] = useState('monthly'); // 'monthly' | 'annual'
@@ -359,7 +412,117 @@ export default function HomePage({
           {/* Desktop Navigation Mega-Menus */}
           <nav className="any-desktop-menu">
             
-            {/* 1. Models Mega-Menu */}
+            {/* 1. Products Mega-Menu */}
+            <div className="any-menu-item">
+              <button
+                type="button"
+                className={`any-menu-trigger ${openDropdown === 'products' ? 'is-active' : ''}`}
+                onClick={() => setOpenDropdown(prev => prev === 'products' ? null : 'products')}
+                aria-expanded={openDropdown === 'products'}
+              >
+                <span>Products</span>
+                <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+
+              {openDropdown === 'products' && (
+                <div className="any-mega-dropdown">
+                  <div className="any-dropdown-header">
+                    <span className="any-dropdown-eyebrow">PLATFORM CAPABILITIES</span>
+                    <span className="any-dropdown-meta">AnyAPI Architecture</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); onOpenChat(selectedModel); }}
+                  >
+                    <div className="any-row-icon cyan-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 9h6"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title-wrap">
+                        <span className="any-row-title">LLM Gateway / Unified API</span>
+                        <span className="any-badge-pill popular">Popular</span>
+                        <span className="any-badge-pill v2">v2.0</span>
+                      </div>
+                      <div className="any-row-desc">One endpoint for 400+ foundational AI models with drop-in OpenAI compatibility.</div>
+                    </div>
+                  </button>
+
+                  <a
+                    href="#routing"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#routing')}
+                  >
+                    <div className="any-row-icon emerald-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Intelligent Model Routing</div>
+                      <div className="any-row-desc">Automatic fallback, latency optimization & lowest cost multi-cloud routing.</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="#arena"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#arena')}
+                  >
+                    <div className="any-row-icon violet-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Zero Completion Insurance (Arena)</div>
+                      <div className="any-row-desc">Guaranteed prompt response SLA with multi-provider real-time battle.</div>
+                    </div>
+                  </a>
+
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); onOpenSkills(); }}
+                  >
+                    <div className="any-row-icon blue-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Tool Calling & Specialized Agents</div>
+                      <div className="any-row-desc">Standardized function calling, structured JSON output & 20+ role presets.</div>
+                    </div>
+                  </button>
+
+                  <a
+                    href="#studio"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#studio')}
+                  >
+                    <div className="any-row-icon amber-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Prompt Caching & Companion Studio</div>
+                      <div className="any-row-desc">Context caching to reduce cost by up to 90% across Claude & OpenAI.</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="#security"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#security')}
+                  >
+                    <div className="any-row-icon red-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Privacy Logging & Compliance</div>
+                      <div className="any-row-desc">Zero-data retention logs, AES-256 encrypted Firestore storage & BYOK.</div>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Models Mega-Menu */}
             <div className="any-menu-item">
               <button
                 type="button"
@@ -421,83 +584,6 @@ export default function HomePage({
               )}
             </div>
 
-            {/* 2. Products Mega-Menu */}
-            <div className="any-menu-item">
-              <button
-                type="button"
-                className={`any-menu-trigger ${openDropdown === 'products' ? 'is-active' : ''}`}
-                onClick={() => setOpenDropdown(prev => prev === 'products' ? null : 'products')}
-                aria-expanded={openDropdown === 'products'}
-              >
-                <span>Products</span>
-                <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
-              </button>
-
-              {openDropdown === 'products' && (
-                <div className="any-mega-dropdown">
-                  <div className="any-dropdown-header">
-                    <span className="any-dropdown-eyebrow">PLATFORM CAPABILITIES</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="any-dropdown-row"
-                    onClick={() => { setOpenDropdown(null); onOpenChat(selectedModel); }}
-                  >
-                    <div className="any-row-icon cyan-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 9h6"/></svg>
-                    </div>
-                    <div className="any-row-text">
-                      <div className="any-row-title">AnyChat Workspace (/chat)</div>
-                      <div className="any-row-desc">Unified multi-model workspace for 400+ models with zero setup barriers.</div>
-                    </div>
-                  </button>
-
-                  <a
-                    href="#arena"
-                    className="any-dropdown-row"
-                    onClick={e => handleInternalNav(e, '#arena')}
-                  >
-                    <div className="any-row-icon violet-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
-                    </div>
-                    <div className="any-row-text">
-                      <div className="any-row-title">Side-by-Side Model Arena</div>
-                      <div className="any-row-desc">Compare responses from 2–4 models simultaneously on one prompt.</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="#routing"
-                    className="any-dropdown-row"
-                    onClick={e => handleInternalNav(e, '#routing')}
-                  >
-                    <div className="any-row-icon emerald-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    </div>
-                    <div className="any-row-text">
-                      <div className="any-row-title">Smart Auto-Routing</div>
-                      <div className="any-row-desc">Automatically pick the fastest or smartest model for your prompt.</div>
-                    </div>
-                  </a>
-
-                  <a
-                    href="#studio"
-                    className="any-dropdown-row"
-                    onClick={e => handleInternalNav(e, '#studio')}
-                  >
-                    <div className="any-row-icon amber-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    </div>
-                    <div className="any-row-text">
-                      <div className="any-row-title">Prompt & Companion Studio</div>
-                      <div className="any-row-desc">Custom system instructions, saved personas, and reusable agent workflows.</div>
-                    </div>
-                  </a>
-                </div>
-              )}
-            </div>
-
             {/* 3. Pricing Anchor Link */}
             <a
               href="#pricing"
@@ -516,16 +602,87 @@ export default function HomePage({
               Docs
             </a>
 
-            {/* 5. Security Anchor Link */}
-            <a
-              href="#security"
-              className="any-menu-link"
-              onClick={e => handleInternalNav(e, '#security')}
-            >
-              Security
-            </a>
+            {/* 5. Resources Dropdown */}
+            <div className="any-menu-item">
+              <button
+                type="button"
+                className={`any-menu-trigger ${openDropdown === 'resources' ? 'is-active' : ''}`}
+                onClick={() => setOpenDropdown(prev => prev === 'resources' ? null : 'resources')}
+                aria-expanded={openDropdown === 'resources'}
+              >
+                <span>Resources</span>
+                <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
 
-            {/* About Modal Trigger */}
+              {openDropdown === 'resources' && (
+                <div className="any-mega-dropdown">
+                  <div className="any-dropdown-header">
+                    <span className="any-dropdown-eyebrow">DEVELOPER ECOSYSTEM</span>
+                    <span className="any-dropdown-meta">Community & Live Telemetry</span>
+                  </div>
+
+                  <a
+                    href="https://t.me/+919975649957"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="any-dropdown-row"
+                    onClick={() => setOpenDropdown(null)}
+                  >
+                    <div className="any-row-icon cyan-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Community & Telegram</div>
+                      <div className="any-row-desc">Direct technical support and announcements via Telegram (+919975649957).</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="#analytics"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#analytics')}
+                  >
+                    <div className="any-row-icon emerald-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Platform Status & Telemetry</div>
+                      <div className="any-row-desc">Live model availability, latency metrics, and real-time health checks.</div>
+                    </div>
+                  </a>
+
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); onOpenSkills(); }}
+                  >
+                    <div className="any-row-icon violet-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">20+ Specialized Agent Skills</div>
+                      <div className="any-row-desc">Pre-configured prompts for code review, architecture, and reasoning.</div>
+                    </div>
+                  </button>
+
+                  <a
+                    href="#docs"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#docs')}
+                  >
+                    <div className="any-row-icon blue-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Integration & SDK Guides</div>
+                      <div className="any-row-desc">Drop-in cURL, Python, and JavaScript OpenAI SDK code examples.</div>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* 6. About Modal Trigger */}
             <button
               type="button"
               className="any-menu-link"
@@ -598,7 +755,7 @@ export default function HomePage({
         {mobileMenuOpen && (
           <div className="any-nav-mobile-drawer">
             <div className="mobile-drawer-col">
-              <span className="mobile-drawer-eyebrow">Platform Navigation</span>
+              <span className="mobile-drawer-eyebrow">Products & Platform</span>
               <button
                 type="button"
                 className="mobile-drawer-link"
@@ -621,11 +778,27 @@ export default function HomePage({
                 Side-by-Side Model Arena
               </a>
               <a
+                href="#routing"
+                className="mobile-drawer-link"
+                onClick={e => handleInternalNav(e, '#routing')}
+              >
+                Intelligent Model Routing
+              </a>
+              <button
+                type="button"
+                className="mobile-drawer-link"
+                onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}
+              >
+                20+ Specialized Agent Skills
+              </button>
+
+              <span className="mobile-drawer-eyebrow mt-3">Plans & Developer Guides</span>
+              <a
                 href="#pricing"
                 className="mobile-drawer-link"
                 onClick={e => handleInternalNav(e, '#pricing')}
               >
-                Pricing Plans
+                Pricing Plans & Comparison
               </a>
               <a
                 href="#docs"
@@ -635,11 +808,20 @@ export default function HomePage({
                 Documentation & Guides
               </a>
               <a
+                href="https://t.me/+919975649957"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mobile-drawer-link"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Telegram Community & Support
+              </a>
+              <a
                 href="#security"
                 className="mobile-drawer-link"
                 onClick={e => handleInternalNav(e, '#security')}
               >
-                Enterprise Security
+                Enterprise Security & Privacy
               </a>
               <button
                 type="button"
@@ -1457,6 +1639,88 @@ export default function HomePage({
               </button>
             </div>
 
+          </div>
+
+          {/* Detailed Feature Comparison Table (matching AnyAPI /pricing) */}
+          <div className="pricing-comparison-wrap">
+            <div className="pricing-table-head text-center">
+              <span className="any-eyebrow text-cyan">IN-DEPTH BREAKDOWN</span>
+              <h3 className="pricing-table-title">Full Feature & Limit Comparison</h3>
+              <p className="pricing-table-sub">Compare plan parameters, concurrency, latency SLAs, and enterprise privacy guarantees.</p>
+            </div>
+
+            <div className="spotlight-card pricing-table-card" onMouseMove={handleSpotlightMove}>
+              <div className="pricing-table-overflow">
+                <table className="pricing-matrix-table">
+                  <thead>
+                    <tr>
+                      <th className="th-feature">Platform Features</th>
+                      <th className="th-plan">Free Starter</th>
+                      <th className="th-plan th-highlight">Pro Companion</th>
+                      <th className="th-plan">Team & Power User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisonCategories.map(cat => (
+                      <Fragment key={cat.category}>
+                        <tr className="tr-category">
+                          <td colSpan={4}>{cat.category}</td>
+                        </tr>
+                        {cat.features.map(feat => (
+                          <tr key={feat.name} className="tr-feature">
+                            <td className="td-feature-name">{feat.name}</td>
+                            <td className="td-val">{feat.free}</td>
+                            <td className="td-val td-highlight">{feat.pro}</td>
+                            <td className="td-val">{feat.team}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Expandable FAQ Accordion (matching AnyAPI FAQ) */}
+          <div className="pricing-faq-wrap">
+            <div className="pricing-table-head text-center">
+              <span className="any-eyebrow text-emerald">ANSWERS & CLARITY</span>
+              <h3 className="pricing-table-title">Frequently Asked Questions</h3>
+              <p className="pricing-table-sub">Everything you need to know about billing, model routing, zero data retention, and BYOK credentials.</p>
+            </div>
+
+            <div className="faq-accordion-list">
+              {pricingFaqs.map((faq, index) => {
+                const isOpen = openFaq === index;
+                return (
+                  <div
+                    key={faq.q}
+                    className={`spotlight-card faq-accordion-card ${isOpen ? 'is-open' : ''}`}
+                    onMouseMove={handleSpotlightMove}
+                  >
+                    <button
+                      type="button"
+                      className="faq-question-btn"
+                      onClick={() => setOpenFaq(prev => prev === index ? null : index)}
+                      aria-expanded={isOpen}
+                    >
+                      <span className="faq-question-text">{faq.q}</span>
+                      <span className="faq-toggle-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          {isOpen ? <path d="M5 12h14" /> : <path d="M12 5v14M5 12h14" />}
+                        </svg>
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="faq-answer-block">
+                        <p>{faq.a}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
         </div>

@@ -4,20 +4,27 @@
    ============================================================== */
 
 :root {
-  --brand-bg: #09090b;
-  --brand-surface: #0e121d;
-  --brand-card: #121624;
+  /* Exact AnyAPI Cyberpunk Obsidian Design Tokens */
+  --base-color-dark--background: #020712;
+  --base-color-brand--black: #00020a;
+  --brand-bg: #020712;
+  --brand-surface: rgba(2, 7, 18, 0.75);
+  --brand-card: rgba(255, 255, 255, 0.02);
   --brand-border: rgba(255, 255, 255, 0.08);
-  --brand-border-hover: rgba(0, 242, 254, 0.4);
-  --brand-cyan: #00f2fe;
-  --brand-cyan-glow: rgba(0, 242, 254, 0.25);
-  --brand-blue: #0284c7;
-  --brand-violet: #7956d8;
+  --brand-border-glow: rgba(0, 194, 255, 0.25);
+  --brand-border-hover: rgba(0, 240, 255, 0.6);
+  --brand-cyan: #00f0ff;
+  --brand-cyan-glow: #00c2ff;
+  --brand-blue: #0084ff;
+  --brand-purple: #7928ca;
+  --brand-magenta: #ff0080;
+  --brand-violet: #7928ca;
   --brand-emerald: #10b981;
   --brand-amber: #f59e0b;
   --text-white: #ffffff;
   --text-slate: #94a3b8;
   --text-muted: #64748b;
+  --text-accent: #00f0ff;
 }
 
 /* 1. Root & Layered Obsidian Canvas Styling */
@@ -26,7 +33,7 @@
   width: 100%;
   background-color: var(--brand-bg);
   color: #f1f5f9;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
   position: relative;
 }
@@ -35,35 +42,31 @@
   box-sizing: border-box;
 }
 
-/* Layered Architectural Dot-Matrix & Hairline Grid */
+/* Layered Architectural Micro-Grid (Exact AnyAPI 40px grid with radial mask) */
 .any-grid-overlay {
   position: absolute;
   inset: 0;
   background-image: 
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 24px 24px, 72px 72px, 72px 72px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 25%, #000 25%, transparent 85%);
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 25%, #000 25%, transparent 85%);
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Multi-Layered Soft Ambient Hero Radial Glow */
+/* Multi-Layered Ambient Hero Radial Glow (Exact AnyAPI Blur Flare) */
 .hero-ambient-glow {
   position: absolute;
-  top: -160px;
+  top: -150px;
   left: 50%;
   transform: translateX(-50%);
-  width: 1100px;
+  width: 900px;
   max-width: 100vw;
-  height: 640px;
-  background: 
-    radial-gradient(circle at 50% 30%, rgba(0, 242, 254, 0.15) 0%, transparent 55%),
-    radial-gradient(circle at 30% 45%, rgba(121, 86, 216, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 70% 45%, rgba(16, 185, 129, 0.09) 0%, transparent 50%);
-  filter: blur(85px);
+  height: 600px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 194, 255, 0.18) 0%, rgba(0, 132, 255, 0.08) 50%, rgba(2, 7, 18, 0) 100%);
+  filter: blur(90px);
   pointer-events: none;
   z-index: 0;
 }
@@ -517,22 +520,23 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, var(--brand-cyan), var(--brand-blue));
-  color: #07090e;
-  font-size: 14px;
+  background: var(--brand-cyan);
+  color: #00020a;
+  font-size: 13.5px;
   font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 9px;
+  padding: 8px 18px;
+  border-radius: 9999px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 0 18px rgba(0, 242, 254, 0.3);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.35);
   transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
 }
 
 .any-btn-workspace-cta:hover {
+  background: #33f3ff;
   transform: translateY(-1px);
-  box-shadow: 0 0 24px rgba(0, 242, 254, 0.45);
-  filter: brightness(1.05);
+  box-shadow: 0 0 28px rgba(0, 240, 255, 0.55);
+  filter: brightness(1.08);
 }
 
 .any-btn-workspace-cta svg {
@@ -1785,6 +1789,187 @@
 
 .pricing-card-cta {
   width: 100%;
+}
+
+/* Pricing Comparison Matrix & FAQ Accordion */
+.pricing-comparison-wrap {
+  margin-top: 64px;
+}
+
+.pricing-table-head {
+  margin-bottom: 32px;
+}
+
+.pricing-table-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  margin: 10px 0 8px;
+}
+
+.pricing-table-sub {
+  font-size: 14.5px;
+  color: var(--text-slate);
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.pricing-table-card {
+  padding: 0;
+  border-radius: 20px;
+}
+
+.pricing-table-overflow {
+  overflow-x: auto;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pricing-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13.5px;
+}
+
+.pricing-matrix-table thead th {
+  padding: 20px 24px;
+  background: rgba(2, 7, 18, 0.9);
+  border-bottom: 1px solid var(--brand-border);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-slate);
+}
+
+.pricing-matrix-table thead th.th-highlight {
+  color: var(--brand-cyan);
+  background: rgba(0, 240, 255, 0.04);
+}
+
+.pricing-matrix-table tr.tr-category td {
+  padding: 16px 24px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-cyan);
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.pricing-matrix-table tr.tr-feature td {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+}
+
+.pricing-matrix-table tr.tr-feature td.td-feature-name {
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.pricing-matrix-table tr.tr-feature td.td-highlight {
+  background: rgba(0, 240, 255, 0.02);
+  color: #00f0ff;
+  font-weight: 600;
+}
+
+.pricing-matrix-table tr.tr-feature:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* Pricing FAQ Accordion */
+.pricing-faq-wrap {
+  margin-top: 72px;
+}
+
+.faq-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.faq-accordion-card {
+  padding: 0;
+  border-radius: 14px;
+  transition: all 0.24s ease;
+}
+
+.faq-accordion-card.is-open {
+  border-color: rgba(0, 240, 255, 0.35);
+  box-shadow: 0 0 25px -5px rgba(0, 240, 255, 0.15);
+}
+
+.faq-question-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  gap: 16px;
+}
+
+.faq-toggle-icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-cyan);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.faq-answer-block {
+  padding: 0 24px 20px 24px;
+  color: var(--text-slate);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.faq-answer-block p {
+  margin: 0;
+}
+
+/* Dropdown Badge Pills */
+.any-row-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.any-badge-pill {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.any-badge-pill.popular {
+  background: rgba(0, 240, 255, 0.15);
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.any-badge-pill.v2 {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 /* ==============================================================
