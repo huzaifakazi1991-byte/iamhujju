@@ -26,6 +26,11 @@ import {
   saveConversation,
   setActiveConversation
 } from './conversationApi.js';
+import {
+  isFirebaseConfigured,
+  saveConversationToFirestore,
+  deleteConversationFromFirestore
+} from './firebase.js';
 
 function extractCodeText(node) {
   if (typeof node === 'string' || typeof node === 'number') {
@@ -365,6 +370,9 @@ function App() {
           });
           if (savedFingerprintRef.current.get(chat.id) === fingerprint) continue;
           await saveConversation(chat);
+          if (isFirebaseConfigured && ownerId) {
+            saveConversationToFirestore(ownerId, chat).catch(() => {});
+          }
           savedFingerprintRef.current.set(chat.id, fingerprint);
         }
 
@@ -561,6 +569,9 @@ function App() {
       await enqueuePersistence(ownerId, () =>
         deleteConversation(String(chatId))
       );
+      if (isFirebaseConfigured && ownerId) {
+        deleteConversationFromFirestore(ownerId, String(chatId)).catch(() => {});
+      }
       savedFingerprintRef.current.delete(String(chatId));
       setChats(previous => previous.filter(chat => String(chat.id) !== String(chatId)));
       if (String(activeChatId) === String(chatId)) {

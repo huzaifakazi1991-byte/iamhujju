@@ -515,6 +515,23 @@ export function createApp({
     res.json({ user });
   });
 
+  app.post('/api/auth/firebase-login', authRateLimiter, async (req, res) => {
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: { message: 'Valid email required for Firebase authentication.' } });
+    }
+
+    try {
+      const user = await accountStore.findOrCreateFederatedUser(email);
+      const session = await accountStore.createSession(user.id);
+      res.set('Cache-Control', 'no-store');
+      setSessionCookie(res, session.token);
+      res.json({ user });
+    } catch (error) {
+      res.status(500).json({ error: { message: error.message || 'Firebase login failed.' } });
+    }
+  });
+
   app.get('/api/auth/me', async (req, res) => {
     const user = await getCurrentUser(req);
     res.set('Cache-Control', 'no-store').json({ user });

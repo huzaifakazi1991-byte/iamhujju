@@ -252,6 +252,42 @@ export function createAccountStore({
       return publicUser(user);
     },
 
+    async findOrCreateFederatedUser(email) {
+      if (!validEmail(email)) {
+        const error = new Error('Enter a valid email address.');
+        error.code = 'INVALID_EMAIL';
+        throw error;
+      }
+
+      const normalizedEmail = normalizeEmail(email);
+      const existing = await db.query(
+        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE email = $1`,
+        [normalizedEmail]
+      );
+      if (existing.rows.length > 0) {
+        return publicUser(existing.rows[0]);
+      }
+
+      const salt = randomBytes(16).toString('hex');
+      const randomPass = randomBytes(32).toString('hex');
+      const passwordHash = scryptSync(randomPass, salt, PASSWORD_HASH_BYTES).toString('hex');
+      const user = {
+        id: randomUUID(),
+        email: normalizedEmail,
+        salt,
+        passwordHash,
+        createdAt: new Date().toISOString()
+      };
+
+      await db.query(
+        `INSERT INTO users (id, email, password_salt, password_hash, created_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [user.id, user.email, user.salt, user.passwordHash, user.createdAt]
+      );
+
+      return publicUser(user);
+    },
+
     async getApiKey(userId) {
       const encrypted = await getCredential(userId, 'freellmapi');
       return encrypted ? decryptCredential(encrypted) : null;
