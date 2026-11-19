@@ -21,13 +21,13 @@ import {
 } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ''
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAMKRuMTAuRncHciJB3NGVmepmyh9BF7cY',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'iamhujju-680e8.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'iamhujju-680e8',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'iamhujju-680e8.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1071730198353',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1071730198353:web:298b63b8db74152828f570',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-69KG8HMRSH'
 };
 
 export const isFirebaseConfigured = Boolean(
@@ -42,6 +42,9 @@ const app = !getApps().length
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 // Authentication helpers
 export async function signInWithGoogle() {
