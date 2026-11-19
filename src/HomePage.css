@@ -517,6 +517,18 @@
   padding-top: 56px;
   padding-bottom: 80px;
   text-align: center;
+  position: relative;
+  background-image:
+    linear-gradient(180deg, rgba(7, 10, 19, 0.45) 0%, rgba(7, 10, 19, 0.75) 55%, #070a13 100%),
+    url('/hero-greenery-bg.png');
+  background-position: 0 0, 50% 0;
+  background-repeat: repeat, no-repeat;
+  background-size: auto, cover;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  margin-top: 16px;
 }
 
 .any-announcement-wrapper {
@@ -1710,12 +1722,18 @@
 }
 
 .any-cta-inner {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(3, 7, 18, 0.95) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  background-color: #070a13;
+  background-image:
+    linear-gradient(180deg, rgba(7, 10, 19, 0.8) 0%, rgba(7, 10, 19, 0.25) 50%, rgba(7, 10, 19, 0.95) 100%),
+    url('/cta-horizon-bg.avif');
+  background-position: 0 0, 50% 50%;
+  background-repeat: repeat, no-repeat;
+  background-size: auto, cover;
+  border: 1px solid rgba(0, 212, 255, 0.35);
   border-radius: 24px;
   padding: 64px 32px;
   text-align: center;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 50px rgba(0, 242, 254, 0.15);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 50px rgba(0, 212, 255, 0.2);
   position: relative;
   overflow: hidden;
 }
@@ -3115,7 +3133,17 @@
 .any-about-home-section {
   padding: 80px 24px 60px;
   max-width: 1140px;
-  margin: 0 auto;
+  margin: 40px auto 0;
+  position: relative;
+  background-image:
+    linear-gradient(180deg, rgba(7, 10, 19, 0.88) 0%, rgba(7, 10, 19, 0.65) 50%, #070a13 100%),
+    url('/enterprise-bg.avif');
+  background-position: 0 0, 50% 50%;
+  background-repeat: repeat, no-repeat;
+  background-size: auto, cover;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
 .any-bento-home-grid {
