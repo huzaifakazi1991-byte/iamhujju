@@ -1045,8 +1045,9 @@ function HomePage({
       <main className="any-main">
         {/* HERO SECTION */}
         <section className="any-hero" aria-labelledby="hero-title">
-          {/* Release announcement pill */}
-          <div className="any-announcement-wrapper">
+          <div className="any-hero-container">
+            {/* Release announcement pill */}
+            <div className="any-announcement-wrapper">
             <button
               type="button"
               className="any-announcement-pill"
@@ -1417,7 +1418,8 @@ function HomePage({
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
         {/* PROVIDER LOGO TICKER */}
         <section className="any-partners-section">
