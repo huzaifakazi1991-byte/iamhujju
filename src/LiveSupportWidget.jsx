@@ -253,7 +253,7 @@ You can manage your custom provider keys, check rate limits, or sign out via the
 
 I am your 24/7 in-app AI assistant! Ask me any question about models, code, setup, or features, and I'll guide you directly.
 
-[[action:models|🚀 Explore Models]] [[action:chat|⚡ Launch AnyChat]] [[action:contact|✉️ Contact Founder]]`;
+[[action:about|ℹ️ About iamhujju]] [[action:contact|✉️ Contact Founder]] [[action:models|🚀 Explore Models]] [[action:chat|⚡ Launch AnyChat]]`;
   }
 
   return `I'm your **iamhujju Copilot**! I can help you with anything across the platform:
@@ -279,6 +279,7 @@ export default function LiveSupportWidget({
   onOpenDocs,
   onOpenAuth,
   onOpenContact,
+  onOpenAbout,
   onScrollTo,
   selectedModel = 'openrouter:openrouter/free',
   connected = true,
@@ -352,6 +353,9 @@ Ask me any question or tell me where you'd like to navigate!
         if (onOpenContact) onOpenContact();
         else window.location.href = 'mailto:huzaifakazi1991@gmail.com';
         break;
+      case 'about':
+        if (onOpenAbout) onOpenAbout();
+        break;
       case 'telegram':
         window.open('https://t.me/+919975649957', '_blank', 'noopener,noreferrer');
         break;
@@ -392,6 +396,10 @@ Ask me any question or tell me where you'd like to navigate!
     }
     if (/^(take me to|navigate to|go to|open|show me|surf)\s+(contact|contact us|contacts)/i.test(q)) {
       if (onOpenContact) onOpenContact();
+      return true;
+    }
+    if (/^(take me to|navigate to|go to|open|show me|surf)\s+(about|about us|story|team|creator)/i.test(q)) {
+      if (onOpenAbout) onOpenAbout();
       return true;
     }
     if (/^(sign in|log in|sign me in|open login|register|sign up)/i.test(q)) {

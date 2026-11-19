@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
 import DocsModal from './DocsModal.jsx';
 import ContactModal from './ContactModal.jsx';
+import AboutModal from './AboutModal.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
 import './HomePage.css';
@@ -362,6 +363,7 @@ function HomePage({
   const [docsTab, setDocsTab] = useState('quickstart');
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownCloseTimeoutRef = useRef(null);
@@ -906,7 +908,7 @@ function HomePage({
             <button
               className="any-nav-link-btn"
               type="button"
-              onClick={() => scrollToSection('about')}
+              onClick={() => setAboutOpen(true)}
             >
               About
             </button>
@@ -998,7 +1000,7 @@ function HomePage({
               <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSavedChats(); }}>
                 Saved Chats
               </button>
-              <button type="button" onClick={() => scrollToSection('about')}>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); setAboutOpen(true); }}>
                 About
               </button>
             </div>
@@ -1808,36 +1810,95 @@ function HomePage({
           </div>
         </section>
 
-        {/* FEATURE SECTION 3: 3 KEY PILLARS */}
-        <section className="any-pillars-section" id="about">
-          <div className="any-pillars-grid">
-            <div className="any-pillar-card">
-              <div className="pillar-icon-box">
-                <Icon name="shield" size={24} />
+        {/* ABOUT & WHY BUILDERS LOVE IAMHUJJU (BENTO GRID & METRICS) */}
+        <section className="any-about-home-section" id="about">
+          <div className="any-section-header">
+            <span className="any-eyebrow">THE FUTURE OF AI INTEGRATION</span>
+            <h2>Why builders love iamhujju</h2>
+            <p className="any-section-sub">
+              One powerful toolkit that handles everything. Ship smarter, scale faster, connect anything.
+            </p>
+          </div>
+
+          <div className="any-bento-home-grid">
+            <div className="any-bento-home-card bento-wide">
+              <span className="bento-badge-tag">INFRASTRUCTURE</span>
+              <h3>Reliability at Scale</h3>
+              <p>APIs should never fail your users. Multi-region routing, automatic fallbacks, and drop-in streaming SDKs keep your flows running smoothly.</p>
+              <div className="bento-home-chips">
+                <span>Multi-region routing (EU / US / ASIA)</span>
+                <span>Automatic fallbacks</span>
+                <span>Python & Node.js streaming</span>
               </div>
-              <h3>Zero Data Retention</h3>
-              <p>
-                Your prompts, API keys, and private data are never trained on. Storage is isolated to your private Neon PostgreSQL instance.
-              </p>
             </div>
-            <div className="any-pillar-card">
-              <div className="pillar-icon-box">
-                <Icon name="zap" size={24} />
+
+            <div className="any-bento-home-card">
+              <span className="bento-badge-tag">CAPABILITIES</span>
+              <h3>Advanced Capabilities</h3>
+              <p>Finetuned models, Computer Use automation, RAG vector stores, tool calling, and structured JSON.</p>
+              <div className="bento-home-chips">
+                <span>Finetuned models</span>
+                <span>Computer Use</span>
+                <span>RAG</span>
               </div>
-              <h3>Smart Auto-Routing</h3>
-              <p>
-                The intelligent auto-router directs your request to the highest-performing available free model with sub-second failover.
-              </p>
             </div>
-            <div className="any-pillar-card">
-              <div className="pillar-icon-box">
-                <Icon name="cpu" size={24} />
+
+            <div className="any-bento-home-card">
+              <span className="bento-badge-tag security-tag">SECURITY</span>
+              <h3>Enterprise Security</h3>
+              <p>AES-256 encrypted provider keys, isolated Neon PostgreSQL databases, and 100% zero model training.</p>
+              <div className="bento-home-chips">
+                <span>AES-256</span>
+                <span>Neon PostgreSQL</span>
+                <span>Zero Training</span>
               </div>
-              <h3>Extend with Pro Models</h3>
-              <p>
-                Start 100% free with 18+ high-speed models. When you need GPT-5 or Claude 3.7 Pro, simply connect your personal provider key.
-              </p>
             </div>
+
+            <div className="any-bento-home-card bento-wide">
+              <span className="bento-badge-tag future-tag">ROADMAP</span>
+              <h3>Future Ready</h3>
+              <p>Built for what comes next: Multi-Agent swarms, shared context memory, intelligent auto-routing, and AnyChat Mobile.</p>
+              <div className="bento-home-chips">
+                <span>🤖 Multi-Agent Systems</span>
+                <span>🔄 Shared Context</span>
+                <span>⚡ Auto-Routing</span>
+                <span>📱 AnyChat Mobile</span>
+              </div>
+            </div>
+          </div>
+
+          {/* AI That Never Sleeps Metric Counters */}
+          <div className="any-home-metrics-row">
+            <div className="home-metric-card">
+              <span className="metric-val">99.9%</span>
+              <strong>Service Availability</strong>
+              <p>Enterprise reliability every second of the day.</p>
+            </div>
+            <div className="home-metric-card">
+              <span className="metric-val">&lt;50ms</span>
+              <strong>Lightning Fast</strong>
+              <p>Ultra-low gateway latency for production.</p>
+            </div>
+            <div className="home-metric-card">
+              <span className="metric-val">AES-256</span>
+              <strong>Hardware Security</strong>
+              <p>Encrypted keys and private DB isolation.</p>
+            </div>
+            <div className="home-metric-card">
+              <span className="metric-val">400+</span>
+              <strong>Models Available</strong>
+              <p>Every frontier and open weight AI in one API.</p>
+            </div>
+          </div>
+
+          <div className="any-about-home-cta-row">
+            <button
+              type="button"
+              className="any-about-explore-btn"
+              onClick={() => setAboutOpen(true)}
+            >
+              📖 Explore Full Story & Team
+            </button>
           </div>
         </section>
 
@@ -1983,6 +2044,7 @@ function HomePage({
             </div>
             <div className="footer-col">
               <h4>Platform</h4>
+              <button type="button" onClick={() => setAboutOpen(true)}>About iamhujju</button>
               <button type="button" onClick={refreshModels}>Gateway Status</button>
               <button type="button" onClick={onOpenApiKeys}>API Keys</button>
               <button type="button" onClick={onOpenIntegrations}>Integrations</button>
@@ -2022,6 +2084,7 @@ function HomePage({
           setAuthOpen(true);
         }}
         onOpenContact={() => setContactOpen(true)}
+        onOpenAbout={() => setAboutOpen(true)}
         onScrollTo={(id) => scrollToSection(id)}
         selectedModel={selectedModel}
         connected={connected}
@@ -2074,6 +2137,18 @@ function HomePage({
       <ContactModal
         isOpen={contactOpen}
         onClose={() => setContactOpen(false)}
+        onOpenDocs={(tab) => {
+          setDocsTab(tab || 'quickstart');
+          setDocsOpen(true);
+        }}
+      />
+
+      {/* AnyAPI About Modal */}
+      <AboutModal
+        isOpen={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+        onStartBuilding={() => openChat(selectedModel)}
+        onOpenContact={() => setContactOpen(true)}
         onOpenDocs={(tab) => {
           setDocsTab(tab || 'quickstart');
           setDocsOpen(true);
