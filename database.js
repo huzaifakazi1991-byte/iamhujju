@@ -144,7 +144,7 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
 
     if (currentVersion < 2) {
       if (!skipVector) {
-        try { await client.query('CREATE EXTENSION IF NOT EXISTS vector'); } catch (e) { console.warn('Vector extension not supported, skipping.'); }
+        try { await client.query('CREATE EXTENSION IF NOT EXISTS vector'); } catch { console.warn('Vector extension not supported, skipping.'); }
         await client.query(`
           CREATE TABLE IF NOT EXISTS document_chunks (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

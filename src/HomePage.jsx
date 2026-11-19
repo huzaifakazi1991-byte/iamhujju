@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
 import './HomePage.css';
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 function Icon({ name, size = 20 }) {
   const paths = {
     search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.2 4.2" /></>,
@@ -282,9 +284,9 @@ function HomePage({
   models,
   modelsLoading,
   connected,
-  error,
+  error: _error,
   selectedModel,
-  chatCount,
+  chatCount: _chatCount,
   authChecking,
   currentUser,
   storageError,
@@ -1401,7 +1403,7 @@ function HomePage({
               Your Personal AI Companion · One API & Workspace for every model.
             </p>
             <p className="any-footer-copy">
-              © {new Date().getFullYear()} iamhujju.com · All rights reserved.
+              © {CURRENT_YEAR} iamhujju.com · All rights reserved.
             </p>
           </div>
 

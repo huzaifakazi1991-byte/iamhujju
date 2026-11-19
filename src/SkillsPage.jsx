@@ -491,7 +491,7 @@ export default function SkillsPage({
       </main>
 
       <footer className="skills-footer">
-        <span>iamhujju · Local AI workspace</span>
+        <span>iamhujju · One Workspace for 400+ Models</span>
         <span>{chatCount} saved {chatCount === 1 ? 'conversation' : 'conversations'} on this device</span>
         <button type="button" onClick={onOpenHome}>Back to Explore</button>
       </footer>

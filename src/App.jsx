@@ -438,7 +438,7 @@ function App() {
 
   const isFreeTierUser = !currentUser?.hasOpenRouterKey && (!currentUser || currentUser.tier === 'free');
 
-  function isModelFree(modelOrId) {
+  const isModelFree = useCallback((modelOrId) => {
     if (!modelOrId) return false;
     const model = typeof modelOrId === 'string'
       ? models.find(m => m.id === modelOrId)
@@ -455,16 +455,16 @@ function App() {
     }
     const id = String(modelOrId);
     return id.endsWith(':free') || id === 'openrouter:openrouter/free' || id === 'openrouter/free' || id === 'auto';
-  }
+  }, [models]);
 
-  function getAutoFreeModelId() {
+  const getAutoFreeModelId = useCallback(() => {
     return (
       models.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free')?.id ||
       models.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto')?.id ||
       models.find(isModelFree)?.id ||
       'openrouter:openrouter/free'
     );
-  }
+  }, [models, isModelFree]);
 
   const chatModelOptions = useMemo(() => {
     if (isFreeTierUser) {
@@ -472,7 +472,7 @@ function App() {
       return freeList.length ? freeList : models;
     }
     return models;
-  }, [models, isFreeTierUser]);
+  }, [models, isFreeTierUser, isModelFree]);
 
   useEffect(() => {
     if (chatModelOptions.length > 0 && !chatModelOptions.some(m => m.id === selectedModel)) {
@@ -1144,7 +1144,7 @@ function App() {
             <span className={connected ? 'status-dot online' : 'status-dot'} />
             {connected ? 'API Connected' : 'API Disconnected'}
           </div>
-          <span className="version">Local AI Workspace - v1.0</span>
+          <span className="version">iamhujju AI Workspace · v2.0</span>
         </div>
       </aside>
 
