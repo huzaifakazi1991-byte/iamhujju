@@ -1957,9 +1957,25 @@ function HomePage({
       <LiveSupportWidget
         isOpen={liveSupportOpen}
         onToggle={() => setLiveSupportOpen(prev => !prev)}
-        onOpenFullChat={() => openChat(selectedModel)}
+        onOpenFullChat={(modelId) => openChat(modelId || selectedModel)}
+        onOpenModels={() => onOpenModels()}
+        onOpenSkills={onOpenSkills}
+        onOpenSavedChats={onOpenSavedChats}
+        onOpenDocs={(tab) => {
+          setDocsTab(tab || 'quickstart');
+          setDocsOpen(true);
+        }}
+        onOpenAuth={(mode = 'login') => {
+          setAuthMode(mode);
+          setAuthError('');
+          setPendingModelId(null);
+          setAuthOpen(true);
+        }}
+        onScrollTo={(id) => scrollToSection(id)}
         selectedModel={selectedModel}
         connected={connected}
+        currentUser={currentUser}
+        models={models}
       />
 
       {/* Storage and Toast Notifications */}

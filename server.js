@@ -1153,6 +1153,226 @@ export function createApp({
     }
   });
 
+  const supportRequestSchema = z.object({
+    message: z.string().trim().min(1).max(3000),
+    history: z.array(z.object({
+      role: z.enum(['user', 'assistant', 'system']),
+      content: z.string().max(4000)
+    })).max(30).optional()
+  });
+
+  app.post('/api/support/chat', chatRateLimiter, async (req, res) => {
+    const body = validatedBody(
+      supportRequestSchema,
+      req,
+      res,
+      'Request must include a non-empty message string.'
+    );
+    if (!body) return;
+
+    const userMessage = body.message;
+    const history = body.history || [];
+
+    const systemInstruction = `You are iamhujju Copilot, the official interactive AI assistant and website navigator for iamhujju (https://iamhujju.com).
+Your mission is to provide comprehensive help, answer queries about any subject related to iamhujju, and guide/navigate users through the platform.
+
+PLATFORM KNOWLEDGE:
+- Purpose: One AI Workspace for 400+ Models. Switch between providers instantly, test prompts side-by-side, access a drop-in OpenAI-compatible API, and run models from the terminal.
+- 400+ Models: Google Gemini (2.5 Flash, 2.5 Flash Lite, 2.5 Pro), OpenAI (GPT-4o, GPT-4o mini, o1, o3-mini), Anthropic (Claude 3.5 Sonnet, 3.5 Haiku), DeepSeek (V3, R1), Meta Llama (3.3 70B, 3.1 8B), Qwen 2.5, Mistral Large.
+- 100% Free Tier: 18+ fast free models ready out of the box with zero configuration or API keys needed (Gemini 2.5 Flash, DeepSeek V3, Llama 3.3 70B, Qwen 2.5).
+- Pro Models (BYOK): For models requiring paid credits, users can enter their personal OpenRouter or FreeLLMAPI key in Account settings (encrypted with AES-256-GCM).
+- Unified API: Accessible at https://iamhujju.com/api/chat/completions. 100% drop-in replacement for OpenAI SDK (baseURL: 'https://iamhujju.com/api').
+- AnyChat Playground: Interactive developer workspace to test prompts, compare model outputs side-by-side, inspect reasoning and latency, and tune parameters.
+- AnyCLI: Command-line interface to chat with models and manage configurations from the terminal: \`npx iamhujju chat --model "auto"\`.
+- Skills Catalog: 34+ curated AI developer and agent orchestration skills.
+- Data Persistence & Privacy: Dual-sync architecture with private Neon PostgreSQL and Cloud Firestore (iamhujju-680e8). Zero prompt training, strict isolated schemas, OWASP compliance.
+- Authentication: Firebase Google Sign-In and email/password with secure session cookies.
+- Pricing: 100% Free tier available forever; transparent per-token pricing on BYOK for Pro models.
+- Creator & Support: Founded and created by Huzaifa Kazi (huzaifakazi1991@gmail.com).
+
+ACTION TAGS:
+Whenever your reply recommends or points the user to a section, modal, or feature, ALWAYS append one or more relevant action tags at the end of your response:
+- [[action:models|🚀 Open Model Hub]]
+- [[action:chat|⚡ Open AnyChat Playground]]
+- [[action:pricing|💰 View Pricing Details]]
+- [[action:docs:quickstart|📖 API Documentation]]
+- [[action:docs:cli|💻 AnyCLI Terminal Setup]]
+- [[action:skills|🛠️ Skills Catalog]]
+- [[action:saved|☁️ Saved Chats]]
+- [[action:auth|🔐 Sign In to Workspace]]
+- [[action:scroll:about|ℹ️ About Platform]]
+- [[action:scroll:unified-api-section|⚡ Unified API Architecture]]
+
+Answer concisely, helpfully, and with markdown formatting.`;
+
+    const activeKey = serverOpenRouterKey || (allowSharedGatewayKey ? apiKey : '');
+    const upstreamUrl = serverOpenRouterKey
+      ? `${openRouterUpstreamBase}/chat/completions`
+      : `${upstreamBase}/chat/completions`;
+
+    if (activeKey) {
+      try {
+        const payload = {
+          model: serverOpenRouterKey ? 'openrouter/free' : 'google/gemini-2.5-flash:free',
+          messages: [
+            { role: 'system', content: systemInstruction },
+            ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: userMessage }
+          ],
+          max_tokens: 800,
+          temperature: 0.7
+        };
+
+        const response = await fetchImpl(upstreamUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${activeKey}`
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(12000)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = data?.choices?.[0]?.message?.content;
+          if (content) {
+            return res.json({ reply: content });
+          }
+        }
+      } catch {
+        // Fall back to knowledge base below
+      }
+    }
+
+    const reply = generateSmartSupportReply(userMessage);
+    return res.json({ reply });
+  });
+
+  function generateSmartSupportReply(query = '') {
+    const q = String(query).toLowerCase().trim();
+
+    if (q.includes('model') || q.includes('free') || q.includes('gemini') || q.includes('deepseek') || q.includes('claude') || q.includes('gpt') || q.includes('llama')) {
+      return `iamhujju gives you unified access to over **400+ AI models** from every top provider.
+
+**100% Free Models (Ready to use instantly with 0 setup):**
+• **Google Gemini 2.5 Flash** — Ultra-fast (~140ms), 1M+ token context window, multimodal
+• **DeepSeek V3 & R1** — State-of-the-art coding and math reasoning
+• **Meta Llama 3.3 70B** — Top-tier open weights intelligence
+• **Qwen 2.5 72B** — Excellent multilingual code and chat synthesis
+
+**Pro Models (Bring-Your-Own-Key):**
+You can connect your personal OpenRouter key in Account settings to use Claude 3.5 Sonnet, GPT-4o, and o3 with direct pass-through pricing and 0% markup.
+
+[[action:models|🚀 Open Model Hub]] [[action:chat|⚡ Try Models in AnyChat]]`;
+    }
+
+    if (q.includes('price') || q.includes('cost') || q.includes('plan') || q.includes('bill') || q.includes('tier') || q.includes('subscription')) {
+      return `**Pricing on Your Terms — 100% Transparent:**
+
+• **Free Tier ($0/month forever):** Instant access to 18+ fast AI models without entering a credit card or API key.
+• **Bring-Your-Own-Key (BYOK):** Connect your personal provider keys in your Account menu. Pay only wholesale provider token rates directly.
+• **No Markup or Hidden Fees:** We never charge surcharges on top of upstream provider rates.
+
+[[action:pricing|💰 View Pricing Details]] [[action:docs:pricing|📖 Per-Token Documentation]]`;
+    }
+
+    if (q.includes('api') || q.includes('sdk') || q.includes('openai') || q.includes('curl') || q.includes('python') || q.includes('node') || q.includes('code')) {
+      return `**Drop-in OpenAI SDK Compatibility:**
+
+You can integrate iamhujju into any app or script by pointing the standard OpenAI SDK to our endpoint:
+
+\`\`\`javascript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  baseURL: 'https://iamhujju.com/api',
+  apiKey: process.env.IAMHUJJU_API_KEY || 'your-key'
+});
+
+const response = await client.chat.completions.create({
+  model: 'openrouter/free',
+  messages: [{ role: 'user', content: 'Hello iamhujju!' }]
+});
+console.log(response.choices[0].message.content);
+\`\`\`
+
+[[action:docs:quickstart|📖 View Quickstart & cURL]] [[action:scroll:unified-api-section|⚡ Unified API Architecture]]`;
+    }
+
+    if (q.includes('cli') || q.includes('terminal') || q.includes('command') || q.includes('npx')) {
+      return `**AnyCLI — Run AI from Your Terminal:**
+
+Chat with models and manage configurations directly from your command line without installing dependencies:
+
+\`\`\`bash
+# Launch interactive chat with the fastest free model
+npx iamhujju chat --model "auto"
+
+# Test a prompt with custom temperature
+npx iamhujju chat -m "google/gemini-2.5-flash" -p "Summarize README"
+\`\`\`
+
+[[action:docs:cli|💻 AnyCLI Terminal Setup]] [[action:scroll:anycli-section|🖥️ Terminal Features]]`;
+    }
+
+    if (q.includes('skill') || q.includes('mcp') || q.includes('agent') || q.includes('tool')) {
+      return `**Skills & Agent Orchestrator:**
+
+iamhujju includes a catalog of **34+ curated AI developer skills** and MCP (Model Context Protocol) tool integrations:
+• Automated codebase audits and refactoring
+• Multi-database migrations and query tuning
+• Real-time web search and live verification
+• OWASP security scanning & vulnerability checks
+
+[[action:skills|🛠️ Browse Skills Catalog]]`;
+    }
+
+    if (q.includes('database') || q.includes('privacy') || q.includes('security') || q.includes('firestore') || q.includes('neon') || q.includes('postgre') || q.includes('train')) {
+      return `**Privacy & Dual-Persistence Architecture:**
+
+• **Zero Data Retention / Training:** Your prompts and files are strictly private and never used to train models.
+• **Neon PostgreSQL:** Stores account credentials encrypted with AES-256-GCM and isolates session tokens.
+• **Cloud Firestore:** Automatically mirrors your conversation history across devices under \`users/{userId}/conversations/{chatId}\`.
+
+[[action:saved|☁️ View Saved Chats]] [[action:scroll:about|ℹ️ Security Architecture]]`;
+    }
+
+    if (q.includes('sign in') || q.includes('login') || q.includes('auth') || q.includes('google') || q.includes('account') || q.includes('signup') || q.includes('register')) {
+      return `**Authentication & Account Access:**
+
+• **Google Sign-In:** 1-click sign in via Firebase Google Authentication.
+• **Email & Password:** Secure password hashing with session cookie protection.
+• **Dual Database Sync:** Logging in links your Neon PostgreSQL account with Cloud Firestore for instant cross-device continuity.
+
+[[action:auth|🔐 Sign In to Workspace]]`;
+    }
+
+    if (q.includes('who') || q.includes('creator') || q.includes('founder') || q.includes('huzaifa') || q.includes('contact') || q.includes('support') || q.includes('help')) {
+      return `**iamhujju Support & Community:**
+
+• **Founder & Engineer:** Huzaifa Kazi
+• **Email:** \`huzaifakazi1991@gmail.com\` / \`support@iamhujju.com\`
+• **Website:** https://iamhujju.com
+
+I am your 24/7 in-app AI assistant! Ask me any question about models, code, setup, or features, and I'll guide you directly.
+
+[[action:models|🚀 Explore Models]] [[action:chat|⚡ Launch AnyChat]]`;
+    }
+
+    return `I'm your **iamhujju Copilot**! I can help you with anything related to the platform:
+
+• **Explore 400+ Models:** Benchmark bars, context sizes, and free tier auto-routing.
+• **AnyChat Playground:** Test prompts and compare model responses side-by-side.
+• **Unified API & SDKs:** Drop-in OpenAI compatibility for Node.js, Python, and cURL.
+• **AnyCLI:** Run AI straight from your terminal.
+• **Skills Catalog:** 34+ AI orchestrator and agent skills.
+
+What would you like to explore or do right now?
+
+[[action:models|🚀 Open Model Hub]] [[action:chat|⚡ Open AnyChat Playground]] [[action:pricing|💰 View Pricing]] [[action:docs:quickstart|📖 API Docs]]`;
+  }
+
   // Cache-busted immutable assets; never cache index.html or service worker.
   app.use(
     express.static(DIST_DIRECTORY, {

@@ -120,6 +120,27 @@
   color: #fff;
 }
 
+.live-support-icon-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.live-support-icon-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .live-support-close-btn {
   background: transparent;
   border: none;
@@ -198,6 +219,79 @@
   word-break: break-word;
 }
 
+.live-msg-bubble-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-msg-p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.live-msg-gap {
+  height: 6px;
+}
+
+.live-inline-code {
+  background: rgba(0, 242, 254, 0.12);
+  color: #38bdf8;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+}
+
+.live-msg-code {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: #38bdf8;
+  line-height: 1.4;
+}
+
+.live-msg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.live-action-pill {
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.35);
+  color: #00f2fe;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+
+.live-action-pill:hover {
+  background: #00f2fe;
+  color: #030712;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.5);
+}
+
+.live-action-pill:active {
+  transform: translateY(0);
+}
+
 .live-msg-bubble.is-loading {
   display: flex;
   align-items: center;
@@ -250,27 +344,29 @@
 
 .live-quick-pills {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
 .live-quick-pill {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   color: #cbd5e1;
-  font-size: 12px;
-  padding: 7px 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 6px 10px;
   border-radius: 8px;
   text-align: left;
   cursor: pointer;
   transition: all 0.15s ease;
+  font-family: inherit;
 }
 
 .live-quick-pill:hover {
   background: rgba(0, 242, 254, 0.12);
-  border-color: rgba(0, 242, 254, 0.3);
+  border-color: rgba(0, 242, 254, 0.35);
   color: #00f2fe;
-  transform: translateX(3px);
+  transform: translateY(-1px);
 }
 
 .live-support-footer {
