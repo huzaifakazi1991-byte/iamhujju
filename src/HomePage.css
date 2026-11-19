@@ -3337,8 +3337,16 @@
   .any-nav-links {
     display: none !important;
   }
+  .any-nav-tools .any-nav-contact-btn,
+  .any-nav-tools .any-btn-dashboard,
   .any-nav-contact-btn {
     display: none !important;
+  }
+  .any-nav-tools {
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0 !important;
   }
   .any-nav-mobile-toggle {
     display: inline-flex !important;
@@ -3354,12 +3362,6 @@
     border-radius: 10px !important;
     color: #ffffff !important;
     cursor: pointer !important;
-  }
-  .any-btn-dashboard {
-    padding: 7px 12px !important;
-    font-size: 13px !important;
-    gap: 4px !important;
-    border-radius: 999px !important;
   }
   .any-brand-text {
     font-size: 17px !important;
@@ -3491,19 +3493,26 @@
     padding: 0 4px !important;
   }
   .any-hero-actions {
+    display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
     gap: 12px !important;
     margin-bottom: 20px !important;
   }
+  .any-hero-actions button,
+  .any-hero-actions .any-btn-primary,
+  .any-hero-actions .any-btn-secondary,
   .any-btn-primary,
   .any-btn-secondary {
     width: 100% !important;
     height: 48px !important;
     min-height: 48px !important;
+    display: inline-flex !important;
+    align-items: center !important;
     justify-content: center !important;
     font-size: 15px !important;
     border-radius: 12px !important;
+    box-sizing: border-box !important;
   }
   .any-hero-trust {
     font-size: 12px !important;
@@ -3786,25 +3795,36 @@
     padding: 0 4px !important;
   }
   .any-cta-buttons {
+    display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
     gap: 12px !important;
     margin-bottom: 32px !important;
   }
-  .any-cta-buttons button {
+  .any-cta-buttons button,
+  .any-cta-buttons .any-btn-primary,
+  .any-cta-buttons .any-btn-secondary {
     width: 100% !important;
     height: 48px !important;
     min-height: 48px !important;
+    display: inline-flex !important;
+    align-items: center !important;
     justify-content: center !important;
     font-size: 15px !important;
     border-radius: 12px !important;
+    box-sizing: border-box !important;
   }
   .any-cta-cards-grid {
+    display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 14px !important;
     margin-top: 28px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   .any-cta-glass-card {
+    width: 100% !important;
+    box-sizing: border-box !important;
     padding: 22px 16px !important;
   }
 
