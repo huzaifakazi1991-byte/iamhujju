@@ -422,6 +422,57 @@
   cursor: not-allowed;
 }
 
+/* Floating Launcher Button */
+.any-floating-chat-bubble {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #090e18;
+  border: 2px solid rgba(0, 242, 254, 0.45);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 242, 254, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  flex-shrink: 0;
+}
+
+.any-floating-chat-bubble:hover {
+  transform: scale(1.08);
+  border-color: #00f2fe;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.8), 0 0 28px rgba(0, 242, 254, 0.55);
+}
+
+.any-floating-chat-bubble.is-active {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.any-floating-mascot-img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.any-floating-online-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #090e18;
+  box-shadow: 0 0 8px #10b981;
+}
+
 /* Floating Launcher Tooltip Badge */
 .any-floating-label {
   position: absolute;
@@ -454,27 +505,36 @@
 @media (max-width: 480px) {
   .live-support-wrapper {
     bottom: 16px;
-    right: 12px;
-    left: 12px;
-    align-items: stretch;
+    right: 14px;
+    left: auto;
+    align-items: flex-end;
   }
 
   .live-support-window {
-    width: 100%;
-    max-width: 100%;
+    position: fixed;
+    bottom: 76px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+    max-width: calc(100vw - 28px);
     height: 75vh;
-    max-height: calc(100vh - 84px);
+    max-height: calc(100vh - 96px);
     border-radius: 16px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
   }
 
-  .live-support-fab {
+  .any-floating-chat-bubble {
+    width: 50px !important;
+    height: 50px !important;
     align-self: flex-end;
-    width: 52px;
-    height: 52px;
+  }
+
+  .any-floating-mascot-img {
+    width: 50px !important;
+    height: 50px !important;
   }
 
   .any-floating-label {
-    display: none;
+    display: none !important;
   }
 }
