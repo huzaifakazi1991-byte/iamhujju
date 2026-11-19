@@ -285,17 +285,35 @@ export function createApp({
       directives: {
         defaultSrc: ["'self'"],
         baseUri: ["'self'"],
-        connectSrc: ["'self'"],
+        connectSrc: [
+          "'self'",
+          'https://*.googleapis.com',
+          'https://*.firebaseio.com',
+          'https://*.firebaseapp.com'
+        ],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         formAction: ["'self'"],
         frameAncestors: ["'none'"],
-        imgSrc: ["'self'", 'data:', 'blob:'],
+        frameSrc: [
+          "'self'",
+          'https://iamhujju-680e8.firebaseapp.com',
+          'https://*.firebaseapp.com',
+          'https://accounts.google.com'
+        ],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://*.googleusercontent.com',
+          'https://lh3.googleusercontent.com'
+        ],
         objectSrc: ["'none'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", 'https://apis.google.com'],
         scriptSrcAttr: ["'none'"],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']
       }
     },
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     frameguard: { action: 'deny' },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
   }));
