@@ -1421,10 +1421,6 @@ What would you like to explore or do right now?
     })
   );
 
-  app.get('/standalone-landing.html', (req, res) => {
-    return res.redirect(301, '/');
-  });
-
   app.get("/{*splat}", (req, res, next) => {
     if (req.path === "/api" || req.path.startsWith("/api/")) {
       return next();
