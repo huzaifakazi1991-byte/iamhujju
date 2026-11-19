@@ -108,7 +108,7 @@ export default function LiveSupportWidget({
           <header className="live-support-header">
             <div className="live-support-header-brand">
               <div className="live-support-avatar">
-                <img src="/mascot.jpg" alt="iamhujju mascot" />
+                <img src="/copilot.jpg" alt="iamhujju copilot" />
                 <span className={`live-support-status-dot ${connected ? 'is-online' : ''}`} />
               </div>
               <div className="live-support-header-info">
@@ -145,7 +145,7 @@ export default function LiveSupportWidget({
               {messages.map(msg => (
                 <div key={msg.id} className={`live-msg-row ${msg.role === 'user' ? 'is-user' : 'is-bot'}`}>
                   {msg.role === 'assistant' && (
-                    <img src="/mascot.jpg" alt="AI" className="live-msg-avatar" />
+                    <img src="/copilot.jpg" alt="AI" className="live-msg-avatar" />
                   )}
                   <div className="live-msg-bubble">
                     <p>{msg.content}</p>
@@ -154,7 +154,7 @@ export default function LiveSupportWidget({
               ))}
               {loading && (
                 <div className="live-msg-row is-bot">
-                  <img src="/mascot.jpg" alt="AI" className="live-msg-avatar" />
+                  <img src="/copilot.jpg" alt="AI" className="live-msg-avatar" />
                   <div className="live-msg-bubble is-loading">
                     <span className="live-typing-dot" />
                     <span className="live-typing-dot" />
@@ -219,7 +219,7 @@ export default function LiveSupportWidget({
         aria-label={isOpen ? 'Close Live AI Support' : 'Open Live AI Support'}
         title="Live AI Copilot · Ask Me Anything!"
       >
-        <img src="/mascot.jpg" alt="iamhujju mascot" className="any-floating-mascot-img" />
+        <img src="/copilot.jpg" alt="iamhujju copilot" className="any-floating-mascot-img" />
         <span className="any-floating-online-dot" />
         {!isOpen && (
           <span className="any-floating-label">
