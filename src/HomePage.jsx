@@ -360,6 +360,10 @@ function HomePage({
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsTab, setDocsTab] = useState('quickstart');
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const dropdownCloseTimeoutRef = useRef(null);
+  const navRef = useRef(null);
   const searchRef = useRef(null);
   const featuredModels = useMemo(() => getFeaturedModels(models), [models]);
 
@@ -382,6 +386,53 @@ function HomePage({
     const timeout = window.setTimeout(() => setRefreshNotice(''), 3500);
     return () => window.clearTimeout(timeout);
   }, [refreshNotice]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (navRef.current && !navRef.current.contains(event.target)) {
+        setActiveDropdown(null);
+      }
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setActiveDropdown(null);
+        setMobileMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  function handleDropdownEnter(menu) {
+    if (dropdownCloseTimeoutRef.current) {
+      clearTimeout(dropdownCloseTimeoutRef.current);
+      dropdownCloseTimeoutRef.current = null;
+    }
+    setActiveDropdown(menu);
+  }
+
+  function handleDropdownLeave() {
+    dropdownCloseTimeoutRef.current = setTimeout(() => {
+      setActiveDropdown(null);
+    }, 180);
+  }
+
+  function toggleDropdown(menu) {
+    setActiveDropdown(prev => (prev === menu ? null : menu));
+  }
+
+  function scrollToSection(id) {
+    setActiveDropdown(null);
+    setMobileMenuOpen(false);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   async function refreshModels() {
     setRefreshNotice('Checking latest model availability…');
@@ -533,7 +584,7 @@ function HomePage({
       <div className="any-bg-glow glow-right-blue" aria-hidden="true" />
 
       {/* Top Navbar */}
-      <header className="any-nav">
+      <header className="any-nav" ref={navRef}>
         <div className="any-nav-inner">
           <button
             className="any-brand"
@@ -548,48 +599,326 @@ function HomePage({
           </button>
 
           <nav className="any-nav-links" aria-label="Main navigation">
-            <button
-              className="is-current"
-              type="button"
-              aria-current="page"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            {/* 1. Products Dropdown */}
+            <div
+              className="any-nav-dropdown-wrapper"
+              onMouseEnter={() => handleDropdownEnter('products')}
+              onMouseLeave={handleDropdownLeave}
             >
-              Explore
-            </button>
-            <button type="button" onClick={() => onOpenModels()}>
-              Models
-            </button>
-            <button type="button" onClick={onOpenSkills}>
-              Skills
-            </button>
-            <button type="button" onClick={onOpenSavedChats}>
-              Saved Chats
-            </button>
-            <button type="button" onClick={() => openChat(selectedModel)}>
-              Chat
-            </button>
+              <button
+                className={`any-nav-link-btn ${activeDropdown === 'products' ? 'is-active' : ''}`}
+                type="button"
+                aria-haspopup="true"
+                aria-expanded={activeDropdown === 'products'}
+                onClick={() => toggleDropdown('products')}
+              >
+                <span>Products</span>
+                <svg
+                  className={`any-nav-chevron ${activeDropdown === 'products' ? 'is-open' : ''}`}
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {activeDropdown === 'products' && (
+                <div className="any-dropdown-menu any-dropdown-products" role="menu">
+                  <div className="any-dropdown-header">
+                    <span className="any-dropdown-eyebrow">PLATFORM & APIS</span>
+                  </div>
+                  <div className="any-dropdown-grid">
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => scrollToSection('unified-api-section')}
+                    >
+                      <div className="dropdown-item-icon icon-cyan">
+                        <Icon name="layers" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Unified API</strong>
+                          <span className="dropdown-item-badge">400+ Models</span>
+                        </div>
+                        <p>One OpenAI-compatible endpoint for every leading LLM</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        openChat(selectedModel);
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-blue">
+                        <Icon name="chat" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>AnyChat</strong>
+                          <span className="dropdown-item-badge badge-active">Playground</span>
+                        </div>
+                        <p>Compare models side-by-side with live prompt testing</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => scrollToSection('anycli-section')}
+                    >
+                      <div className="dropdown-item-icon icon-purple">
+                        <Icon name="terminal" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>AnyCLI</strong>
+                          <span className="dropdown-item-badge">Terminal</span>
+                        </div>
+                        <p>Run models, test prompts, and manage keys from CLI</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        onOpenModels();
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-emerald">
+                        <Icon name="grid" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Model Hub</strong>
+                        </div>
+                        <p>Explore benchmarks, context windows, and filters</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => scrollToSection('anychat-section')}
+                    >
+                      <div className="dropdown-item-icon icon-amber">
+                        <Icon name="zap" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Smart Routing</strong>
+                        </div>
+                        <p>Zero-downtime auto-fallback to free tier providers</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        setLiveSupportOpen(true);
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-rose">
+                        <Icon name="sparkle" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Live AI Support</strong>
+                          <span className="dropdown-item-badge badge-new">Copilot</span>
+                        </div>
+                        <p>Live interactive assistant for instant app guidance</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Pricing */}
             <button
+              className="any-nav-link-btn"
+              type="button"
+              onClick={() => scrollToSection('pricing')}
+            >
+              Pricing
+            </button>
+
+            {/* 3. Docs */}
+            <button
+              className="any-nav-link-btn"
               type="button"
               onClick={() => {
+                setActiveDropdown(null);
                 setDocsTab('quickstart');
                 setDocsOpen(true);
               }}
             >
               Docs
             </button>
+
+            {/* 4. Resources Dropdown */}
+            <div
+              className="any-nav-dropdown-wrapper"
+              onMouseEnter={() => handleDropdownEnter('resources')}
+              onMouseLeave={handleDropdownLeave}
+            >
+              <button
+                className={`any-nav-link-btn ${activeDropdown === 'resources' ? 'is-active' : ''}`}
+                type="button"
+                aria-haspopup="true"
+                aria-expanded={activeDropdown === 'resources'}
+                onClick={() => toggleDropdown('resources')}
+              >
+                <span>Resources</span>
+                <svg
+                  className={`any-nav-chevron ${activeDropdown === 'resources' ? 'is-open' : ''}`}
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {activeDropdown === 'resources' && (
+                <div className="any-dropdown-menu any-dropdown-resources" role="menu">
+                  <div className="any-dropdown-header">
+                    <span className="any-dropdown-eyebrow">DEVELOPER RESOURCES</span>
+                  </div>
+                  <div className="any-dropdown-grid">
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        onOpenSkills();
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-cyan">
+                        <Icon name="tool" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Skills Catalog</strong>
+                          <span className="dropdown-item-badge">34+ Skills</span>
+                        </div>
+                        <p>Curated AI orchestration, tool execution, and agents</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        onOpenSavedChats();
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-purple">
+                        <Icon name="history" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Saved Chats</strong>
+                          <span className="dropdown-item-badge">Cloud Sync</span>
+                        </div>
+                        <p>Cross-device chat history synced to Firestore</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        setDocsTab('quickstart');
+                        setDocsOpen(true);
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-blue">
+                        <Icon name="code" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>API Reference & SDKs</strong>
+                        </div>
+                        <p>Drop-in cURL, Node.js, and Python code examples</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="any-dropdown-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setActiveDropdown(null);
+                        setDocsTab('cli');
+                        setDocsOpen(true);
+                      }}
+                    >
+                      <div className="dropdown-item-icon icon-emerald">
+                        <Icon name="terminal" size={18} />
+                      </div>
+                      <div className="dropdown-item-text">
+                        <div className="dropdown-item-title-row">
+                          <strong>Terminal CLI Guide</strong>
+                        </div>
+                        <p>Installation guide and terminal command reference</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 5. About */}
+            <button
+              className="any-nav-link-btn"
+              type="button"
+              onClick={() => scrollToSection('about')}
+            >
+              About
+            </button>
           </nav>
 
+          {/* Right Action Tools: Contact Us + Dashboard -> */}
           <div className="any-nav-tools">
-            <span className={`any-status-pill ${connected ? 'is-online' : ''}`}>
-              <span className="any-status-dot" />
-              {authChecking
-                ? 'Verifying'
-                : modelsLoading
-                  ? 'Connecting'
-                  : connected
-                    ? 'Online'
-                    : 'Offline'}
-            </span>
+            <button
+              className="any-nav-contact-btn"
+              type="button"
+              onClick={() => setLiveSupportOpen(true)}
+            >
+              Contact Us
+            </button>
 
             {currentUser ? (
               <AccountMenu
@@ -600,33 +929,100 @@ function HomePage({
                 onOpenApiKeys={onOpenApiKeys}
                 onOpenIntegrations={onOpenIntegrations}
               />
-            ) : (
-              <button
-                className="any-btn-text"
-                type="button"
-                onClick={() => {
-                  setAuthMode('login');
-                  setAuthError('');
-                  setPendingModelId(null);
-                  setAuthOpen(true);
-                }}
-                disabled={authChecking}
-              >
-                Sign in
-              </button>
-            )}
+            ) : null}
 
             <button
-              className="any-btn-glow"
+              className="any-btn-dashboard"
               type="button"
               onClick={() => openChat(selectedModel)}
               disabled={authChecking}
             >
-              <span>Open Chat</span>
-              <Icon name="arrow" size={16} />
+              <span>Dashboard</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </button>
+
+            {/* Mobile Hamburger Toggle */}
+            <button
+              className="any-nav-mobile-toggle"
+              type="button"
+              aria-label="Toggle mobile menu"
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {mobileMenuOpen ? (
+                  <path d="M18 6 6 18M6 6l12 12" />
+                ) : (
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="any-nav-mobile-drawer">
+            <div className="mobile-drawer-section">
+              <span className="mobile-drawer-label">Products</span>
+              <button type="button" onClick={() => scrollToSection('unified-api-section')}>
+                <Icon name="layers" size={16} /> Unified API (400+ Models)
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}>
+                <Icon name="chat" size={16} /> AnyChat Playground
+              </button>
+              <button type="button" onClick={() => scrollToSection('anycli-section')}>
+                <Icon name="terminal" size={16} /> AnyCLI Terminal
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenModels(); }}>
+                <Icon name="grid" size={16} /> Model Hub
+              </button>
+            </div>
+
+            <div className="mobile-drawer-section">
+              <span className="mobile-drawer-label">Navigation</span>
+              <button type="button" onClick={() => scrollToSection('pricing')}>
+                Pricing
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); setDocsTab('quickstart'); setDocsOpen(true); }}>
+                Docs
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}>
+                Skills Catalog
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSavedChats(); }}>
+                Saved Chats
+              </button>
+              <button type="button" onClick={() => scrollToSection('about')}>
+                About
+              </button>
+            </div>
+
+            <div className="mobile-drawer-footer">
+              <button
+                className="mobile-contact-btn"
+                type="button"
+                onClick={() => { setMobileMenuOpen(false); setLiveSupportOpen(true); }}
+              >
+                Contact Us
+              </button>
+              <button
+                className="any-btn-dashboard mobile-dash-btn"
+                type="button"
+                onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}
+              >
+                <span>Dashboard</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {authRestoreError && (
@@ -1229,7 +1625,7 @@ function HomePage({
         </section>
 
         {/* FEATURE SECTION 2: COMPARE & PROTOTYPE (IMAGE 2) */}
-        <section className="any-feature-section any-section-reverse">
+        <section className="any-feature-section any-section-reverse" id="anychat-section">
           <div className="any-feature-content-split">
             {/* Left Copy */}
             <div className="any-feature-text-block">
@@ -1312,7 +1708,7 @@ function HomePage({
         </section>
 
         {/* FEATURE SECTION 3: ANYCLI (IMAGE 3) */}
-        <section className="any-feature-section">
+        <section className="any-feature-section" id="anycli-section">
           <div className="any-feature-content-split">
             {/* Left 3D Terminal Card */}
             <div className="any-terminal-card-container">
@@ -1411,7 +1807,7 @@ function HomePage({
         </section>
 
         {/* FEATURE SECTION 3: 3 KEY PILLARS */}
-        <section className="any-pillars-section">
+        <section className="any-pillars-section" id="about">
           <div className="any-pillars-grid">
             <div className="any-pillar-card">
               <div className="pillar-icon-box">
@@ -1444,7 +1840,7 @@ function HomePage({
         </section>
 
         {/* BOTTOM CALL TO ACTION & PRICING/QUICKSTART CARDS (IMAGE 4) */}
-        <section className="any-cta-banner any-cta-landscape">
+        <section className="any-cta-banner any-cta-landscape" id="pricing">
           <div className="any-cta-inner">
             <div className="any-cta-content">
               <h2>Everything you need to build on ANY model</h2>
