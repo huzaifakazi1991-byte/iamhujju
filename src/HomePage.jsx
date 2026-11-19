@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
 import DocsModal from './DocsModal.jsx';
+import LiveSupportWidget from './LiveSupportWidget.jsx';
 import './HomePage.css';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -337,6 +338,7 @@ function HomePage({
   const [refreshNotice, setRefreshNotice] = useState('');
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsTab, setDocsTab] = useState('quickstart');
+  const [liveSupportOpen, setLiveSupportOpen] = useState(false);
   const searchRef = useRef(null);
   const featuredModels = useMemo(() => getFeaturedModels(models), [models]);
 
@@ -1487,17 +1489,14 @@ function HomePage({
         </div>
       </footer>
 
-      {/* FLOATING ACTION CHAT BUBBLE (ANYAPI STYLE) */}
-      <button
-        type="button"
-        className="any-floating-chat-bubble"
-        onClick={() => openChat(selectedModel)}
-        aria-label="Open AI Chat Assistant"
-        title="Chat with iamhujju AI"
-      >
-        <img src="/mascot.jpg" alt="iamhujju mascot" className="any-floating-mascot-img" />
-        <span className="any-floating-online-dot" />
-      </button>
+      {/* Live AI Copilot & Interactive Assistant Widget */}
+      <LiveSupportWidget
+        isOpen={liveSupportOpen}
+        onToggle={() => setLiveSupportOpen(prev => !prev)}
+        onOpenFullChat={() => openChat(selectedModel)}
+        selectedModel={selectedModel}
+        connected={connected}
+      />
 
       {/* Storage and Toast Notifications */}
       {storageError && (
