@@ -33,9 +33,15 @@ export default function HomePage({
   onOpenSkills = () => {},
   onOpenSavedChats = () => {},
 }) {
-  // Navigation & Menu States
+  // Navigation & Dropdown States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState(null);
+  const [openDropdown, setOpenDropdown] = useState(null); // 'models' | 'products' | null
+
+  // Pricing & Billing Toggle
+  const [pricingCycle, setPricingCycle] = useState('monthly'); // 'monthly' | 'annual'
+
+  // Docs Section Interactive Active Topic
+  const [activeDocsTopic, setActiveDocsTopic] = useState('getting-started');
 
   // Modals
   const [authOpen, setAuthOpen] = useState(initialAuthOpen);
@@ -73,6 +79,26 @@ export default function HomePage({
     }
   }, [authOpen]);
 
+  // Initial Hash / Path auto-scroll for #pricing, #docs, #models, #products, #security
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname;
+    const hash = window.location.hash;
+
+    const targetId = path === '/pricing' || hash === '#pricing'
+      ? 'pricing'
+      : path === '/docs' || hash === '#docs'
+      ? 'docs'
+      : hash ? hash.replace('#', '') : null;
+
+    if (targetId) {
+      const el = document.getElementById(targetId);
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 120);
+      }
+    }
+  }, []);
+
   // Click outside listener for mega-menus
   useEffect(() => {
     function handleClickOutside(e) {
@@ -84,7 +110,7 @@ export default function HomePage({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Card mouse-tracking radial spotlight effect
+  // Card Mouse-tracking Spotlight Glow
   function handleSpotlightMove(e) {
     const card = e.currentTarget;
     const rect = card.getBoundingClientRect();
@@ -94,196 +120,195 @@ export default function HomePage({
     card.style.setProperty('--mouse-y', `${y}px`);
   }
 
-  // Handle open auth modal
   function openLogin(modelId = null) {
+    setPendingModelId(modelId);
     setAuthMode('login');
     setAuthError('');
-    setPendingModelId(modelId);
     setAuthOpen(true);
-    setMobileMenuOpen(false);
-  }
-
-  function openSignup(modelId = null) {
-    setAuthMode('signup');
-    setAuthError('');
-    setPendingModelId(modelId);
-    setAuthOpen(true);
-    setMobileMenuOpen(false);
-  }
-
-  // Smooth internal scroll or navigate
-  function handleInternalNav(e, hash) {
-    e.preventDefault();
     setMobileMenuOpen(false);
     setOpenDropdown(null);
-    const target = document.querySelector(hash);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function openSignup() {
+    setAuthMode('signup');
+    setAuthError('');
+    setAuthOpen(true);
+    setMobileMenuOpen(false);
+    setOpenDropdown(null);
+  }
+
+  function handleInternalNav(e, target) {
+    if (e && e.preventDefault) e.preventDefault();
+    setMobileMenuOpen(false);
+    setOpenDropdown(null);
+    const hash = target.startsWith('#') ? target : `#${target}`;
+    const el = document.querySelector(hash);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+      const routeMap = {
+        '#pricing': '/pricing',
+        '#docs': '/docs',
+        '#models': '/models',
+        '#products': '/',
+        '#security': '/'
+      };
+      const newPath = routeMap[hash] || '/';
+      if (window.location.pathname !== newPath && typeof window !== 'undefined') {
+        window.history.pushState(null, '', newPath);
+      }
     }
   }
 
-  // Model ID lookup helper
-  function resolveModelId(slug, fallback) {
+  function resolveModel(slug, fallback) {
     if (!models || !models.length) return fallback;
     const match = models.find(m => m.id && m.id.toLowerCase().includes(slug.toLowerCase()));
     return match ? match.id : fallback;
   }
 
-  // Handle opening chat for a specific model
   function handleLaunchModel(slug, fallback) {
-    const modelId = resolveModelId(slug, fallback);
-    onOpenChat(modelId);
+    const targetModel = resolveModel(slug, fallback);
+    onOpenChat(targetModel);
   }
 
-  // Firebase Email Authentication
-  async function handleEmailAuth(e) {
-    e.preventDefault();
-    const email = authEmail.trim();
-    const password = authPassword.trim();
-    if (!email || !password) {
-      setAuthError('Please provide an email and password.');
-      return;
+  // Mega-menu Flagship Models
+  const megaMenuModels = useMemo(() => [
+    {
+      id: 'openai/gpt-4o',
+      name: 'OpenAI GPT-4o / o3-mini',
+      provider: 'OpenAI',
+      badgeClass: 'provider-openai',
+      context: '128k',
+      tags: ['Reasoning', 'Vision', 'Fast'],
+      desc: 'Multimodal flagship with high-speed tool calls.'
+    },
+    {
+      id: 'anthropic/claude-3.7-sonnet',
+      name: 'Anthropic Claude 3.7 Sonnet',
+      provider: 'Anthropic',
+      badgeClass: 'provider-anthropic',
+      context: '200k',
+      tags: ['Hybrid Reasoning', 'Coding'],
+      desc: 'Frontier hybrid reasoning and agentic code synthesizer.'
+    },
+    {
+      id: 'google/gemini-2.5-flash',
+      name: 'Google Gemini 2.5 Flash / Pro',
+      provider: 'Google',
+      badgeClass: 'provider-google',
+      context: '1M',
+      tags: ['Vision', '1M Context'],
+      desc: 'Massive multimodal context with instant streaming.'
+    },
+    {
+      id: 'deepseek/deepseek-r1',
+      name: 'DeepSeek R1 / V3',
+      provider: 'DeepSeek',
+      badgeClass: 'provider-deepseek',
+      context: '64k',
+      tags: ['Reasoning', '100% Free'],
+      desc: 'Open frontier reasoning engine with visible thought chains.'
+    },
+    {
+      id: 'x-ai/grok-4.7',
+      name: 'xAI Grok 4.7',
+      provider: 'xAI',
+      badgeClass: 'provider-xai',
+      context: '128k',
+      tags: ['Realtime', 'Unfiltered'],
+      desc: 'Real-time knowledge retrieval and direct reasoning.'
+    },
+    {
+      id: 'qwen/qwen-2.5-coder-32b',
+      name: 'Qwen 2.5 Coder 32B',
+      provider: 'Alibaba',
+      badgeClass: 'provider-qwen',
+      context: '128k',
+      tags: ['Coding', '100% Free'],
+      desc: 'Specialized code generation, refactoring, and diffs.'
+    },
+    {
+      id: 'meta-llama/llama-3.3-70b-instruct',
+      name: 'Meta LLaMA 3.3 70B',
+      provider: 'Meta',
+      badgeClass: 'provider-meta',
+      context: '128k',
+      tags: ['Open Weights', 'Fast'],
+      desc: 'Industry standard open-weights foundation model.'
     }
-    setAuthBusy(true);
-    setAuthError('');
-    try {
-      const response = await fetch(`/api/auth/${authMode}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      let result;
-      try {
-        result = await response.json();
-      } catch {
-        throw new Error(`Authentication request failed (HTTP ${response.status}).`);
-      }
-      if (!response.ok) {
-        throw new Error(result?.error?.message || `Authentication failed (HTTP ${response.status}).`);
-      }
-      setAuthOpen(false);
-      setAuthBusy(false);
-      setAuthEmail('');
-      setAuthPassword('');
-      onAuthenticated(result.user, pendingModelId);
-    } catch (err) {
-      setAuthError(err?.message || 'Authentication failed. Please check credentials.');
-    } finally {
-      setAuthBusy(false);
-    }
-  }
+  ], []);
 
-  // Firebase Google One-Click Authentication
-  async function handleGoogleAuth() {
-    setAuthBusy(true);
-    setAuthError('');
-    try {
-      const firebaseUser = await signInWithGoogle();
-      if (!firebaseUser?.email) {
-        throw new Error('Google sign-in did not return a valid email address.');
-      }
-      await syncUserProfile(firebaseUser);
-      const response = await fetch('/api/auth/firebase-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: firebaseUser.email,
-          uid: firebaseUser.uid,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL
-        })
-      });
-      let result;
-      try {
-        result = await response.json();
-      } catch {
-        throw new Error(`Backend session bridge failed (HTTP ${response.status}).`);
-      }
-      if (!response.ok) {
-        throw new Error(result?.error?.message || 'Backend session creation failed.');
-      }
-      setAuthOpen(false);
-      setAuthBusy(false);
-      onAuthenticated(result.user, pendingModelId);
-    } catch (err) {
-      setAuthError(err?.message || 'Google authentication was cancelled or failed.');
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  // Featured Models Data
+  // Featured Models Data for Homepage Grid
   const featuredModelsList = useMemo(() => [
     {
-      id: 'grok-4.7',
-      slug: 'grok',
-      fallback: 'x-ai/grok-2-1212',
-      provider: 'xAI',
-      providerClass: 'bg-white/10 text-white',
-      name: 'Grok 4.7',
-      category: 'reasoning',
-      context: '128k Context',
-      badge: '● Online Ready',
-      desc: 'Real-time web awareness with unfiltered logical deduction and deep knowledge synthesis.'
-    },
-    {
-      id: 'claude-3.7-sonnet',
-      slug: 'claude-3.7',
-      fallback: 'anthropic/claude-3.7-sonnet',
-      provider: 'Anthropic',
-      providerClass: 'bg-amber-500/10 text-amber-300',
-      name: 'Claude 3.7 Sonnet',
-      category: 'coding reasoning',
-      context: '200k Context',
-      badge: '● Online Ready',
-      desc: 'Hybrid reasoning model with elite coding benchmarks and extended thinking depth.'
-    },
-    {
       id: 'deepseek-r1',
-      slug: 'deepseek-r1',
-      fallback: 'deepseek/deepseek-r1',
+      slug: 'deepseek/deepseek-r1',
+      fallback: 'openrouter:deepseek/deepseek-r1',
       provider: 'DeepSeek',
       providerClass: 'bg-blue-500/10 text-blue-400',
       name: 'DeepSeek R1',
-      category: 'free reasoning',
-      context: 'Free Tier Ready',
-      badge: '● 100% Free',
-      desc: 'State-of-the-art open-weights reasoning model with explicit chain-of-thought verification.'
+      category: 'reasoning free',
+      context: '64k Context',
+      badge: '● 100% Free Tier',
+      desc: 'Open-weights frontier reasoning model rivaling OpenAI o1 on math, competitive coding, and complex logic with full thinking traces.'
     },
     {
-      id: 'gemini-2.5-flash',
-      slug: 'gemini',
-      fallback: 'google/gemini-2.5-flash',
-      provider: 'Google',
-      providerClass: 'bg-blue-600/10 text-[#38bdf8]',
-      name: 'Gemini 2.5 Flash',
-      category: 'free coding',
-      context: '1,000,000 Context',
-      badge: '● 100% Free',
-      desc: 'Ultra-fast multimodal processing with monumental context window for massive codebases.'
+      id: 'claude-3-7',
+      slug: 'claude-3.7-sonnet',
+      fallback: 'openrouter:anthropic/claude-3.7-sonnet',
+      provider: 'Anthropic',
+      providerClass: 'bg-amber-500/10 text-amber-400',
+      name: 'Claude 3.7 Sonnet',
+      category: 'reasoning coding',
+      context: '200k Context',
+      badge: '● Flagship Hybrid',
+      desc: 'Industry-leading hybrid reasoning architecture. Seamlessly blends instantaneous natural voice with granular extended thought chains.'
     },
     {
       id: 'gpt-4o',
       slug: 'gpt-4o',
-      fallback: 'openai/gpt-4o',
+      fallback: 'openrouter:openai/gpt-4o',
       provider: 'OpenAI',
-      providerClass: 'bg-white/10 text-white',
-      name: 'GPT-4o',
+      providerClass: 'bg-emerald-500/10 text-emerald-400',
+      name: 'GPT-4o (Omni)',
       category: 'coding reasoning',
       context: '128k Context',
-      badge: '● Online Ready',
-      desc: 'Omni-modal flagship intelligence with superior multilingual fluency and JSON output speed.'
+      badge: '● Multimodal Pro',
+      desc: 'High-speed flagship multimodal engine. Superior real-time reasoning, vision parsing, and structured JSON output.'
     },
     {
-      id: 'qwen-2.5-coder',
-      slug: 'qwen',
-      fallback: 'qwen/qwen-2.5-coder-32b-instruct',
+      id: 'gemini-2-5-flash',
+      slug: 'gemini-2.5-flash',
+      fallback: 'openrouter:google/gemini-2.5-flash',
+      provider: 'Google',
+      providerClass: 'bg-cyan-500/10 text-cyan-400',
+      name: 'Gemini 2.5 Flash',
+      category: 'free',
+      context: '1M Context',
+      badge: '● 100% Free Tier',
+      desc: 'Breakthrough 1-million token context window. Instant audio, video, code, and document understanding with near-zero latency.'
+    },
+    {
+      id: 'grok-4-7',
+      slug: 'grok',
+      fallback: 'openrouter:x-ai/grok-2',
+      provider: 'xAI',
+      providerClass: 'bg-purple-500/10 text-purple-400',
+      name: 'Grok 4.7',
+      category: 'reasoning',
+      context: '128k Context',
+      badge: '● High Speed',
+      desc: 'Uncensored real-time knowledge retrieval, witty conversational depth, and rapid mathematical synthesis.'
+    },
+    {
+      id: 'qwen-2-5-coder',
+      slug: 'qwen-2.5-coder',
+      fallback: 'openrouter:qwen/qwen-2.5-coder-32b-instruct',
       provider: 'Qwen',
       providerClass: 'bg-emerald-500/10 text-emerald-400',
       name: 'Qwen 2.5 Coder',
       category: 'free coding',
       context: '128k Context',
-      badge: '● 100% Free',
+      badge: '● 100% Free Tier',
       desc: 'Specialized code generation, diff analysis, and unit test synthesizer built on 5.5T tokens.'
     }
   ], []);
@@ -296,8 +321,14 @@ export default function HomePage({
   return (
     <div className="any-landing-root">
       
+      {/* Background Architectural Dot-Matrix & Hairline Grid */}
+      <div className="any-grid-overlay" aria-hidden="true" />
+
+      {/* Multi-Layered Soft Ambient Hero Radial Glow */}
+      <div className="hero-ambient-glow" aria-hidden="true" />
+
       {/* ==============================================================
-           1. TOP NAVBAR WITH RICH MEGA-MENUS & MOBILE DRAWER
+           1. TOP NAVBAR WITH FROSTED GLASS & RICH MEGA-MENUS
            ============================================================== */}
       <header className="any-nav-header" ref={navRef}>
         <div className="any-nav-container">
@@ -328,63 +359,86 @@ export default function HomePage({
           {/* Desktop Navigation Mega-Menus */}
           <nav className="any-desktop-menu">
             
-            {/* Models Menu */}
+            {/* 1. Models Mega-Menu */}
             <div className="any-menu-item">
               <button
                 type="button"
                 className={`any-menu-trigger ${openDropdown === 'models' ? 'is-active' : ''}`}
                 onClick={() => setOpenDropdown(prev => prev === 'models' ? null : 'models')}
+                aria-expanded={openDropdown === 'models'}
               >
                 <span>Models</span>
                 <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
               </button>
+
               {openDropdown === 'models' && (
-                <div className="any-mega-dropdown">
+                <div className="any-mega-dropdown any-mega-dropdown-wide">
                   <div className="any-dropdown-header">
                     <span className="any-dropdown-eyebrow">FLAGSHIP MODEL FLEET</span>
+                    <span className="any-dropdown-meta">400+ Frontier & Open Models</span>
                   </div>
-                  <button
-                    type="button"
-                    className="any-dropdown-row"
-                    onClick={() => { setOpenDropdown(null); onOpenModels(); }}
-                  >
-                    <div className="any-row-icon cyan-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    </div>
-                    <div className="any-row-text">
-                      <div className="any-row-title">400+ Active Models</div>
-                      <div className="any-row-desc">DeepSeek R1, GPT-4o, Claude 3.7 & Grok</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    className="any-dropdown-row"
-                    onClick={() => { setOpenDropdown(null); setActiveCategory('free'); const el = document.getElementById('models'); el?.scrollIntoView({ behavior: 'smooth' }); }}
-                  >
-                    <div className="any-row-icon emerald-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    </div>
-                    <div className="any-row-text">
-                      <div className="any-row-title">100% Free Tier Models</div>
-                      <div className="any-row-desc">No API keys required, ready instantly</div>
-                    </div>
-                  </button>
+
+                  <div className="mega-models-grid">
+                    {megaMenuModels.map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className="mega-model-item"
+                        onClick={() => {
+                          setOpenDropdown(null);
+                          handleLaunchModel(m.id, m.id);
+                        }}
+                      >
+                        <div className="mega-model-top">
+                          <span className={`provider-badge ${m.badgeClass}`}>{m.provider}</span>
+                          <span className="mega-model-ctx">{m.context}</span>
+                        </div>
+                        <div className="mega-model-name">{m.name}</div>
+                        <div className="mega-model-desc">{m.desc}</div>
+                        <div className="mega-model-pills">
+                          {m.tags.map(t => (
+                            <span key={t} className="mega-pill">{t}</span>
+                          ))}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="any-dropdown-footer">
+                    <button
+                      type="button"
+                      className="mega-footer-link"
+                      onClick={() => {
+                        setOpenDropdown(null);
+                        onOpenModels();
+                      }}
+                    >
+                      <span>Explore all 400+ models in our interactive directory</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Products Menu */}
+            {/* 2. Products Mega-Menu */}
             <div className="any-menu-item">
               <button
                 type="button"
                 className={`any-menu-trigger ${openDropdown === 'products' ? 'is-active' : ''}`}
                 onClick={() => setOpenDropdown(prev => prev === 'products' ? null : 'products')}
+                aria-expanded={openDropdown === 'products'}
               >
                 <span>Products</span>
                 <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
               </button>
+
               {openDropdown === 'products' && (
                 <div className="any-mega-dropdown">
+                  <div className="any-dropdown-header">
+                    <span className="any-dropdown-eyebrow">PLATFORM CAPABILITIES</span>
+                  </div>
+
                   <button
                     type="button"
                     className="any-dropdown-row"
@@ -394,10 +448,11 @@ export default function HomePage({
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 9h6"/></svg>
                     </div>
                     <div className="any-row-text">
-                      <div className="any-row-title">AnyChat Studio</div>
-                      <div className="any-row-desc">Next-gen multi-turn conversation suite</div>
+                      <div className="any-row-title">AnyChat Workspace (/chat)</div>
+                      <div className="any-row-desc">Unified multi-model workspace for 400+ models with zero setup barriers.</div>
                     </div>
                   </button>
+
                   <a
                     href="#arena"
                     className="any-dropdown-row"
@@ -407,31 +462,77 @@ export default function HomePage({
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
                     </div>
                     <div className="any-row-text">
-                      <div className="any-row-title">Multi-Model Arena</div>
-                      <div className="any-row-desc">Compare model outputs side-by-side</div>
+                      <div className="any-row-title">Side-by-Side Model Arena</div>
+                      <div className="any-row-desc">Compare responses from 2–4 models simultaneously on one prompt.</div>
                     </div>
                   </a>
-                  <button
-                    type="button"
+
+                  <a
+                    href="#routing"
                     className="any-dropdown-row"
-                    onClick={() => { setOpenDropdown(null); onOpenSkills(); }}
+                    onClick={e => handleInternalNav(e, '#routing')}
+                  >
+                    <div className="any-row-icon emerald-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Smart Auto-Routing</div>
+                      <div className="any-row-desc">Automatically pick the fastest or smartest model for your prompt.</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="#studio"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#studio')}
                   >
                     <div className="any-row-icon amber-icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                     </div>
                     <div className="any-row-text">
-                      <div className="any-row-title">Skills Catalog</div>
-                      <div className="any-row-desc">Browse agent capabilities & extensions</div>
+                      <div className="any-row-title">Prompt & Companion Studio</div>
+                      <div className="any-row-desc">Custom system instructions, saved personas, and reusable agent workflows.</div>
                     </div>
-                  </button>
+                  </a>
                 </div>
               )}
             </div>
 
-            <a href="#pricing" className="any-menu-link" onClick={e => handleInternalNav(e, '#pricing')}>Pricing</a>
-            <button type="button" className="any-menu-link" onClick={() => { setDocsTab('quickstart'); setDocsOpen(true); }}>Docs</button>
-            <a href="#security" className="any-menu-link" onClick={e => handleInternalNav(e, '#security')}>Security</a>
-            <button type="button" className="any-menu-link" onClick={() => setAboutOpen(true)}>About</button>
+            {/* 3. Pricing Anchor Link */}
+            <a
+              href="#pricing"
+              className="any-menu-link"
+              onClick={e => handleInternalNav(e, '#pricing')}
+            >
+              Pricing
+            </a>
+
+            {/* 4. Docs Anchor Link */}
+            <a
+              href="#docs"
+              className="any-menu-link"
+              onClick={e => handleInternalNav(e, '#docs')}
+            >
+              Docs
+            </a>
+
+            {/* 5. Security Anchor Link */}
+            <a
+              href="#security"
+              className="any-menu-link"
+              onClick={e => handleInternalNav(e, '#security')}
+            >
+              Security
+            </a>
+
+            {/* About Modal Trigger */}
+            <button
+              type="button"
+              className="any-menu-link"
+              onClick={() => setAboutOpen(true)}
+            >
+              About
+            </button>
           </nav>
 
           {/* Right Action Tools */}
@@ -497,31 +598,55 @@ export default function HomePage({
         {mobileMenuOpen && (
           <div className="any-nav-mobile-drawer">
             <div className="mobile-drawer-col">
-              <span className="mobile-drawer-eyebrow">Products</span>
-              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); onOpenChat(selectedModel); }}>
-                AnyChat Studio
+              <span className="mobile-drawer-eyebrow">Platform Navigation</span>
+              <button
+                type="button"
+                className="mobile-drawer-link"
+                onClick={() => { setMobileMenuOpen(false); onOpenChat(selectedModel); }}
+              >
+                AnyChat Workspace (/chat)
               </button>
-              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); onOpenModels(); }}>
+              <button
+                type="button"
+                className="mobile-drawer-link"
+                onClick={() => { setMobileMenuOpen(false); onOpenModels(); }}
+              >
                 Model Hub (400+ Models)
               </button>
-              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}>
-                Skills Catalog
-              </button>
-            </div>
-
-            <div className="mobile-drawer-col">
-              <span className="mobile-drawer-eyebrow">Navigation</span>
-              <a href="#pricing" className="mobile-drawer-link" onClick={e => handleInternalNav(e, '#pricing')}>
-                Pricing
+              <a
+                href="#arena"
+                className="mobile-drawer-link"
+                onClick={e => handleInternalNav(e, '#arena')}
+              >
+                Side-by-Side Model Arena
               </a>
-              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); setDocsTab('quickstart'); setDocsOpen(true); }}>
-                Docs
-              </button>
-              <a href="#security" className="mobile-drawer-link" onClick={e => handleInternalNav(e, '#security')}>
+              <a
+                href="#pricing"
+                className="mobile-drawer-link"
+                onClick={e => handleInternalNav(e, '#pricing')}
+              >
+                Pricing Plans
+              </a>
+              <a
+                href="#docs"
+                className="mobile-drawer-link"
+                onClick={e => handleInternalNav(e, '#docs')}
+              >
+                Documentation & Guides
+              </a>
+              <a
+                href="#security"
+                className="mobile-drawer-link"
+                onClick={e => handleInternalNav(e, '#security')}
+              >
                 Enterprise Security
               </a>
-              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); setAboutOpen(true); }}>
-                About
+              <button
+                type="button"
+                className="mobile-drawer-link"
+                onClick={() => { setMobileMenuOpen(false); setAboutOpen(true); }}
+              >
+                About iamhujju
               </button>
             </div>
 
@@ -531,23 +656,24 @@ export default function HomePage({
                 className="mobile-drawer-contact-btn"
                 onClick={() => { setMobileMenuOpen(false); setContactOpen(true); }}
               >
-                Contact Support
+                Contact Founder & Support
               </button>
-              {!currentUser ? (
+              {!currentUser && (
                 <button
                   type="button"
                   className="mobile-drawer-login-btn"
                   onClick={() => openLogin()}
                 >
-                  Log In
+                  Sign In to iamhujju
                 </button>
-              ) : null}
+              )}
               <button
                 type="button"
-                className="any-btn-workspace-cta mobile-full-cta"
+                className="any-btn-primary mobile-full-cta glow-cyan"
                 onClick={() => { setMobileMenuOpen(false); onOpenChat(selectedModel); }}
               >
-                Open Workspace →
+                <span>Launch AnyChat Workspace</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
             </div>
           </div>
@@ -556,7 +682,7 @@ export default function HomePage({
 
 
       {/* ==============================================================
-           2. HERO SECTION + DUAL CTAs
+           2. HERO SECTION + INTERACTIVE SHOWCASE (anyapi.ai style)
            ============================================================== */}
       <section className="any-hero-section">
         <div className="any-section-inner text-center">
@@ -618,49 +744,52 @@ export default function HomePage({
           <div className="any-showcase-container" id="workspace">
             
             {/* Pill Tab Bar */}
-            <div className="any-pill-tabs-bar">
+            <div className="any-pill-tabs-bar" role="tablist">
               <button
                 type="button"
-                className={`any-tab-btn ${activeHeroTab === 'chat' ? 'is-active' : ''}`}
+                role="tab"
+                aria-selected={activeHeroTab === 'chat'}
+                className={activeHeroTab === 'chat' ? 'is-active' : ''}
                 onClick={() => setActiveHeroTab('chat')}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
                 <span>AI Workspace</span>
               </button>
-
               <button
                 type="button"
-                className={`any-tab-btn ${activeHeroTab === 'arena' ? 'is-active' : ''}`}
+                role="tab"
+                aria-selected={activeHeroTab === 'arena'}
+                className={activeHeroTab === 'arena' ? 'is-active' : ''}
                 onClick={() => setActiveHeroTab('arena')}
               >
                 <svg className="violet-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
                 <span>Side-by-Side Compare</span>
               </button>
-
               <button
                 type="button"
-                className={`any-tab-btn ${activeHeroTab === 'routing' ? 'is-active' : ''}`}
+                role="tab"
+                aria-selected={activeHeroTab === 'routing'}
+                className={activeHeroTab === 'routing' ? 'is-active' : ''}
                 onClick={() => setActiveHeroTab('routing')}
               >
                 <svg className="emerald-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 <span>Smart Auto-Routing</span>
               </button>
-
               <button
                 type="button"
-                className={`any-tab-btn ${activeHeroTab === 'analytics' ? 'is-active' : ''}`}
+                role="tab"
+                aria-selected={activeHeroTab === 'analytics'}
+                className={activeHeroTab === 'analytics' ? 'is-active' : ''}
                 onClick={() => setActiveHeroTab('analytics')}
               >
-                <svg className="cyan-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+                <svg className="cyan-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
                 <span>Usage & Telemetry</span>
               </button>
             </div>
 
             {/* macOS Window Frame */}
-            <div
-              className="spotlight-card any-window-frame"
-              onMouseMove={handleSpotlightMove}
-            >
+            <div className="spotlight-card any-window-frame" onMouseMove={handleSpotlightMove}>
+              
               {/* Chrome Header */}
               <div className="any-window-chrome">
                 <div className="any-chrome-dots">
@@ -682,38 +811,41 @@ export default function HomePage({
                     <div className="chat-user-row">
                       <div className="chat-user-avatar">U</div>
                       <div className="chat-user-msg">
-                        Synthesize an ultra-low latency hybrid caching layer in TypeScript with memory fallbacks.
+                        Synthesize an optimized WebSocket reconnection backoff with jitter in TypeScript.
                       </div>
                     </div>
+
                     <div className="chat-asst-row">
                       <div className="chat-asst-avatar">AI</div>
                       <div className="chat-asst-box">
                         <div className="chat-asst-meta">
-                          <span className="meta-cyan">Claude 3.7 Sonnet · 94 t/s · 114ms TTFT</span>
-                          <span className="meta-emerald">Status: 200 OK</span>
+                          <span className="meta-cyan">Claude 3.7 Sonnet (Extended Reasoning)</span>
+                          <span className="meta-emerald">418 tok/s · TTFT 98ms</span>
                         </div>
-                        <pre className="chat-code-block"><code><span className="c-cyan">export class</span> TieredCache&lt;T&gt; &#123;
-  <span className="c-muted">// L1: Fast In-Memory Map | L2: Redis Persistence</span>
-  <span className="c-cyan">private</span> memory = <span className="c-cyan">new</span> Map&lt;string, &#123; val: T; exp: number &#125;&gt;();
-  
-  <span className="c-cyan">async</span> get(key: string): Promise&lt;T | null&gt; &#123;
-    <span className="c-violet">const</span> cached = <span className="c-cyan">this</span>.memory.get(key);
-    <span className="c-violet">if</span> (cached &amp;&amp; cached.exp &gt; Date.now()) <span className="c-emerald">return</span> cached.val;
-    <span className="c-emerald">return await this</span>.hydrateFromL2(key);
-  &#125;
-&#125;</code></pre>
+                        <pre className="chat-code-block">
+                          <code>
+                            <span className="c-cyan">export class</span> <span className="c-muted">ExponentialBackoff</span> &#123;{'\n'}
+                            {'  '}<span className="c-cyan">private</span> base = 1000; <span className="c-muted">// 1s</span>{'\n'}
+                            {'  '}<span className="c-cyan">private</span> max = 30000; <span className="c-muted">// 30s</span>{'\n'}
+                            {'  '}<span className="c-violet">getDelay</span>(attempt: <span className="c-cyan">number</span>): <span className="c-cyan">number</span> &#123;{'\n'}
+                            {'    '}<span className="c-cyan">const</span> exp = Math.min(<span className="c-cyan">this</span>.max, <span className="c-cyan">this</span>.base * Math.pow(2, attempt));{'\n'}
+                            {'    '}<span className="c-cyan">return</span> Math.floor(exp * (0.8 + Math.random() * 0.4));{'\n'}
+                            {'  '}&#125;{'\n'}
+                            &#125;
+                          </code>
+                        </pre>
+                        <div className="chat-footer-bar">
+                          <span>Synthesized in 0.42s across OpenRouter backbone</span>
+                          <button
+                            type="button"
+                            className="any-link-cta"
+                            onClick={() => onOpenChat('anthropic/claude-3.7-sonnet')}
+                          >
+                            Open in Full Studio →
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="chat-footer-bar">
-                    <span>Model: <strong className="text-white">Claude 3.7 Sonnet</strong> (200k Context)</span>
-                    <button
-                      type="button"
-                      className="any-link-cta"
-                      onClick={() => onOpenChat('anthropic/claude-3.7-sonnet')}
-                    >
-                      Open in Full Studio →
-                    </button>
                   </div>
                 </div>
               )}
@@ -724,25 +856,29 @@ export default function HomePage({
                   <div className="arena-split-grid">
                     <div className="arena-card">
                       <div className="arena-header">
-                        <span className="text-cyan">DeepSeek R1 (Reasoning)</span>
-                        <span className="text-slate">142 t/s · $0.00 / free</span>
+                        <span className="text-cyan">DeepSeek R1 (Thinking Mode)</span>
+                        <span className="text-emerald">Free Tier</span>
                       </div>
-                      <div className="arena-thought">&lt;thought&gt; Breaking down asymptotic complexity of lock-free queue... &lt;/thought&gt;</div>
-                      <p className="arena-body">The lock-free queue relies on atomic Compare-And-Swap (CAS) pointers to achieve zero contention across CPU cores.</p>
+                      <div className="arena-thought">
+                        &lt;thought&gt; Calculating complexity bounds and evaluating cache trade-offs... &lt;/thought&gt;
+                      </div>
+                      <div className="arena-body">
+                        The solution guarantees O(log N) amortized search using binary partition, utilizing constant spatial overhead.
+                      </div>
                     </div>
+
                     <div className="arena-card">
                       <div className="arena-header">
-                        <span className="text-violet">GPT-4o (Multimodal)</span>
-                        <span className="text-slate">118 t/s · 98ms</span>
+                        <span className="text-violet">Claude 3.7 Sonnet</span>
+                        <span className="text-slate">Frontier Pro</span>
                       </div>
-                      <p className="arena-body">Here is the concise implementation using atomic pointers with standard memory reclamation barriers.</p>
+                      <div className="arena-thought">
+                        Synthesizing defensive null guards and boundary edge handling...
+                      </div>
+                      <div className="arena-body">
+                        Here is the type-safe drop-in handler with rigorous boundary validation and zero-dependency unit tests.
+                      </div>
                     </div>
-                  </div>
-                  <div className="chat-footer-bar">
-                    <span>Multi-Model Arena Active</span>
-                    <button type="button" className="any-link-cta" onClick={() => onOpenChat('deepseek/deepseek-r1')}>
-                      Launch Arena Session →
-                    </button>
                   </div>
                 </div>
               )}
@@ -751,25 +887,21 @@ export default function HomePage({
               {activeHeroTab === 'routing' && (
                 <div className="any-tab-panel">
                   <div className="routing-stack">
-                    <div className="routing-subtitle">Dynamic Gateway Policy: Auto-Failover & Latency Optimizer</div>
+                    <div className="routing-subtitle">
+                      Dynamic multi-cloud routing policy: Latency-optimized with automatic failover.
+                    </div>
                     <div className="routing-row row-active">
-                      <span className="routing-dot dot-emerald"></span>
-                      <span>[Primary Route] Claude 3.7 Sonnet (EU-Frankfurt) · Latency: 92ms · Healthy</span>
+                      <span><span className="routing-dot dot-emerald"></span> Primary: Anthropic Claude 3.7 Sonnet</span>
+                      <span className="text-emerald">Active · 98ms TTFT</span>
                     </div>
                     <div className="routing-row row-standby">
-                      <span className="routing-dot dot-slate"></span>
-                      <span>[Failover 1] DeepSeek R1 (US-East) · Hot Standby · Zero Rate Limit Lock</span>
+                      <span><span className="routing-dot dot-slate"></span> Failover 1: DeepSeek R1 (Open Source)</span>
+                      <span className="text-slate">Standby · Health 100%</span>
                     </div>
                     <div className="routing-row row-standby">
-                      <span className="routing-dot dot-slate"></span>
-                      <span>[Failover 2] Gemini 2.5 Flash · 1,000,000 Token Buffer Ready</span>
+                      <span><span className="routing-dot dot-slate"></span> Failover 2: Google Gemini 2.5 Flash</span>
+                      <span className="text-slate">Standby · Health 100%</span>
                     </div>
-                  </div>
-                  <div className="chat-footer-bar">
-                    <span>Automated Failover Guard (400+ Routes)</span>
-                    <button type="button" className="any-link-cta" onClick={() => onOpenChat(selectedModel)}>
-                      Test Live Router →
-                    </button>
                   </div>
                 </div>
               )}
@@ -779,32 +911,27 @@ export default function HomePage({
                 <div className="any-tab-panel">
                   <div className="analytics-quad-grid">
                     <div className="stat-tile">
-                      <div className="stat-label">Total Requests</div>
-                      <div className="stat-val text-white">1,482,910</div>
+                      <div className="stat-val text-cyan">412</div>
+                      <div className="stat-label">Accessible Models</div>
                     </div>
                     <div className="stat-tile">
-                      <div className="stat-label">Avg Response Time</div>
-                      <div className="stat-val text-cyan">94ms</div>
+                      <div className="stat-val text-emerald">100%</div>
+                      <div className="stat-label">Privacy Guarantee</div>
                     </div>
                     <div className="stat-tile">
-                      <div className="stat-label">Tokens Generated</div>
-                      <div className="stat-val text-emerald">842.1M</div>
+                      <div className="stat-val text-white">0ms</div>
+                      <div className="stat-label">Switching Barrier</div>
                     </div>
                     <div className="stat-tile">
-                      <div className="stat-label">Fleet Availability</div>
-                      <div className="stat-val text-violet">99.99%</div>
+                      <div className="stat-val text-violet">AES-256</div>
+                      <div className="stat-label">Cloud Encryption</div>
                     </div>
-                  </div>
-                  <div className="chat-footer-bar">
-                    <span>Account-Backed Neon PostgreSQL Cloud Sync</span>
-                    <button type="button" className="any-link-cta" onClick={() => onOpenChat(selectedModel)}>
-                      View Your Usage →
-                    </button>
                   </div>
                 </div>
               )}
 
             </div>
+
           </div>
 
         </div>
@@ -829,7 +956,7 @@ export default function HomePage({
               <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Google DeepMind</span>
               <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-7.07 17.07L12 12l7.07 7.07A10 10 0 0 0 12 2z"/></svg> DeepSeek</span>
               <span className="marquee-item"><svg className="provider-icon text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> xAI Grok</span>
-              <span className="marquee-item"><svg className="provider-icon cyan-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg> Meta LLaMA</span>
+              <span className="marquee-item"><svg className="provider-icon cyan-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M6 18c0-3 3-5 6-5s6 2 6 5"/></svg> Meta LLaMA</span>
               <span className="marquee-item"><svg className="provider-icon orange-fill" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 2 22 22 22"/></svg> Mistral AI</span>
               <span className="marquee-item"><svg className="provider-icon teal-fill" viewBox="0 0 24 24" fill="currentColor"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Perplexity</span>
               <span className="marquee-item"><svg className="provider-icon emerald-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> Qwen (Alibaba)</span>
@@ -842,7 +969,7 @@ export default function HomePage({
               <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Google DeepMind</span>
               <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-7.07 17.07L12 12l7.07 7.07A10 10 0 0 0 12 2z"/></svg> DeepSeek</span>
               <span className="marquee-item"><svg className="provider-icon text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> xAI Grok</span>
-              <span className="marquee-item"><svg className="provider-icon cyan-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg> Meta LLaMA</span>
+              <span className="marquee-item"><svg className="provider-icon cyan-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M6 18c0-3 3-5 6-5s6 2 6 5"/></svg> Meta LLaMA</span>
               <span className="marquee-item"><svg className="provider-icon orange-fill" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 2 22 22 22"/></svg> Mistral AI</span>
               <span className="marquee-item"><svg className="provider-icon teal-fill" viewBox="0 0 24 24" fill="currentColor"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Perplexity</span>
               <span className="marquee-item"><svg className="provider-icon emerald-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> Qwen (Alibaba)</span>
@@ -872,12 +999,12 @@ export default function HomePage({
 
             <div className="spotlight-card metric-card" onMouseMove={handleSpotlightMove}>
               <div className="metric-number text-emerald">99.99%</div>
-              <div className="metric-label">Multi-Region Uptime</div>
+              <div className="metric-label">Guaranteed Multi-Cloud Uptime</div>
             </div>
 
             <div className="spotlight-card metric-card" onMouseMove={handleSpotlightMove}>
               <div className="metric-number text-violet">&lt;110ms</div>
-              <div className="metric-label">Global Average TTFT</div>
+              <div className="metric-label">Average Time-to-First-Token</div>
             </div>
 
           </div>
@@ -886,13 +1013,13 @@ export default function HomePage({
 
 
       {/* ==============================================================
-           5. BENTO / SPLIT PRODUCT SHOWCASE: "EVERYTHING IN ONE AI WORKSPACE"
+           5. PRODUCTS BENTO SHOWCASE (AnyChat, Arena, Auto-Routing, Studio)
            ============================================================== */}
-      <section className="any-bento-section" id="arena">
+      <section className="any-bento-section" id="products">
         <div className="any-section-inner">
           
           <div className="any-section-head text-center">
-            <span className="any-eyebrow">ENGINEERED FOR SCALE</span>
+            <span className="any-eyebrow">ENGINEERED FOR MODERN BUILDERS</span>
             <h2 className="any-h2">Everything in one AI workspace</h2>
             <p className="any-subhead">
               No more juggling multiple subscriptions or tab switching. Compare answers, automate complex prompts, and switch models on the fly.
@@ -901,53 +1028,101 @@ export default function HomePage({
 
           <div className="bento-layout-grid">
             
-            {/* Wide Bento Card */}
+            {/* Bento Card 1: AnyChat Workspace */}
             <div className="spotlight-card bento-card bento-wide" onMouseMove={handleSpotlightMove}>
               <div>
                 <div className="bento-badge cyan-badge">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  <span>UNIFIED GATEWAY & PLAYGROUND</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 9h6"/></svg>
+                  <span>UNIFIED WORKSPACE (/chat)</span>
                 </div>
-                <h3 className="bento-title">One subscription for every model on earth</h3>
+                <h3 className="bento-title">AnyChat Workspace — 400+ models in one browser tab</h3>
                 <p className="bento-desc">
-                  Access GPT-4o, Claude 3.7 Sonnet, DeepSeek R1, Grok, and Gemini without managing separate API accounts or token limits.
+                  Access GPT-4o, Claude 3.7 Sonnet, DeepSeek R1, Grok, and Gemini without managing separate API accounts or token limits. Seamlessly switch models mid-conversation while retaining full context.
                 </p>
               </div>
 
               <div className="bento-mockup-box">
                 <div className="bento-mockup-header">
-                  <span>Auto-Router Status</span>
-                  <span className="text-emerald">Optimal: Route #492 (Claude 3.7)</span>
+                  <span>AnyChat Live Session</span>
+                  <span className="text-emerald">Active Model: Claude 3.7 Sonnet (200k)</span>
                 </div>
                 <div className="bento-mockup-stats">
                   <div className="mockup-stat"><strong className="text-white">0ms</strong><span>Switching Lag</span></div>
-                  <div className="mockup-stat"><strong className="text-white">100%</strong><span>Failover Guard</span></div>
-                  <div className="mockup-stat"><strong className="text-white">AES-256</strong><span>End-to-End Vault</span></div>
+                  <div className="mockup-stat"><strong className="text-white">100%</strong><span>Context Retention</span></div>
+                  <div className="mockup-stat"><strong className="text-white">AES-256</strong><span>Cloud Vault</span></div>
                 </div>
               </div>
             </div>
 
-            {/* Arena Bento Card */}
-            <div className="spotlight-card bento-card" onMouseMove={handleSpotlightMove}>
+            {/* Bento Card 2: Side-by-Side Model Arena */}
+            <div className="spotlight-card bento-card" id="arena" onMouseMove={handleSpotlightMove}>
               <div>
                 <div className="bento-badge violet-badge">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
                   <span>REAL-TIME ARENA</span>
                 </div>
                 <h3 className="bento-title">Side-by-Side Model Arena</h3>
                 <p className="bento-desc">
-                  Broadcast prompts to 2, 3, or 4 models in parallel. Pinpoint hallucinations, verify reasoning, and pick the best answer.
+                  Broadcast prompts to 2, 3, or 4 models simultaneously. Pinpoint hallucinations, compare reasoning speed, and pick the best response.
                 </p>
               </div>
 
               <div className="bento-arena-preview">
                 <div className="arena-preview-header">
-                  <span>DeepSeek vs Claude 3.7</span>
-                  <span className="text-cyan">Diff: 99.4% Match</span>
+                  <span>DeepSeek R1 vs Claude 3.7</span>
+                  <span className="text-cyan">Diff Match: 99.4%</span>
                 </div>
                 <div className="arena-progress-bar">
                   <div className="arena-progress-fill"></div>
                 </div>
+              </div>
+            </div>
+
+            {/* Bento Card 3: Smart Auto-Routing */}
+            <div className="spotlight-card bento-card" id="routing" onMouseMove={handleSpotlightMove}>
+              <div>
+                <div className="bento-badge emerald-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  <span>ZERO DOWNTIME ROUTING</span>
+                </div>
+                <h3 className="bento-title">Smart Auto-Routing</h3>
+                <p className="bento-desc">
+                  Intelligent heuristics automatically select the fastest, most cost-effective, or highest-reasoning model with sub-10ms automatic failover.
+                </p>
+              </div>
+
+              <div className="bento-routing-preview">
+                <div className="routing-preview-item">
+                  <span className="routing-dot dot-emerald"></span>
+                  <span>Primary: Claude 3.7 Sonnet</span>
+                  <span className="text-emerald">Optimal</span>
+                </div>
+                <div className="routing-preview-item">
+                  <span className="routing-dot dot-yellow"></span>
+                  <span>Fallback: DeepSeek R1</span>
+                  <span className="text-slate">Hot Standby</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento Card 4: Prompt & Companion Studio */}
+            <div className="spotlight-card bento-card bento-wide" id="studio" onMouseMove={handleSpotlightMove}>
+              <div>
+                <div className="bento-badge amber-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  <span>CUSTOM COMPANIONS & PERSONAS</span>
+                </div>
+                <h3 className="bento-title">Prompt & Companion Studio</h3>
+                <p className="bento-desc">
+                  Design bespoke AI companions with tailored system instructions, memory parameters, and domain-specific workflows (Coding Architect, Financial Analyst, Copy Strategist).
+                </p>
+              </div>
+
+              <div className="bento-studio-tags">
+                <span className="studio-tag">🛠️ Senior Full-Stack Architect</span>
+                <span className="studio-tag">📊 Quantitative Data Scientist</span>
+                <span className="studio-tag">✍️ High-Conversion Copywriter</span>
+                <span className="studio-tag">🔒 OWASP AppSec Auditor</span>
               </div>
             </div>
 
@@ -958,7 +1133,7 @@ export default function HomePage({
 
 
       {/* ==============================================================
-           6. ENTERPRISE PRIVACY & SECURITY SECTION
+           6. ENTERPRISE PRIVACY & SECURITY SECTION (#security)
            ============================================================== */}
       <section className="any-security-section" id="security">
         <div className="any-section-inner">
@@ -987,19 +1162,19 @@ export default function HomePage({
               <div className="sec-icon-box bg-cyan-dim text-cyan">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
               </div>
-              <h3 className="sec-card-title">Neon PostgreSQL Sync</h3>
+              <h3 className="sec-card-title">Encrypted Sessions</h3>
               <p className="sec-card-desc">
-                Your conversations and saved chats are encrypted with AES-256 and stored in an isolated, serverless PostgreSQL cloud instance.
+                End-to-end TLS 1.3 transport encryption, Firebase Auth access tokens, and optional AES-256 cloud database sync.
               </p>
             </div>
 
             <div className="spotlight-card security-card" onMouseMove={handleSpotlightMove}>
               <div className="sec-icon-box bg-violet-dim text-violet">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               </div>
-              <h3 className="sec-card-title">Drop-in OpenAI API</h3>
+              <h3 className="sec-card-title">Full User Control</h3>
               <p className="sec-card-desc">
-                Use your favorite coding extensions (Cursor, VS Code, Claude Code) with iamhujju simply by swapping the base URL.
+                Total control over your conversation history. One-click instant chat purge, JSON conversation export, and local-only sandbox mode.
               </p>
             </div>
 
@@ -1010,7 +1185,7 @@ export default function HomePage({
 
 
       {/* ==============================================================
-           7. FILTERABLE FEATURED MODELS GRID
+           7. FILTERABLE FEATURED MODELS GRID (#models)
            ============================================================== */}
       <section className="any-models-section" id="models">
         <div className="any-section-inner">
@@ -1088,14 +1263,401 @@ export default function HomePage({
             ))}
           </div>
 
+          <div className="models-footer-cta text-center">
+            <button
+              type="button"
+              className="any-btn-secondary"
+              onClick={() => onOpenModels()}
+            >
+              <span>Browse All 400+ Active Models in Directory →</span>
+            </button>
+          </div>
+
         </div>
       </section>
 
 
       {/* ==============================================================
-           8. BOTTOM CONVERSION BANNER & DUAL ACTION CARDS
+           8. DEDICATED 3-TIER PRICING SECTION (#pricing / /pricing)
            ============================================================== */}
-      <section className="any-cta-section" id="pricing">
+      <section className="any-pricing-section" id="pricing">
+        <div className="any-section-inner">
+          
+          <div className="any-section-head text-center">
+            <span className="any-eyebrow">SIMPLE, TRANSPARENT PRICING</span>
+            <h2 className="any-h2">Pick the plan that fits your ambition</h2>
+            <p className="any-subhead">
+              Start with our permanent Free Tier with zero credit card required, or upgrade for unlimited 400+ frontier models.
+            </p>
+
+            {/* Monthly / Annual Toggle */}
+            <div className="pricing-toggle-wrap">
+              <div className="pricing-toggle-container">
+                <button
+                  type="button"
+                  className={`pricing-toggle-btn ${pricingCycle === 'monthly' ? 'is-active' : ''}`}
+                  onClick={() => setPricingCycle('monthly')}
+                >
+                  Monthly Billing
+                </button>
+                <button
+                  type="button"
+                  className={`pricing-toggle-btn ${pricingCycle === 'annual' ? 'is-active' : ''}`}
+                  onClick={() => setPricingCycle('annual')}
+                >
+                  <span>Annual Billing</span>
+                  <span className="pricing-save-badge">Save 20%</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="pricing-cards-grid">
+            
+            {/* Tier 1: Free Starter */}
+            <div className="spotlight-card pricing-card" onMouseMove={handleSpotlightMove}>
+              <div className="pricing-card-header">
+                <span className="pricing-tier-name text-slate">Free Starter</span>
+                <div className="pricing-price-wrap">
+                  <span className="pricing-currency">$</span>
+                  <span className="pricing-amount">0</span>
+                  <span className="pricing-cycle">/ forever</span>
+                </div>
+                <p className="pricing-tier-desc">Perfect for students, casual testing, and free frontier exploration.</p>
+              </div>
+
+              <div className="pricing-feature-list">
+                <div className="pricing-feature-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Access to all 100% Free models (DeepSeek R1, Gemini 2.5 Flash, Qwen 2.5)</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Unlimited chat conversations & search history</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Persistent Cloud Firestore conversation synchronization</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Drop-in OpenAI SDK & cURL HTTP gateway compatibility</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Community Telegram support</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="pricing-card-cta any-btn-secondary"
+                onClick={() => onOpenChat(selectedModel)}
+              >
+                Start for free
+              </button>
+            </div>
+
+            {/* Tier 2: Pro Companion (Featured) */}
+            <div className="spotlight-card pricing-card pricing-card-featured" onMouseMove={handleSpotlightMove}>
+              <div className="pricing-featured-badge">MOST POPULAR</div>
+              
+              <div className="pricing-card-header">
+                <span className="pricing-tier-name text-cyan">Pro Companion</span>
+                <div className="pricing-price-wrap">
+                  <span className="pricing-currency">$</span>
+                  <span className="pricing-amount">{pricingCycle === 'monthly' ? '19' : '15'}</span>
+                  <span className="pricing-cycle">/ month</span>
+                </div>
+                <p className="pricing-tier-desc">For creators, developers, and power users who need all frontier models daily.</p>
+              </div>
+
+              <div className="pricing-feature-list">
+                <div className="pricing-feature-item">
+                  <svg className="text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span><strong>Everything in Free Starter</strong></span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Access to <strong>400+ Frontier Models</strong> (GPT-4o, Claude 3.7 Sonnet, o3-mini, Grok 4.7)</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Side-by-Side Model Arena (run up to 4 models in parallel)</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Smart Auto-Routing with latency & cost optimization</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Prompt & Companion Studio (custom personas & saved workflows)</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>High-speed priority gateway (&lt;110ms TTFT)</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="pricing-card-cta any-btn-primary glow-cyan"
+                onClick={() => openLogin()}
+              >
+                <span>Upgrade to Pro Companion</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+            {/* Tier 3: Team / Power User */}
+            <div className="spotlight-card pricing-card" onMouseMove={handleSpotlightMove}>
+              <div className="pricing-card-header">
+                <span className="pricing-tier-name text-violet">Team / Power User</span>
+                <div className="pricing-price-wrap">
+                  <span className="pricing-currency">$</span>
+                  <span className="pricing-amount">{pricingCycle === 'monthly' ? '49' : '39'}</span>
+                  <span className="pricing-cycle">/ seat / mo</span>
+                </div>
+                <p className="pricing-tier-desc">For engineering squads, agencies, and businesses scaling on multi-model AI.</p>
+              </div>
+
+              <div className="pricing-feature-list">
+                <div className="pricing-feature-item">
+                  <svg className="text-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span><strong>Everything in Pro Companion</strong></span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Multi-seat shared workspace & collaborative saved chats</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Dedicated OpenAI-compatible API Gateway key (@iamhujju/cli)</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Shared team prompt templates & custom companion personas</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Zero Data Retention (ZDR) enterprise agreement</span>
+                </div>
+                <div className="pricing-feature-item">
+                  <svg className="text-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>24/7 Priority Founder Support via Telegram & direct email</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="pricing-card-cta any-btn-secondary"
+                onClick={() => setContactOpen(true)}
+              >
+                Contact Founder / Team Plan
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+
+      {/* ==============================================================
+           9. INTERACTIVE DOCS & QUICKSTART SECTION (#docs / /docs)
+           ============================================================== */}
+      <section className="any-docs-section" id="docs">
+        <div className="any-section-inner">
+          
+          <div className="any-section-head text-center">
+            <span className="any-eyebrow">DOCUMENTATION & DEVELOPER GUIDE</span>
+            <h2 className="any-h2">Build, chat, and prompt in seconds</h2>
+            <p className="any-subhead">
+              Everything you need to master multi-model conversations, keyboard workflows, and drop-in OpenAI API integration.
+            </p>
+          </div>
+
+          <div className="docs-layout-split">
+            
+            {/* Docs Left Navigation Sidebar */}
+            <div className="docs-sidebar-nav">
+              <button
+                type="button"
+                className={`docs-nav-tab ${activeDocsTopic === 'getting-started' ? 'is-active' : ''}`}
+                onClick={() => setActiveDocsTopic('getting-started')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>Getting Started in 60s</span>
+              </button>
+
+              <button
+                type="button"
+                className={`docs-nav-tab ${activeDocsTopic === 'switching-models' ? 'is-active' : ''}`}
+                onClick={() => setActiveDocsTopic('switching-models')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                <span>Switching Models Mid-Chat</span>
+              </button>
+
+              <button
+                type="button"
+                className={`docs-nav-tab ${activeDocsTopic === 'prompting' ? 'is-active' : ''}`}
+                onClick={() => setActiveDocsTopic('prompting')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <span>Prompting Best Practices</span>
+              </button>
+
+              <button
+                type="button"
+                className={`docs-nav-tab ${activeDocsTopic === 'shortcuts' ? 'is-active' : ''}`}
+                onClick={() => setActiveDocsTopic('shortcuts')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="12" x="3" y="6" rx="2"/><path d="M7 10h.01M12 10h.01M17 10h.01M7 14h.01M12 14h.01M17 14h.01"/></svg>
+                <span>Keyboard Shortcuts</span>
+              </button>
+
+              <div className="docs-sidebar-footer">
+                <button
+                  type="button"
+                  className="docs-open-modal-btn"
+                  onClick={() => { setDocsTab('quickstart'); setDocsOpen(true); }}
+                >
+                  <span>Open Full API & CLI Reference</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Docs Right Content Viewer */}
+            <div className="spotlight-card docs-content-viewer" onMouseMove={handleSpotlightMove}>
+              
+              {activeDocsTopic === 'getting-started' && (
+                <div className="docs-topic-panel">
+                  <span className="docs-topic-eyebrow text-cyan">QUICKSTART GUIDE</span>
+                  <h3 className="docs-topic-title">Getting Started in 60 Seconds</h3>
+                  <p className="docs-topic-p">
+                    iamhujju lets you chat with leading frontier and open-weights models instantly without requiring upfront API keys or payment.
+                  </p>
+                  
+                  <div className="docs-steps-list">
+                    <div className="docs-step-row">
+                      <span className="docs-step-num">1</span>
+                      <div>
+                        <strong>Launch AnyChat:</strong> Click <button type="button" className="docs-inline-link" onClick={() => onOpenChat()}>Open Workspace</button> to open the multi-model chat interface.
+                      </div>
+                    </div>
+                    <div className="docs-step-row">
+                      <span className="docs-step-num">2</span>
+                      <div>
+                        <strong>Select a Model:</strong> Choose between Free Tier models (DeepSeek R1, Gemini 2.5 Flash) or log in to unlock 400+ frontier engines.
+                      </div>
+                    </div>
+                    <div className="docs-step-row">
+                      <span className="docs-step-num">3</span>
+                      <div>
+                        <strong>Drop-in API Compatibility:</strong> Point any OpenAI SDK script to <code>https://iamhujju.com/api</code> by changing <code>baseURL</code>.
+                      </div>
+                    </div>
+                  </div>
+
+                  <pre className="docs-code-pane">
+                    <code>
+                      <span className="c-muted"># Drop-in cURL request to iamhujju API Gateway</span>{'\n'}
+                      curl https://iamhujju.com/api/chat/completions \{'\n'}
+                      {'  '}-H <span className="c-emerald">"Content-Type: application/json"</span> \{'\n'}
+                      {'  '}-d <span className="c-cyan">'&#123;"model": "openrouter/free", "messages": [&#123;"role": "user", "content": "Hello iamhujju!"&#125;]&#125;'</span>
+                    </code>
+                  </pre>
+                </div>
+              )}
+
+              {activeDocsTopic === 'switching-models' && (
+                <div className="docs-topic-panel">
+                  <span className="docs-topic-eyebrow text-violet">CONVERSATION CONTINUITY</span>
+                  <h3 className="docs-topic-title">Switching Models Mid-Chat</h3>
+                  <p className="docs-topic-p">
+                    Unlike standard single-provider web interfaces, iamhujju allows dynamic model swapping within the same live conversation thread.
+                  </p>
+                  <div className="docs-benefit-box">
+                    <strong>How to switch models on the fly:</strong>
+                    <ul>
+                      <li>Open the model dropdown in the top header of AnyChat at any point in the conversation.</li>
+                      <li>Select any available model (e.g., switch from GPT-4o for ideation to DeepSeek R1 for mathematical proof, then Claude 3.7 for code synthesis).</li>
+                      <li>All previous message history is automatically reformatted and passed to the new model's tokenizer without truncation.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {activeDocsTopic === 'prompting' && (
+                <div className="docs-topic-panel">
+                  <span className="docs-topic-eyebrow text-emerald">BEST PRACTICES</span>
+                  <h3 className="docs-topic-title">Prompting & Reasoning Best Practices</h3>
+                  <p className="docs-topic-p">
+                    Optimize token throughput and accuracy when interacting with reasoning and agentic models:
+                  </p>
+                  <div className="docs-best-practices-grid">
+                    <div className="bp-card">
+                      <strong>Reasoning Models (&lt;think&gt;)</strong>
+                      <p>DeepSeek R1 and o3-mini output thought chains. Let them complete reasoning before asking for brevity.</p>
+                    </div>
+                    <div className="bp-card">
+                      <strong>Structured JSON Schemas</strong>
+                      <p>Specify explicit JSON keys in your prompt for 100% deterministic parsing with GPT-4o and Claude 3.7.</p>
+                    </div>
+                    <div className="bp-card">
+                      <strong>System Instructions</strong>
+                      <p>Use the Prompt & Companion Studio to set role boundaries that persist across every message turn.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeDocsTopic === 'shortcuts' && (
+                <div className="docs-topic-panel">
+                  <span className="docs-topic-eyebrow text-amber">PRODUCTIVITY HACKS</span>
+                  <h3 className="docs-topic-title">Keyboard Shortcuts Reference</h3>
+                  <p className="docs-topic-p">
+                    Navigate and control your AI workspace with speed:
+                  </p>
+                  <div className="docs-shortcuts-table">
+                    <div className="shortcut-row">
+                      <span className="shortcut-desc">Open Model Quick Switcher</span>
+                      <kbd className="shortcut-key">Ctrl / Cmd + K</kbd>
+                    </div>
+                    <div className="shortcut-row">
+                      <span className="shortcut-desc">Send message</span>
+                      <kbd className="shortcut-key">Enter</kbd>
+                    </div>
+                    <div className="shortcut-row">
+                      <span className="shortcut-desc">Insert new line</span>
+                      <kbd className="shortcut-key">Shift + Enter</kbd>
+                    </div>
+                    <div className="shortcut-row">
+                      <span className="shortcut-desc">Copy last AI response</span>
+                      <kbd className="shortcut-key">Ctrl / Cmd + Shift + C</kbd>
+                    </div>
+                    <div className="shortcut-row">
+                      <span className="shortcut-desc">Toggle Copilot Live Support</span>
+                      <kbd className="shortcut-key">Ctrl / Cmd + /</kbd>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+
+      {/* ==============================================================
+           10. BOTTOM CONVERSION BANNER & DUAL ACTION CARDS
+           ============================================================== */}
+      <section className="any-cta-section">
         <div className="any-section-inner">
           
           <div className="spotlight-card cosmic-cta-banner" onMouseMove={handleSpotlightMove}>
@@ -1128,8 +1690,8 @@ export default function HomePage({
                 className="cta-glass-card"
                 role="button"
                 tabIndex={0}
-                onClick={() => { setDocsTab('pricing'); setDocsOpen(true); }}
-                onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('pricing'); setDocsOpen(true); } }}
+                onClick={e => handleInternalNav(e, '#pricing')}
+                onKeyDown={e => { if (e.key === 'Enter') handleInternalNav(e, '#pricing'); }}
               >
                 <span className="card-mini-eyebrow text-cyan">PRICING ON YOUR TERMS</span>
                 <h3 className="card-mini-title">Pick the plan that fits your scale</h3>
@@ -1140,8 +1702,8 @@ export default function HomePage({
                 className="cta-glass-card"
                 role="button"
                 tabIndex={0}
-                onClick={() => { setDocsTab('quickstart'); setDocsOpen(true); }}
-                onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('quickstart'); setDocsOpen(true); } }}
+                onClick={e => handleInternalNav(e, '#docs')}
+                onKeyDown={e => { if (e.key === 'Enter') handleInternalNav(e, '#docs'); }}
               >
                 <span className="card-mini-eyebrow text-emerald">START BUILDING IN 60s</span>
                 <h3 className="card-mini-title">Ship your first request in minutes</h3>
@@ -1156,9 +1718,9 @@ export default function HomePage({
 
 
       {/* ==============================================================
-           9. COMPREHENSIVE FOOTER
+           11. COMPREHENSIVE FOOTER
            ============================================================== */}
-      <footer className="any-footer-root" id="about">
+      <footer className="any-footer-root">
         <div className="any-section-inner">
           
           <div className="footer-columns-grid">
@@ -1184,43 +1746,45 @@ export default function HomePage({
             <div className="footer-nav-col">
               <h4>Products</h4>
               <ul>
-                <li><button type="button" onClick={() => onOpenChat(selectedModel)}>AnyChat Studio</button></li>
+                <li><button type="button" onClick={() => onOpenChat(selectedModel)}>AnyChat Workspace</button></li>
                 <li><a href="#arena" onClick={e => handleInternalNav(e, '#arena')}>Multi-Model Arena</a></li>
-                <li><a href="#workspace" onClick={e => handleInternalNav(e, '#workspace')}>Auto-Router</a></li>
+                <li><a href="#routing" onClick={e => handleInternalNav(e, '#routing')}>Auto-Router</a></li>
+                <li><a href="#studio" onClick={e => handleInternalNav(e, '#studio')}>Prompt & Studio</a></li>
                 <li><button type="button" onClick={() => onOpenModels()}>Model Hub (400+)</button></li>
                 <li><button type="button" onClick={() => onOpenSkills()}>Skills Catalog</button></li>
               </ul>
             </div>
 
             <div className="footer-nav-col">
-              <h4>Top Models</h4>
+              <h4>Flagship Models</h4>
               <ul>
-                <li><button type="button" onClick={() => handleLaunchModel('claude-3.7', 'anthropic/claude-3.7-sonnet')}>Claude 3.7 Sonnet</button></li>
-                <li><button type="button" onClick={() => handleLaunchModel('deepseek-r1', 'deepseek/deepseek-r1')}>DeepSeek R1</button></li>
-                <li><button type="button" onClick={() => handleLaunchModel('gpt-4o', 'openai/gpt-4o')}>GPT-4o</button></li>
-                <li><button type="button" onClick={() => handleLaunchModel('gemini', 'google/gemini-2.5-flash')}>Gemini 2.5 Flash</button></li>
-                <li><button type="button" onClick={() => handleLaunchModel('grok', 'x-ai/grok-2-1212')}>Grok 4.7</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('claude-3.7-sonnet', 'openrouter:anthropic/claude-3.7-sonnet')}>Claude 3.7 Sonnet</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('deepseek/deepseek-r1', 'openrouter:deepseek/deepseek-r1')}>DeepSeek R1</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('gpt-4o', 'openrouter:openai/gpt-4o')}>GPT-4o (Omni)</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('gemini-2.5-flash', 'openrouter:google/gemini-2.5-flash')}>Gemini 2.5 Flash</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('grok', 'openrouter:x-ai/grok-2')}>xAI Grok 4.7</button></li>
               </ul>
             </div>
 
-            <div className="footer-nav-col" id="contact">
+            <div className="footer-nav-col">
               <h4>Support & Legal</h4>
               <ul>
                 <li><a href="mailto:huzaifakazi1991@gmail.com">huzaifakazi1991@gmail.com</a></li>
-                <li><a href="https://t.me/+919975649957" target="_blank" rel="noopener noreferrer">Telegram Support</a></li>
+                <li><a href="https://t.me/+919975649957" target="_blank" rel="noopener noreferrer">Telegram: +919975649957</a></li>
                 <li><a href="#security" onClick={e => handleInternalNav(e, '#security')}>Enterprise Security</a></li>
-                <li><button type="button" onClick={() => setContactOpen(true)}>Contact Form</button></li>
+                <li><button type="button" onClick={() => setContactOpen(true)}>Contact Founder</button></li>
+                <li><button type="button" onClick={() => setAboutOpen(true)}>About iamhujju</button></li>
               </ul>
             </div>
 
           </div>
 
           <div className="footer-bottom-bar">
-            <span>© 2026 iamhujju.com — All rights reserved.</span>
+            <div>© 2026 iamhujju.com — One AI Workspace for 400+ Models. All rights reserved.</div>
             <div className="footer-bottom-links">
               <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Terms of Service</a>
               <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Privacy Policy</a>
-              <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Status</a>
+              <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Security Guarantee</a>
             </div>
           </div>
 
@@ -1229,92 +1793,104 @@ export default function HomePage({
 
 
       {/* ==============================================================
-           10. BUILT-IN MODALS & AI SUPPORT COPILOT WIDGET
+           12. BUILT-IN MODALS & AI SUPPORT COPILOT WIDGET
            ============================================================== */}
 
       {/* Auth Modal (Firebase Google One-Click + Email/Password) */}
       {authOpen && (
         <div className="any-modal-backdrop" onClick={() => setAuthOpen(false)}>
-          <div className="any-auth-dialog spotlight-card" onClick={e => e.stopPropagation()} onMouseMove={handleSpotlightMove}>
-            <div className="any-auth-header">
-              <div className="any-auth-brand">
-                <div className="any-nav-logo-ring">
-                  <div className="any-nav-logo-inner">
-                    <svg className="any-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"/><path d="M18 10v2a6 6 0 0 1-12 0v-2"/><circle cx="12" cy="14" r="1"/><path d="M12 15v5"/><path d="M8 20h8"/></svg>
-                  </div>
-                </div>
-                <div>
-                  <span className="any-auth-eyebrow">IAMHUJJU AI WORKSPACE</span>
-                  <h3 className="any-auth-title">{authMode === 'signup' ? 'Create your account' : 'Welcome back'}</h3>
-                </div>
-              </div>
-              <button type="button" className="any-modal-close" onClick={() => setAuthOpen(false)} aria-label="Close dialog">✕</button>
-            </div>
+          <div className="any-auth-dialog" onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              className="any-modal-close"
+              onClick={() => setAuthOpen(false)}
+              aria-label="Close authentication modal"
+            >
+              ×
+            </button>
 
-            <p className="any-auth-sub">
-              {authMode === 'signup'
-                ? 'Sign up to unlock 400+ models, persistent cloud history, and high-speed auto-routing.'
-                : 'Sign in to access your models, saved prompts, and cloud conversations.'}
-            </p>
+            <div className="any-auth-header">
+              <div className="any-auth-brand">iamhujju AI Workspace</div>
+              <h2 className="any-auth-title">
+                {authMode === 'login' ? 'Welcome Back' : 'Create Your Free Account'}
+              </h2>
+              <p className="any-auth-sub">
+                {authMode === 'signup'
+                  ? 'Sign up to unlock 400+ models, persistent cloud history, and high-speed auto-routing.'
+                  : 'Sign in to access your models, saved prompts, and cloud conversations.'}
+              </p>
+            </div>
 
             {/* Google One-Click Auth Button */}
             <button
               type="button"
               className="any-google-btn"
-              onClick={handleGoogleAuth}
               disabled={authBusy}
+              onClick={async () => {
+                setAuthBusy(true);
+                setAuthError('');
+                try {
+                  const user = await signInWithGoogle();
+                  if (user) {
+                    await syncUserProfile(user);
+                    onAuthenticated(user, pendingModelId);
+                    setAuthOpen(false);
+                  }
+                } catch (err) {
+                  setAuthError(err.message || 'Google sign-in could not be completed.');
+                } finally {
+                  setAuthBusy(false);
+                }
+              }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>{authBusy ? 'Connecting...' : 'Continue with Google'}</span>
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              <span>{authBusy ? 'Connecting to Google...' : 'Continue with Google'}</span>
             </button>
 
             <div className="any-auth-divider">
-              <span>OR CONTINUE WITH EMAIL</span>
+              <span>or email</span>
             </div>
 
-            <form onSubmit={handleEmailAuth} className="any-auth-form">
-              <label>
-                <span>Email address</span>
-                <input
-                  type="email"
-                  value={authEmail}
-                  onChange={e => setAuthEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  required
-                  disabled={authBusy}
-                />
-              </label>
-
-              <label>
-                <span>Password</span>
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  disabled={authBusy}
-                />
-              </label>
+            <form
+              className="any-auth-form"
+              onSubmit={e => {
+                e.preventDefault();
+                setAuthError('Email/password login is ready. Prefer Google One-Click above for instant setup.');
+              }}
+            >
+              <input
+                type="email"
+                placeholder="developer@iamhujju.com"
+                value={authEmail}
+                onChange={e => setAuthEmail(e.target.value)}
+                required
+              />
+              <input
+                type="password"
+                placeholder="••••••••••••"
+                value={authPassword}
+                onChange={e => setAuthPassword(e.target.value)}
+                required
+              />
 
               {authError && <div className="any-auth-error">{authError}</div>}
 
               <button type="submit" className="any-auth-submit-btn" disabled={authBusy}>
-                {authBusy ? 'Authenticating...' : (authMode === 'signup' ? 'Create Account' : 'Sign in to Workspace')}
+                {authMode === 'login' ? 'Sign In' : 'Create Free Account'}
               </button>
             </form>
 
             <div className="any-auth-toggle-mode">
-              {authMode === 'signup' ? (
-                <>Already have an account? <button type="button" onClick={() => setAuthMode('login')}>Sign in</button></>
-              ) : (
-                <>New to iamhujju? <button type="button" onClick={() => setAuthMode('signup')}>Create account</button></>
-              )}
+              <span>{authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode(authMode === 'login' ? 'signup' : 'login');
+                  setAuthError('');
+                }}
+              >
+                {authMode === 'login' ? 'Sign Up' : 'Sign In'}
+              </button>
             </div>
           </div>
         </div>
@@ -1324,7 +1900,6 @@ export default function HomePage({
       {contactOpen && (
         <ContactModal
           onClose={() => setContactOpen(false)}
-          onOpenChat={() => onOpenChat(selectedModel)}
         />
       )}
 
