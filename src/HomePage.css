@@ -3041,3 +3041,72 @@
     0 14px 35px rgba(0, 242, 254, 0.6),
     0 6px 18px rgba(0, 0, 0, 0.6);
 }
+
+/* On-Page Contact Section */
+.any-contact-section {
+  padding: 60px 24px 80px;
+  max-width: 1000px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.any-contact-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.any-contact-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.any-contact-action-pill.telegram-pill {
+  background: rgba(0, 136, 204, 0.14);
+  border: 1px solid rgba(0, 136, 204, 0.4);
+  color: #38bdf8;
+}
+
+.any-contact-action-pill.telegram-pill:hover {
+  background: rgba(0, 136, 204, 0.26);
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 136, 204, 0.3);
+}
+
+.any-contact-action-pill.email-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+}
+
+.any-contact-action-pill.email-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+
+.any-contact-action-pill.form-pill {
+  background: #00d4ff;
+  border: 1px solid #00d4ff;
+  color: #05070f;
+  box-shadow: 0 4px 18px rgba(0, 212, 255, 0.3);
+}
+
+.any-contact-action-pill.form-pill:hover {
+  background: #22e0ff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 212, 255, 0.45);
+}

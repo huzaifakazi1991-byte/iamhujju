@@ -1348,16 +1348,15 @@ iamhujju includes a catalog of **34+ curated AI developer skills** and MCP (Mode
 [[action:auth|🔐 Sign In to Workspace]]`;
     }
 
-    if (q.includes('who') || q.includes('creator') || q.includes('founder') || q.includes('huzaifa') || q.includes('contact') || q.includes('support') || q.includes('help')) {
-      return `**iamhujju Support & Community:**
+    if (q.includes('who') || q.includes('creator') || q.includes('founder') || q.includes('huzaifa') || q.includes('contact') || q.includes('telegram') || q.includes('email') || q.includes('support') || q.includes('help')) {
+      return `**iamhujju Support & Direct Channels:**
 
 • **Founder & Engineer:** Huzaifa Kazi
+• **Telegram:** \`+91 99756 49957\` (Direct Link: https://t.me/+919975649957)
 • **Email:** \`huzaifakazi1991@gmail.com\` / \`support@iamhujju.com\`
-• **Website:** https://iamhujju.com
+• **Response Time:** Usually within 1 business day (often much faster).
 
-I am your 24/7 in-app AI assistant! Ask me any question about models, code, setup, or features, and I'll guide you directly.
-
-[[action:models|🚀 Explore Models]] [[action:chat|⚡ Launch AnyChat]]`;
+[[action:contact|📬 Open Contact Form]] [[action:telegram|✈️ Telegram (+91 99756 49957)]] [[action:models|🚀 Explore Models]]`;
     }
 
     return `I'm your **iamhujju Copilot**! I can help you with anything related to the platform:
@@ -1370,8 +1369,40 @@ I am your 24/7 in-app AI assistant! Ask me any question about models, code, setu
 
 What would you like to explore or do right now?
 
-[[action:models|🚀 Open Model Hub]] [[action:chat|⚡ Open AnyChat Playground]] [[action:pricing|💰 View Pricing]] [[action:docs:quickstart|📖 API Docs]]`;
+[[action:contact|📬 Contact Us]] [[action:models|🚀 Open Model Hub]] [[action:chat|⚡ Open AnyChat Playground]] [[action:pricing|💰 View Pricing]] [[action:docs:quickstart|📖 API Docs]]`;
   }
+
+  const contactRequestSchema = z.object({
+    name: z.string().trim().min(1, 'Name is required').max(120),
+    company: z.string().trim().max(140).optional().default(''),
+    subject: z.string().trim().min(1).max(100).default('Technical & Integration Support'),
+    telegram: z.string().trim().max(80).optional().default(''),
+    email: z.string().trim().email('Valid email required').max(254),
+    message: z.string().trim().min(1, 'Message is required').max(5000)
+  });
+
+  app.post('/api/contact', chatRateLimiter, async (req, res) => {
+    const body = validatedBody(
+      contactRequestSchema,
+      req,
+      res,
+      'Contact form requires a valid name, email address, and message.'
+    );
+    if (!body) return;
+
+    console.log('[Contact Form]', {
+      name: body.name,
+      email: body.email,
+      company: body.company,
+      subject: body.subject,
+      telegram: body.telegram
+    });
+
+    return res.json({
+      success: true,
+      message: 'Inquiry received. We will reply within one business day.'
+    });
+  });
 
   // Cache-busted immutable assets; never cache index.html or service worker.
   app.use(

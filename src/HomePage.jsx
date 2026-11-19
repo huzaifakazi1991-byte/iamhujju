@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
 import DocsModal from './DocsModal.jsx';
+import ContactModal from './ContactModal.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
 import './HomePage.css';
@@ -360,6 +361,7 @@ function HomePage({
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsTab, setDocsTab] = useState('quickstart');
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownCloseTimeoutRef = useRef(null);
@@ -915,7 +917,7 @@ function HomePage({
             <button
               className="any-nav-contact-btn"
               type="button"
-              onClick={() => setLiveSupportOpen(true)}
+              onClick={() => setContactOpen(true)}
             >
               Contact Us
             </button>
@@ -1005,7 +1007,7 @@ function HomePage({
               <button
                 className="mobile-contact-btn"
                 type="button"
-                onClick={() => { setMobileMenuOpen(false); setLiveSupportOpen(true); }}
+                onClick={() => { setMobileMenuOpen(false); setContactOpen(true); }}
               >
                 Contact Us
               </button>
@@ -1909,6 +1911,48 @@ function HomePage({
             </div>
           </div>
         </section>
+
+        {/* CONTACT US SECTION */}
+        <section className="any-contact-section" id="contact">
+          <div className="any-section-header">
+            <span className="any-eyebrow">GET IN TOUCH</span>
+            <h2>Let's Build Something Smarter, Together</h2>
+            <p className="any-section-sub">
+              Got a question, idea, or integration challenge? Our team is here to help you connect iamhujju to anywhere.
+            </p>
+          </div>
+          <div className="any-contact-hero-actions">
+            <a
+              href="https://t.me/+919975649957"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="any-contact-action-pill telegram-pill"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m22 2-7 20-4-9-9-4Z" />
+                <path d="M22 2 11 13" />
+              </svg>
+              <span>Telegram: +91 99756 49957</span>
+            </a>
+            <a
+              href="mailto:huzaifakazi1991@gmail.com"
+              className="any-contact-action-pill email-pill"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <span>Email: huzaifakazi1991@gmail.com</span>
+            </a>
+            <button
+              type="button"
+              className="any-contact-action-pill form-pill"
+              onClick={() => setContactOpen(true)}
+            >
+              ✉️ Open Full Contact Form
+            </button>
+          </div>
+        </section>
       </main>
 
       {/* FOOTER */}
@@ -1949,6 +1993,12 @@ function HomePage({
               <span>AES-256 Key Encryption</span>
               <span>Zero Model Training</span>
             </div>
+            <div className="footer-col">
+              <h4>Contact</h4>
+              <button type="button" onClick={() => setContactOpen(true)}>Contact Form</button>
+              <a href="https://t.me/+919975649957" target="_blank" rel="noopener noreferrer">Telegram (+919975649957)</a>
+              <a href="mailto:huzaifakazi1991@gmail.com">Email Us</a>
+            </div>
           </div>
         </div>
       </footer>
@@ -1971,6 +2021,7 @@ function HomePage({
           setPendingModelId(null);
           setAuthOpen(true);
         }}
+        onOpenContact={() => setContactOpen(true)}
         onScrollTo={(id) => scrollToSection(id)}
         selectedModel={selectedModel}
         connected={connected}
@@ -2017,6 +2068,16 @@ function HomePage({
         initialTab={docsTab}
         onOpenChat={() => openChat(selectedModel)}
         onOpenApiKeys={onOpenApiKeys}
+      />
+
+      {/* AnyAPI Contact Modal */}
+      <ContactModal
+        isOpen={contactOpen}
+        onClose={() => setContactOpen(false)}
+        onOpenDocs={(tab) => {
+          setDocsTab(tab || 'quickstart');
+          setDocsOpen(true);
+        }}
       />
     </div>
   );

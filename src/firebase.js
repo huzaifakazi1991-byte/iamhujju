@@ -81,27 +81,35 @@ export function subscribeToAuthChanges(callback) {
 // Cloud Firestore Conversation & User Storage Helpers
 export async function syncUserProfile(user) {
   if (!db || !user) return;
-  const userRef = doc(db, 'users', user.uid);
-  await setDoc(userRef, {
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName || user.email?.split('@')[0] || 'User',
-    photoURL: user.photoURL || null,
-    tier: 'free',
-    updatedAt: serverTimestamp()
-  }, { merge: true });
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || user.email?.split('@')[0] || 'User',
+      photoURL: user.photoURL || null,
+      tier: 'free',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Firestore user profile sync deferred/offline:', err?.message || err);
+  }
 }
 
 export async function saveConversationToFirestore(userId, conversation) {
   if (!db || !userId || !conversation?.id) return;
-  const convRef = doc(db, 'users', userId, 'conversations', String(conversation.id));
-  await setDoc(convRef, {
-    id: String(conversation.id),
-    title: conversation.title || 'New conversation',
-    model: conversation.model || 'auto',
-    messages: conversation.messages || [],
-    updatedAt: serverTimestamp()
-  }, { merge: true });
+  try {
+    const convRef = doc(db, 'users', userId, 'conversations', String(conversation.id));
+    await setDoc(convRef, {
+      id: String(conversation.id),
+      title: conversation.title || 'New conversation',
+      model: conversation.model || 'auto',
+      messages: conversation.messages || [],
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Firestore conversation sync deferred/offline:', err?.message || err);
+  }
 }
 
 export async function loadConversationsFromFirestore(userId) {

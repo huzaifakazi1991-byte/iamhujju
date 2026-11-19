@@ -278,6 +278,7 @@ export default function LiveSupportWidget({
   onOpenSavedChats,
   onOpenDocs,
   onOpenAuth,
+  onOpenContact,
   onScrollTo,
   selectedModel = 'openrouter:openrouter/free',
   connected = true,
@@ -348,7 +349,11 @@ Ask me any question or tell me where you'd like to navigate!
         if (onScrollTo) onScrollTo(param);
         break;
       case 'contact':
-        window.location.href = 'mailto:huzaifakazi1991@gmail.com';
+        if (onOpenContact) onOpenContact();
+        else window.location.href = 'mailto:huzaifakazi1991@gmail.com';
+        break;
+      case 'telegram':
+        window.open('https://t.me/+919975649957', '_blank', 'noopener,noreferrer');
         break;
       default:
         break;
@@ -383,6 +388,10 @@ Ask me any question or tell me where you'd like to navigate!
     }
     if (/^(take me to|navigate to|go to|open|show me)\s+(saved chats|history)/i.test(q)) {
       if (onOpenSavedChats) onOpenSavedChats();
+      return true;
+    }
+    if (/^(take me to|navigate to|go to|open|show me|surf)\s+(contact|contact us|contacts)/i.test(q)) {
+      if (onOpenContact) onOpenContact();
       return true;
     }
     if (/^(sign in|log in|sign me in|open login|register|sign up)/i.test(q)) {

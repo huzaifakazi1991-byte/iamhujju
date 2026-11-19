@@ -773,3 +773,35 @@ test('OpenRouter integration requires terms acceptance and routes discovered mod
   assert.equal(disconnected.status, 204);
   assert.equal(await accountStore.getProviderApiKey(user.id, 'openrouter'), null);
 });
+
+test('contact endpoint accepts valid inquiries and validates inputs', async (t) => {
+  const app = createApp({
+    apiKey: 'test-secret',
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const invalid = await fetch(`${baseUrl}/api/contact`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: '', email: 'invalid-email', message: '' })
+  });
+  assert.equal(invalid.status, 400);
+
+  const valid = await fetch(`${baseUrl}/api/contact`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Huzaifa Kazi',
+      company: 'iamhujju',
+      subject: 'Technical & Integration Support',
+      telegram: '+919975649957',
+      email: 'huzaifakazi1991@gmail.com',
+      message: 'Hello, need information on custom model routing.'
+    })
+  });
+  assert.equal(valid.status, 200);
+  const data = await valid.json();
+  assert.equal(data.success, true);
+});
