@@ -1,0 +1,6 @@
+dist_c = open('C:/Users/huzai/FreeLLM-AI-Hub/dist/assets/index-BPwvqcSA.css', encoding='utf-8').read()
+idx_430 = dist_c.find('width<=430px')
+print("430px found at:", idx_430)
+print(dist_c[idx_430:idx_430+1500])
+print("\nWHAT COMES AFTER:\n")
+print(dist_c[idx_430+1500:idx_430+4000])

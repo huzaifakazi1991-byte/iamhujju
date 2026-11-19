@@ -132,7 +132,17 @@ function App() {
   const [legacyChatDataAvailable, setLegacyChatDataAvailable] = useState(false);
   const [legacyImportNotice, setLegacyImportNotice] = useState('');
   const [modelsLoading, setModelsLoading] = useState(false);
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window === 'undefined') return 'home';
+    const path = window.location.pathname;
+    if (path.startsWith('/chat')) return 'chat';
+    if (path.startsWith('/models')) return 'models';
+    if (path.startsWith('/skills')) return 'skills';
+    if (path.startsWith('/saved-chats')) return 'saved-chats';
+    if (path.startsWith('/api-keys')) return 'api-keys';
+    if (path.startsWith('/integrations')) return 'integrations';
+    return 'home';
+  });
   const [authChecking, setAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [authRestoreError, setAuthRestoreError] = useState('');
@@ -235,10 +245,64 @@ function App() {
     }
   }, []);
 
-  function navigateToView(view) {
+  function navigateToView(view, query = '') {
     window.scrollTo(0, 0);
     setCurrentView(view);
+    if (typeof window !== 'undefined') {
+      const pathMap = {
+        home: '/',
+        chat: '/chat',
+        models: '/models',
+        skills: '/skills',
+        'saved-chats': '/saved-chats',
+        'api-keys': '/api-keys',
+        integrations: '/integrations',
+        login: '/login'
+      };
+      const targetPath = pathMap[view] || '/';
+      const targetUrl = query ? `${targetPath}?${query}` : targetPath;
+      if (window.location.pathname + window.location.search !== targetUrl) {
+        window.history.pushState({ view }, '', targetUrl);
+      }
+    }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    function handlePopState() {
+      const path = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlModel = searchParams.get('model');
+      if (urlModel) {
+        setSelectedModel(urlModel);
+      }
+      if (path.startsWith('/chat')) {
+        setCurrentView('chat');
+      } else if (path.startsWith('/models')) {
+        setCurrentView('models');
+      } else if (path.startsWith('/skills')) {
+        setCurrentView('skills');
+      } else if (path.startsWith('/saved-chats')) {
+        setCurrentView('saved-chats');
+      } else if (path.startsWith('/api-keys')) {
+        setCurrentView('api-keys');
+      } else if (path.startsWith('/integrations')) {
+        setCurrentView('integrations');
+      } else {
+        setCurrentView('home');
+      }
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialModel = searchParams.get('model');
+    if (initialModel) {
+      setSelectedModel(initialModel);
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const loadModels = useCallback(async signal => {
     setModelsLoading(true);
@@ -495,17 +559,22 @@ function App() {
   }, [chatModelOptions, selectedModel]);
 
   function openChatFromHome(modelId) {
+    let effectiveModel = selectedModel;
     if (modelId && models.some(model => model.id === modelId)) {
       if (isFreeTierUser && !isModelFree(modelId)) {
-        setSelectedModel(getAutoFreeModelId());
+        effectiveModel = getAutoFreeModelId();
       } else {
-        setSelectedModel(modelId);
+        effectiveModel = modelId;
       }
+    } else if (modelId) {
+      effectiveModel = modelId;
     } else if (isFreeTierUser && !isModelFree(selectedModel)) {
-      setSelectedModel(getAutoFreeModelId());
+      effectiveModel = getAutoFreeModelId();
     }
+    setSelectedModel(effectiveModel);
     setError('');
-    navigateToView('chat');
+    const query = effectiveModel && effectiveModel !== 'auto' ? `model=${encodeURIComponent(effectiveModel)}` : '';
+    navigateToView('chat', query);
   }
 
   function handleAuthenticated(user, modelId) {
@@ -985,6 +1054,7 @@ function App() {
           : ''}
         authRestoreError={authRestoreError}
         requestedModelId={requestedModelId}
+        initialAuthOpen={typeof window !== 'undefined' && window.location.pathname === '/login'}
         onClearRequestedModel={() => setRequestedModelId(null)}
         onRetryAuth={() => {
           setAuthChecking(true);

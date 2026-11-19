@@ -7,527 +7,182 @@ import LiveSupportWidget from './LiveSupportWidget.jsx';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
 import './HomePage.css';
 
-const CURRENT_YEAR = new Date().getFullYear();
-
-function Icon({ name, size = 20 }) {
-  const paths = {
-    search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.2 4.2" /></>,
-    arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
-    chevron: <path d="m9 18 6-6-6-6" />,
-    chat: <><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-5.5A7.5 7.5 0 1 1 20 11.5Z" /><path d="M8 11h.01M12 11h.01M16 11h.01" /></>,
-    grid: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></>,
-    refresh: <><path d="M20 7v5h-5" /><path d="M4.6 9a7.5 7.5 0 0 1 12.7-2L20 12" /><path d="M4 17v-5h5" /><path d="M19.4 15a7.5 7.5 0 0 1-12.7 2L4 12" /></>,
-    history: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
-    shield: <><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" /><path d="m9 12 2 2 4-4" /></>,
-    sparkle: <><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" /></>,
-    close: <><path d="m18 6-12 12M6 6l12 12" /></>,
-    cpu: <><rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" /></>,
-    zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
-    layers: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></>,
-    terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
-    code: <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
-    check: <polyline points="20 6 9 17 4 12" />,
-    key: <><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.8 12.2 7.7-7.7M17 6l2 2M15 8l2 2" /></>,
-    tool: <><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></>,
-    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
-    chart: <><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></>,
-    credit: <><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></>,
-    plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
-    minus: <line x1="5" y1="12" x2="19" y2="12" />
-  };
-
-  return (
-    <svg
-      aria-hidden="true"
-      focusable="false"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {paths[name]}
-    </svg>
-  );
-}
-
-function isFreeModel(model) {
-  if (!model) return false;
-  return Boolean(
-    model.isFree ||
-    model.tier === 'free' ||
-    model.id?.includes(':free') ||
-    model.id === 'openrouter:openrouter/free' ||
-    model.id === 'openrouter:openrouter/auto' ||
-    model.id === 'auto'
-  );
-}
-
-function getFeaturedModels(models) {
-  const freeCatalog = models.filter(m =>
-    isFreeModel(m) &&
-    m.id !== 'auto' &&
-    m.id !== 'fusion' &&
-    !/\bslot\b/i.test(m.name || '')
-  );
-  const catalog = freeCatalog.length ? freeCatalog : models.filter(m => m.id !== 'auto' && m.id !== 'fusion');
-  const featured = [];
-
-  for (const pattern of [
-    /gemini/i,
-    /gemma/i,
-    /deepseek/i,
-    /qwen/i,
-    /nemotron|nvidia/i,
-    /llama/i,
-    /ernie|baidu/i,
-    /ling|inclusion/i
-  ]) {
-    const match = catalog.find(model =>
-      pattern.test(`${model.id} ${model.name || ''}`) &&
-      !featured.some(item => item.id === model.id)
-    );
-
-    if (match) featured.push(match);
-  }
-
-  for (const model of catalog) {
-    if (featured.length >= 6) break;
-    if (!featured.some(item => item.id === model.id)) featured.push(model);
-  }
-
-  return featured;
-}
-
-function modelInitials(model) {
-  const id = (model.sourceId || model.id).toLowerCase();
-  if (id.includes('gemini')) return 'G';
-  if (id.includes('deepseek')) return 'D';
-  if (id.startsWith('gpt-')) return 'GPT';
-  if (id.includes('qwen')) return 'Q';
-  if (id.includes('llama')) return 'L';
-  if (id.includes('mistral')) return 'M';
-  if (id.includes('glm')) return 'GLM';
-  return 'AI';
-}
-
-function contextLabel(model) {
-  const context = Number(model.context_window || model.context_length);
-  if (!Number.isFinite(context) || context <= 0) return null;
-  return `${Math.round(context / 1000)}K context`;
-}
-
-function ModelCard({ model, onSelect, disabled }) {
-  const free = isFreeModel(model);
-  return (
-    <button
-      className="any-model-card"
-      type="button"
-      onClick={() => onSelect(model.id)}
-      disabled={disabled}
-      aria-label={`Start a chat with ${model.name || model.id}`}
-    >
-      <div className="any-model-card-top">
-        <span className="any-model-badge" aria-hidden="true">
-          {modelInitials(model)}
-        </span>
-        <div className="any-model-meta">
-          <span className="any-model-provider">
-            {model.provider === 'openrouter' ? 'OpenRouter' : 'iamhujju Gateway'}
-          </span>
-          <strong className="any-model-name">{model.name || model.id}</strong>
-          <span className="any-model-id">{model.sourceId || model.id}</span>
-        </div>
-      </div>
-      {typeof model.description === 'string' && model.description.trim() && (
-        <p className="any-model-desc">{model.description.trim()}</p>
-      )}
-      <div className="any-model-card-footer">
-        <span className={free ? "any-status-tag" : "any-status-tag is-pro"}>
-          {free ? '100% Free' : 'BYOK / Pro'}
-        </span>
-        {contextLabel(model) && (
-          <span className="any-context-tag">{contextLabel(model)}</span>
-        )}
-        <span className="any-card-cta">
-          Chat <Icon name="arrow" size={14} />
-        </span>
-      </div>
-    </button>
-  );
-}
-
-function AuthDialog({
-  isOpen,
-  mode,
-  busy,
-  error,
-  onClose,
-  onSubmit,
-  onModeChange,
-  onGoogleSignIn
+export default function HomePage({
+  models = [],
+  modelsLoading = false,
+  connected = true,
+  error = '',
+  selectedModel = 'auto',
+  chatCount = 0,
+  authChecking = false,
+  currentUser = null,
+  storageError = '',
+  storageNotice = '',
+  authRestoreError = '',
+  requestedModelId = null,
+  initialAuthOpen = false,
+  onClearRequestedModel = () => {},
+  onRetryAuth = () => {},
+  onAuthenticated = () => {},
+  onLogout = () => {},
+  onOpenApiKeys = () => {},
+  onOpenIntegrations = () => {},
+  onRefreshModels = () => {},
+  onOpenChat = () => {},
+  onOpenModels = () => {},
+  onOpenSkills = () => {},
+  onOpenSavedChats = () => {},
 }) {
-  const dialogRef = useRef(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
+  // Navigation & Menu States
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    if (isOpen && !dialog.open) dialog.showModal();
-    if (!isOpen && dialog.open) dialog.close();
-  }, [isOpen]);
-
-  async function submit(event) {
-    event.preventDefault();
-    const succeeded = await onSubmit({ email, password, confirmation });
-    if (succeeded) {
-      setPassword('');
-      setConfirmation('');
-    }
-  }
-
-  function close() {
-    setPassword('');
-    setConfirmation('');
-    onClose();
-  }
-
-  function changeMode(nextMode) {
-    setPassword('');
-    setConfirmation('');
-    onModeChange(nextMode);
-  }
-
-  return (
-    <dialog
-      className="home-auth-dialog"
-      ref={dialogRef}
-      aria-labelledby="auth-title"
-      onCancel={event => {
-        event.preventDefault();
-        close();
-      }}
-      onClick={event => {
-        if (event.target === dialogRef.current) close();
-      }}
-    >
-      <form className="home-auth-form" onSubmit={submit}>
-        <div className="home-auth-top">
-          <div className="home-brand-mark" aria-hidden="true">
-            <img src="/mascot.jpg" alt="iamhujju mascot" className="home-brand-mascot-thumb" />
-          </div>
-          <button
-            className="home-auth-close"
-            type="button"
-            onClick={close}
-            aria-label="Close sign in dialog"
-          >
-            <Icon name="close" size={18} />
-          </button>
-        </div>
-        <span className="home-eyebrow">IAMHUJJU AI WORKSPACE</span>
-        <h2 id="auth-title">{mode === 'signup' ? 'Create your free account' : 'Welcome back'}</h2>
-        <p>
-          {mode === 'signup'
-            ? 'Sign up to unlock instant access to all free AI models without entering API keys.'
-            : 'Sign in to access your models and resume your conversations.'}
-        </p>
-
-        <button
-          className="home-auth-google-btn"
-          type="button"
-          disabled={busy}
-          onClick={onGoogleSignIn}
-        >
-          <svg className="google-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-          </svg>
-          Continue with Google
-        </button>
-
-        <div className="home-auth-divider">
-          <span>or continue with email</span>
-        </div>
-
-        <label htmlFor="auth-email">Email address</label>
-        <input
-          id="auth-email"
-          type="email"
-          value={email}
-          onChange={event => setEmail(event.target.value)}
-          autoComplete="email"
-          maxLength={254}
-          required
-          autoFocus
-        />
-
-        <label htmlFor="auth-password">Password</label>
-        <input
-          id="auth-password"
-          type="password"
-          value={password}
-          onChange={event => setPassword(event.target.value)}
-          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-          minLength={mode === 'signup' ? 12 : undefined}
-          maxLength={128}
-          required
-        />
-
-        {mode === 'signup' && (
-          <>
-            <label htmlFor="auth-confirmation">Confirm password</label>
-            <input
-              id="auth-confirmation"
-              type="password"
-              value={confirmation}
-              onChange={event => setConfirmation(event.target.value)}
-              autoComplete="new-password"
-              minLength={12}
-              maxLength={128}
-              required
-            />
-          </>
-        )}
-
-        {error && <p className="home-auth-error" role="alert">{error}</p>}
-
-        <button className="home-auth-submit" type="submit" disabled={busy}>
-          {busy
-            ? 'Connecting…'
-            : mode === 'signup'
-              ? 'Get Instant Free Access'
-              : 'Sign in to Workspace'}
-        </button>
-
-        <p className="home-auth-switch">
-          {mode === 'signup' ? 'Already have an account?' : 'New to iamhujju?'}
-          <button
-            type="button"
-            onClick={() => changeMode(mode === 'signup' ? 'login' : 'signup')}
-          >
-            {mode === 'signup' ? 'Sign in' : 'Create account'}
-          </button>
-        </p>
-        <p className="home-auth-note">
-          🔒 Conversations are isolated and stored in your cloud database. Free tier models are ready instantly.
-        </p>
-      </form>
-    </dialog>
-  );
-}
-
-function HomePage({
-  models,
-  modelsLoading,
-  connected,
-  error: _error,
-  selectedModel,
-  chatCount: _chatCount,
-  authChecking,
-  currentUser,
-  storageError,
-  storageNotice,
-  authRestoreError,
-  requestedModelId,
-  onClearRequestedModel,
-  onRetryAuth,
-  onAuthenticated,
-  onLogout,
-  onOpenApiKeys,
-  onOpenIntegrations,
-  onRefreshModels,
-  onOpenChat,
-  onOpenModels,
-  onOpenSkills,
-  onOpenSavedChats
-}) {
-  const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('chat');
-  const [expandedFeature, setExpandedFeature] = useState(null);
-  const [authOpen, setAuthOpen] = useState(Boolean(requestedModelId));
-  const [authMode, setAuthMode] = useState('signup');
-  const [authBusy, setAuthBusy] = useState(false);
+  // Modals
+  const [authOpen, setAuthOpen] = useState(initialAuthOpen);
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
-  const [pendingModelId, setPendingModelId] = useState(requestedModelId || null);
-  const [refreshNotice, setRefreshNotice] = useState('');
-  const [docsOpen, setDocsOpen] = useState(false);
-  const [docsTab, setDocsTab] = useState('quickstart');
-  const [liveSupportOpen, setLiveSupportOpen] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [pendingModelId, setPendingModelId] = useState(null);
+
   const [contactOpen, setContactOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const dropdownCloseTimeoutRef = useRef(null);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsTab, setDocsTab] = useState('quickstart');
+
+  // Interactive Showcase Tab (Hero macOS window)
+  const [activeHeroTab, setActiveHeroTab] = useState('chat'); // 'chat' | 'arena' | 'routing' | 'analytics'
+
+  // Featured Models Category Filter
+  const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'reasoning' | 'coding' | 'free'
+
   const navRef = useRef(null);
-  const searchRef = useRef(null);
-  const featuredModels = useMemo(() => getFeaturedModels(models), [models]);
 
-  const filteredModels = useMemo(() => {
-    const searchTerm = query.trim().toLowerCase();
-    if (!searchTerm) return models;
-
-    return models.filter(model =>
-      `${model.id} ${model.sourceId || ''} ${model.name || ''} ${model.owned_by || ''}`
-        .toLowerCase()
-        .includes(searchTerm)
-    );
-  }, [models, query]);
-
-  const hasSearch = Boolean(query.trim());
-  const visibleModels = hasSearch ? filteredModels : featuredModels;
-
+  // Sync /login in URL with auth modal
   useEffect(() => {
-    if (!refreshNotice) return undefined;
-    const timeout = window.setTimeout(() => setRefreshNotice(''), 3500);
-    return () => window.clearTimeout(timeout);
-  }, [refreshNotice]);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (navRef.current && !navRef.current.contains(event.target)) {
-        setActiveDropdown(null);
+    if (typeof window === 'undefined') return;
+    if (authOpen) {
+      if (window.location.pathname !== '/login') {
+        window.history.pushState({}, '', '/login');
+      }
+    } else {
+      if (window.location.pathname === '/login') {
+        window.history.pushState({}, '', '/');
       }
     }
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        setActiveDropdown(null);
-        setMobileMenuOpen(false);
+  }, [authOpen]);
+
+  // Click outside listener for mega-menus
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (navRef.current && !navRef.current.contains(e.target)) {
+        setOpenDropdown(null);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  function handleDropdownEnter(menu) {
-    if (dropdownCloseTimeoutRef.current) {
-      clearTimeout(dropdownCloseTimeoutRef.current);
-      dropdownCloseTimeoutRef.current = null;
-    }
-    setActiveDropdown(menu);
+  // Card mouse-tracking radial spotlight effect
+  function handleSpotlightMove(e) {
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    card.style.setProperty('--mouse-x', `${x}px`);
+    card.style.setProperty('--mouse-y', `${y}px`);
   }
 
-  function handleDropdownLeave() {
-    dropdownCloseTimeoutRef.current = setTimeout(() => {
-      setActiveDropdown(null);
-    }, 180);
-  }
-
-  function toggleDropdown(menu) {
-    setActiveDropdown(prev => (prev === menu ? null : menu));
-  }
-
-  function scrollToSection(id) {
-    setActiveDropdown(null);
+  // Handle open auth modal
+  function openLogin(modelId = null) {
+    setAuthMode('login');
+    setAuthError('');
+    setPendingModelId(modelId);
+    setAuthOpen(true);
     setMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function openSignup(modelId = null) {
+    setAuthMode('signup');
+    setAuthError('');
+    setPendingModelId(modelId);
+    setAuthOpen(true);
+    setMobileMenuOpen(false);
+  }
+
+  // Smooth internal scroll or navigate
+  function handleInternalNav(e, hash) {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    setOpenDropdown(null);
+    const target = document.querySelector(hash);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth' });
     }
   }
 
-  async function refreshModels() {
-    setRefreshNotice('Checking latest model availability…');
-    const refreshed = await onRefreshModels();
-    setRefreshNotice(
-      refreshed
-        ? 'Model availability updated.'
-        : 'Could not refresh model availability. See gateway status.'
-    );
+  // Model ID lookup helper
+  function resolveModelId(slug, fallback) {
+    if (!models || !models.length) return fallback;
+    const match = models.find(m => m.id && m.id.toLowerCase().includes(slug.toLowerCase()));
+    return match ? match.id : fallback;
   }
 
-  function openChat(modelId = selectedModel) {
-    if (authChecking) return;
-    if (!currentUser) {
-      setPendingModelId(modelId || selectedModel);
-      setAuthMode('login');
-      setAuthError('');
-      setAuthOpen(true);
-      return;
-    }
-
+  // Handle opening chat for a specific model
+  function handleLaunchModel(slug, fallback) {
+    const modelId = resolveModelId(slug, fallback);
     onOpenChat(modelId);
   }
 
-  function openSignup(modelId = selectedModel) {
-    if (authChecking) return;
-    if (currentUser) {
-      onOpenChat(modelId);
+  // Firebase Email Authentication
+  async function handleEmailAuth(e) {
+    e.preventDefault();
+    const email = authEmail.trim();
+    const password = authPassword.trim();
+    if (!email || !password) {
+      setAuthError('Please provide an email and password.');
       return;
     }
-    setPendingModelId(modelId || selectedModel);
-    setAuthMode('signup');
-    setAuthError('');
-    setAuthOpen(true);
-  }
-
-  async function submitAuth({ email, password, confirmation }) {
-    setAuthError('');
-
-    if (authMode === 'signup' && password !== confirmation) {
-      setAuthError('Passwords do not match.');
-      return false;
-    }
-
     setAuthBusy(true);
-
+    setAuthError('');
     try {
       const response = await fetch(`/api/auth/${authMode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-
       let result;
       try {
         result = await response.json();
       } catch {
-        throw new Error(`Account request failed (HTTP ${response.status}).`);
+        throw new Error(`Authentication request failed (HTTP ${response.status}).`);
       }
-
       if (!response.ok) {
-        throw new Error(result?.error?.message || `Account request failed (HTTP ${response.status}).`);
+        throw new Error(result?.error?.message || `Authentication failed (HTTP ${response.status}).`);
       }
-
       setAuthOpen(false);
       setAuthBusy(false);
-      setPendingModelId(null);
-      setAuthError('');
+      setAuthEmail('');
+      setAuthPassword('');
       onAuthenticated(result.user, pendingModelId);
-      return true;
-    } catch (requestError) {
-      setAuthError(requestError.message || 'Account request failed.');
-      return false;
+    } catch (err) {
+      setAuthError(err?.message || 'Authentication failed. Please check credentials.');
     } finally {
       setAuthBusy(false);
     }
   }
 
-  async function handleGoogleSignIn() {
+  // Firebase Google One-Click Authentication
+  async function handleGoogleAuth() {
     setAuthBusy(true);
     setAuthError('');
     try {
       const firebaseUser = await signInWithGoogle();
       if (!firebaseUser?.email) {
-        throw new Error('Google sign-in did not return an email address.');
+        throw new Error('Google sign-in did not return a valid email address.');
       }
-
-      // Sync profile to Cloud Firestore
       await syncUserProfile(firebaseUser);
-
-      // Exchange with backend session
       const response = await fetch('/api/auth/firebase-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -538,387 +193,252 @@ function HomePage({
           photoURL: firebaseUser.photoURL
         })
       });
-
       let result;
       try {
         result = await response.json();
       } catch {
-        throw new Error(`Authentication bridge failed (HTTP ${response.status}).`);
+        throw new Error(`Backend session bridge failed (HTTP ${response.status}).`);
       }
-
       if (!response.ok) {
-        throw new Error(result?.error?.message || 'Server session failed.');
+        throw new Error(result?.error?.message || 'Backend session creation failed.');
       }
-
       setAuthOpen(false);
       setAuthBusy(false);
-      setPendingModelId(null);
-      setAuthError('');
       onAuthenticated(result.user, pendingModelId);
     } catch (err) {
-      setAuthError(err.message || 'Google sign in failed.');
+      setAuthError(err?.message || 'Google authentication was cancelled or failed.');
     } finally {
       setAuthBusy(false);
     }
   }
 
-  function submitSearch(event) {
-    event.preventDefault();
-    onOpenModels(query);
-  }
+  // Featured Models Data
+  const featuredModelsList = useMemo(() => [
+    {
+      id: 'grok-4.7',
+      slug: 'grok',
+      fallback: 'x-ai/grok-2-1212',
+      provider: 'xAI',
+      providerClass: 'bg-white/10 text-white',
+      name: 'Grok 4.7',
+      category: 'reasoning',
+      context: '128k Context',
+      badge: '● Online Ready',
+      desc: 'Real-time web awareness with unfiltered logical deduction and deep knowledge synthesis.'
+    },
+    {
+      id: 'claude-3.7-sonnet',
+      slug: 'claude-3.7',
+      fallback: 'anthropic/claude-3.7-sonnet',
+      provider: 'Anthropic',
+      providerClass: 'bg-amber-500/10 text-amber-300',
+      name: 'Claude 3.7 Sonnet',
+      category: 'coding reasoning',
+      context: '200k Context',
+      badge: '● Online Ready',
+      desc: 'Hybrid reasoning model with elite coding benchmarks and extended thinking depth.'
+    },
+    {
+      id: 'deepseek-r1',
+      slug: 'deepseek-r1',
+      fallback: 'deepseek/deepseek-r1',
+      provider: 'DeepSeek',
+      providerClass: 'bg-blue-500/10 text-blue-400',
+      name: 'DeepSeek R1',
+      category: 'free reasoning',
+      context: 'Free Tier Ready',
+      badge: '● 100% Free',
+      desc: 'State-of-the-art open-weights reasoning model with explicit chain-of-thought verification.'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      slug: 'gemini',
+      fallback: 'google/gemini-2.5-flash',
+      provider: 'Google',
+      providerClass: 'bg-blue-600/10 text-[#38bdf8]',
+      name: 'Gemini 2.5 Flash',
+      category: 'free coding',
+      context: '1,000,000 Context',
+      badge: '● 100% Free',
+      desc: 'Ultra-fast multimodal processing with monumental context window for massive codebases.'
+    },
+    {
+      id: 'gpt-4o',
+      slug: 'gpt-4o',
+      fallback: 'openai/gpt-4o',
+      provider: 'OpenAI',
+      providerClass: 'bg-white/10 text-white',
+      name: 'GPT-4o',
+      category: 'coding reasoning',
+      context: '128k Context',
+      badge: '● Online Ready',
+      desc: 'Omni-modal flagship intelligence with superior multilingual fluency and JSON output speed.'
+    },
+    {
+      id: 'qwen-2.5-coder',
+      slug: 'qwen',
+      fallback: 'qwen/qwen-2.5-coder-32b-instruct',
+      provider: 'Qwen',
+      providerClass: 'bg-emerald-500/10 text-emerald-400',
+      name: 'Qwen 2.5 Coder',
+      category: 'free coding',
+      context: '128k Context',
+      badge: '● 100% Free',
+      desc: 'Specialized code generation, diff analysis, and unit test synthesizer built on 5.5T tokens.'
+    }
+  ], []);
 
-  const providers = [
-    { name: 'OpenAI', icon: '⚡' },
-    { name: 'Anthropic', icon: '🧠' },
-    { name: 'Google', icon: '✨' },
-    { name: 'DeepSeek', icon: '🐋' },
-    { name: 'Meta', icon: '♾️' },
-    { name: 'Mistral', icon: '🌪️' },
-    { name: 'Qwen', icon: '🌐' },
-    { name: 'Cohere', icon: '🔮' },
-    { name: 'xAI', icon: '✖️' },
-    { name: 'Perplexity', icon: '🔍' }
-  ];
+  const filteredModels = useMemo(() => {
+    if (activeCategory === 'all') return featuredModelsList;
+    return featuredModelsList.filter(m => m.category.includes(activeCategory));
+  }, [activeCategory, featuredModelsList]);
 
   return (
-    <div className="any-home" id="home-top">
-      {/* Background VFX Glow Orbs */}
-      <div className="any-bg-glow glow-top-center" aria-hidden="true" />
-      <div className="any-bg-glow glow-left-cyan" aria-hidden="true" />
-      <div className="any-bg-glow glow-right-blue" aria-hidden="true" />
-
-      {/* Top Navbar */}
-      <header className="any-nav" ref={navRef}>
-        <div className="any-nav-inner">
+    <div className="any-landing-root">
+      
+      {/* ==============================================================
+           1. TOP NAVBAR WITH RICH MEGA-MENUS & MOBILE DRAWER
+           ============================================================== */}
+      <header className="any-nav-header" ref={navRef}>
+        <div className="any-nav-container">
+          
+          {/* Brand Logo */}
           <button
-            className="any-brand"
             type="button"
+            className="any-nav-brand-group"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            aria-label="iamhujju home"
           >
-            <div className="any-brand-mascot-ring">
-              <img src="/mascot.jpg" alt="iamhujju mascot" className="any-brand-mascot-img" />
+            <div className="any-nav-logo-ring">
+              <div className="any-nav-logo-inner">
+                <svg className="any-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"/>
+                  <path d="M18 10v2a6 6 0 0 1-12 0v-2"/>
+                  <circle cx="12" cy="14" r="1"/>
+                  <path d="M12 15v5"/>
+                  <path d="M8 20h8"/>
+                </svg>
+              </div>
             </div>
-            <span className="any-brand-text">iamhujju</span>
+            <div className="any-brand-name-stack">
+              <span className="any-brand-name">iamhujju</span>
+              <span className="any-brand-sub">AI Workspace</span>
+            </div>
           </button>
 
-          <nav className="any-nav-links" aria-label="Main navigation">
-            {/* 1. Products Dropdown */}
-            <div
-              className="any-nav-dropdown-wrapper"
-              onMouseEnter={() => handleDropdownEnter('products')}
-              onMouseLeave={handleDropdownLeave}
-            >
+          {/* Desktop Navigation Mega-Menus */}
+          <nav className="any-desktop-menu">
+            
+            {/* Models Menu */}
+            <div className="any-menu-item">
               <button
-                className={`any-nav-link-btn ${activeDropdown === 'products' ? 'is-active' : ''}`}
                 type="button"
-                aria-haspopup="true"
-                aria-expanded={activeDropdown === 'products'}
-                onClick={() => toggleDropdown('products')}
+                className={`any-menu-trigger ${openDropdown === 'models' ? 'is-active' : ''}`}
+                onClick={() => setOpenDropdown(prev => prev === 'models' ? null : 'models')}
+              >
+                <span>Models</span>
+                <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              {openDropdown === 'models' && (
+                <div className="any-mega-dropdown">
+                  <div className="any-dropdown-header">
+                    <span className="any-dropdown-eyebrow">FLAGSHIP MODEL FLEET</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); onOpenModels(); }}
+                  >
+                    <div className="any-row-icon cyan-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">400+ Active Models</div>
+                      <div className="any-row-desc">DeepSeek R1, GPT-4o, Claude 3.7 & Grok</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); setActiveCategory('free'); const el = document.getElementById('models'); el?.scrollIntoView({ behavior: 'smooth' }); }}
+                  >
+                    <div className="any-row-icon emerald-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">100% Free Tier Models</div>
+                      <div className="any-row-desc">No API keys required, ready instantly</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Products Menu */}
+            <div className="any-menu-item">
+              <button
+                type="button"
+                className={`any-menu-trigger ${openDropdown === 'products' ? 'is-active' : ''}`}
+                onClick={() => setOpenDropdown(prev => prev === 'products' ? null : 'products')}
               >
                 <span>Products</span>
-                <svg
-                  className={`any-nav-chevron ${activeDropdown === 'products' ? 'is-open' : ''}`}
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
+                <svg className="any-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
               </button>
-
-              {activeDropdown === 'products' && (
-                <div className="any-dropdown-menu any-dropdown-products" role="menu">
-                  <div className="any-dropdown-header">
-                    <span className="any-dropdown-eyebrow">PLATFORM & APIS</span>
-                  </div>
-                  <div className="any-dropdown-grid">
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => scrollToSection('unified-api-section')}
-                    >
-                      <div className="dropdown-item-icon icon-cyan">
-                        <Icon name="layers" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Unified API</strong>
-                          <span className="dropdown-item-badge">400+ Models</span>
-                        </div>
-                        <p>One OpenAI-compatible endpoint for every leading LLM</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        openChat(selectedModel);
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-blue">
-                        <Icon name="chat" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>AnyChat</strong>
-                          <span className="dropdown-item-badge badge-active">Playground</span>
-                        </div>
-                        <p>Compare models side-by-side with live prompt testing</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => scrollToSection('anycli-section')}
-                    >
-                      <div className="dropdown-item-icon icon-purple">
-                        <Icon name="terminal" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>AnyCLI</strong>
-                          <span className="dropdown-item-badge">Terminal</span>
-                        </div>
-                        <p>Run models, test prompts, and manage keys from CLI</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        onOpenModels();
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-emerald">
-                        <Icon name="grid" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Model Hub</strong>
-                        </div>
-                        <p>Explore benchmarks, context windows, and filters</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => scrollToSection('anychat-section')}
-                    >
-                      <div className="dropdown-item-icon icon-amber">
-                        <Icon name="zap" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Smart Routing</strong>
-                        </div>
-                        <p>Zero-downtime auto-fallback to free tier providers</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        setLiveSupportOpen(true);
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-rose">
-                        <Icon name="sparkle" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Live AI Support</strong>
-                          <span className="dropdown-item-badge badge-new">Copilot</span>
-                        </div>
-                        <p>Live interactive assistant for instant app guidance</p>
-                      </div>
-                    </button>
-                  </div>
+              {openDropdown === 'products' && (
+                <div className="any-mega-dropdown">
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); onOpenChat(selectedModel); }}
+                  >
+                    <div className="any-row-icon cyan-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 9h6"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">AnyChat Studio</div>
+                      <div className="any-row-desc">Next-gen multi-turn conversation suite</div>
+                    </div>
+                  </button>
+                  <a
+                    href="#arena"
+                    className="any-dropdown-row"
+                    onClick={e => handleInternalNav(e, '#arena')}
+                  >
+                    <div className="any-row-icon violet-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Multi-Model Arena</div>
+                      <div className="any-row-desc">Compare model outputs side-by-side</div>
+                    </div>
+                  </a>
+                  <button
+                    type="button"
+                    className="any-dropdown-row"
+                    onClick={() => { setOpenDropdown(null); onOpenSkills(); }}
+                  >
+                    <div className="any-row-icon amber-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <div className="any-row-text">
+                      <div className="any-row-title">Skills Catalog</div>
+                      <div className="any-row-desc">Browse agent capabilities & extensions</div>
+                    </div>
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* 2. Pricing */}
-            <button
-              className="any-nav-link-btn"
-              type="button"
-              onClick={() => scrollToSection('pricing')}
-            >
-              Pricing
-            </button>
-
-            {/* 3. Docs */}
-            <button
-              className="any-nav-link-btn"
-              type="button"
-              onClick={() => {
-                setActiveDropdown(null);
-                setDocsTab('quickstart');
-                setDocsOpen(true);
-              }}
-            >
-              Docs
-            </button>
-
-            {/* 4. Resources Dropdown */}
-            <div
-              className="any-nav-dropdown-wrapper"
-              onMouseEnter={() => handleDropdownEnter('resources')}
-              onMouseLeave={handleDropdownLeave}
-            >
-              <button
-                className={`any-nav-link-btn ${activeDropdown === 'resources' ? 'is-active' : ''}`}
-                type="button"
-                aria-haspopup="true"
-                aria-expanded={activeDropdown === 'resources'}
-                onClick={() => toggleDropdown('resources')}
-              >
-                <span>Resources</span>
-                <svg
-                  className={`any-nav-chevron ${activeDropdown === 'resources' ? 'is-open' : ''}`}
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-
-              {activeDropdown === 'resources' && (
-                <div className="any-dropdown-menu any-dropdown-resources" role="menu">
-                  <div className="any-dropdown-header">
-                    <span className="any-dropdown-eyebrow">DEVELOPER RESOURCES</span>
-                  </div>
-                  <div className="any-dropdown-grid">
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        onOpenSkills();
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-cyan">
-                        <Icon name="tool" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Skills Catalog</strong>
-                          <span className="dropdown-item-badge">34+ Skills</span>
-                        </div>
-                        <p>Curated AI orchestration, tool execution, and agents</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        onOpenSavedChats();
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-purple">
-                        <Icon name="history" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Saved Chats</strong>
-                          <span className="dropdown-item-badge">Cloud Sync</span>
-                        </div>
-                        <p>Cross-device chat history synced to Firestore</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        setDocsTab('quickstart');
-                        setDocsOpen(true);
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-blue">
-                        <Icon name="code" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>API Reference & SDKs</strong>
-                        </div>
-                        <p>Drop-in cURL, Node.js, and Python code examples</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="any-dropdown-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        setDocsTab('cli');
-                        setDocsOpen(true);
-                      }}
-                    >
-                      <div className="dropdown-item-icon icon-emerald">
-                        <Icon name="terminal" size={18} />
-                      </div>
-                      <div className="dropdown-item-text">
-                        <div className="dropdown-item-title-row">
-                          <strong>Terminal CLI Guide</strong>
-                        </div>
-                        <p>Installation guide and terminal command reference</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 5. About */}
-            <button
-              className="any-nav-link-btn"
-              type="button"
-              onClick={() => setAboutOpen(true)}
-            >
-              About
-            </button>
+            <a href="#pricing" className="any-menu-link" onClick={e => handleInternalNav(e, '#pricing')}>Pricing</a>
+            <button type="button" className="any-menu-link" onClick={() => { setDocsTab('quickstart'); setDocsOpen(true); }}>Docs</button>
+            <a href="#security" className="any-menu-link" onClick={e => handleInternalNav(e, '#security')}>Security</a>
+            <button type="button" className="any-menu-link" onClick={() => setAboutOpen(true)}>About</button>
           </nav>
 
-          {/* Right Action Tools: Contact Us + Dashboard -> */}
-          <div className="any-nav-tools">
+          {/* Right Action Tools */}
+          <div className="any-nav-actions">
             <button
-              className="any-nav-contact-btn"
               type="button"
+              className="any-nav-contact-ghost"
               onClick={() => setContactOpen(true)}
             >
               Contact Us
@@ -933,30 +453,35 @@ function HomePage({
                 onOpenApiKeys={onOpenApiKeys}
                 onOpenIntegrations={onOpenIntegrations}
               />
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                className="any-nav-login-ghost"
+                onClick={() => openLogin()}
+              >
+                Log In
+              </button>
+            )}
 
             <button
-              className="any-btn-dashboard"
               type="button"
-              onClick={() => openChat(selectedModel)}
+              className="any-btn-workspace-cta"
+              onClick={() => onOpenChat(selectedModel)}
               disabled={authChecking}
             >
-              <span>Dashboard</span>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
+              <span>Open Workspace</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </button>
 
-            {/* Mobile Hamburger Toggle */}
+            {/* Mobile Hamburger Toggle Button */}
             <button
-              className="any-nav-mobile-toggle"
               type="button"
+              className="any-nav-mobile-toggle"
               aria-label="Toggle mobile menu"
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen(prev => !prev)}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 {mobileMenuOpen ? (
                   <path d="M18 6 6 18M6 6l12 12" />
                 ) : (
@@ -965,1199 +490,876 @@ function HomePage({
               </svg>
             </button>
           </div>
+
         </div>
 
-        {/* Mobile Navigation Drawer */}
+        {/* Mobile Navigation Slide-Down Drawer */}
         {mobileMenuOpen && (
           <div className="any-nav-mobile-drawer">
-            <div className="mobile-drawer-section">
-              <span className="mobile-drawer-label">Products</span>
-              <button type="button" onClick={() => scrollToSection('unified-api-section')}>
-                <Icon name="layers" size={16} /> Unified API (400+ Models)
+            <div className="mobile-drawer-col">
+              <span className="mobile-drawer-eyebrow">Products</span>
+              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); onOpenChat(selectedModel); }}>
+                AnyChat Studio
               </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}>
-                <Icon name="chat" size={16} /> AnyChat Playground
+              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); onOpenModels(); }}>
+                Model Hub (400+ Models)
               </button>
-              <button type="button" onClick={() => scrollToSection('anycli-section')}>
-                <Icon name="terminal" size={16} /> AnyCLI Terminal
-              </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenModels(); }}>
-                <Icon name="grid" size={16} /> Model Hub
+              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}>
+                Skills Catalog
               </button>
             </div>
 
-            <div className="mobile-drawer-section">
-              <span className="mobile-drawer-label">Navigation</span>
-              <button type="button" onClick={() => scrollToSection('pricing')}>
+            <div className="mobile-drawer-col">
+              <span className="mobile-drawer-eyebrow">Navigation</span>
+              <a href="#pricing" className="mobile-drawer-link" onClick={e => handleInternalNav(e, '#pricing')}>
                 Pricing
-              </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); setDocsTab('quickstart'); setDocsOpen(true); }}>
+              </a>
+              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); setDocsTab('quickstart'); setDocsOpen(true); }}>
                 Docs
               </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}>
-                Skills Catalog
-              </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSavedChats(); }}>
-                Saved Chats
-              </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); setAboutOpen(true); }}>
+              <a href="#security" className="mobile-drawer-link" onClick={e => handleInternalNav(e, '#security')}>
+                Enterprise Security
+              </a>
+              <button type="button" className="mobile-drawer-link" onClick={() => { setMobileMenuOpen(false); setAboutOpen(true); }}>
                 About
               </button>
             </div>
 
             <div className="mobile-drawer-footer">
               <button
-                className="mobile-contact-btn"
                 type="button"
+                className="mobile-drawer-contact-btn"
                 onClick={() => { setMobileMenuOpen(false); setContactOpen(true); }}
               >
-                Contact Us
+                Contact Support
               </button>
+              {!currentUser ? (
+                <button
+                  type="button"
+                  className="mobile-drawer-login-btn"
+                  onClick={() => openLogin()}
+                >
+                  Log In
+                </button>
+              ) : null}
               <button
-                className="any-btn-dashboard mobile-dash-btn"
                 type="button"
-                onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}
+                className="any-btn-workspace-cta mobile-full-cta"
+                onClick={() => { setMobileMenuOpen(false); onOpenChat(selectedModel); }}
               >
-                <span>Dashboard</span>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14" />
-                  <path d="m13 6 6 6-6 6" />
-                </svg>
+                Open Workspace →
               </button>
             </div>
           </div>
         )}
       </header>
 
-      {authRestoreError && (
-        <div className="any-alert-bar" role="alert">
-          <span>{authRestoreError}</span>
-          <button type="button" onClick={onRetryAuth} disabled={authChecking}>
-            {authChecking ? 'Retrying…' : 'Retry connection'}
-          </button>
-        </div>
-      )}
 
-      {storageNotice && (
-        <div className="any-notice-bar" role="status">{storageNotice}</div>
-      )}
+      {/* ==============================================================
+           2. HERO SECTION + DUAL CTAs
+           ============================================================== */}
+      <section className="any-hero-section">
+        <div className="any-section-inner text-center">
+          
+          {/* Announcement Pill */}
+          <div
+            className="any-announcement-pill"
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpenChat('deepseek/deepseek-r1')}
+            onKeyDown={e => { if (e.key === 'Enter') onOpenChat('deepseek/deepseek-r1'); }}
+          >
+            <span className="any-pill-pulse-dot"></span>
+            <span className="any-pill-text">New: GPT-4o, Claude 3.7 & DeepSeek R1 free tier live</span>
+            <svg className="any-pill-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </div>
 
-      <main className="any-main">
-        {/* HERO SECTION */}
-        <section className="any-hero" aria-labelledby="hero-title">
-          <div className="any-hero-container">
-            {/* Release announcement pill */}
-            <div className="any-announcement-wrapper">
+          {/* Hero Headline */}
+          <h1 className="any-hero-h1">
+            One AI Workspace for <br className="hidden-mobile" />
+            <span className="any-gradient-headline">400+ Frontier Models</span>
+          </h1>
+
+          {/* Hero Subtitle */}
+          <p className="any-hero-sub">
+            Your intelligent AI companion. Seamlessly chat, test, compare, and auto-route between the world's most powerful models in one blazing-fast workspace. Zero API key hassle.
+          </p>
+
+          {/* Dual Hero Call To Actions */}
+          <div className="any-hero-actions">
             <button
               type="button"
-              className="any-announcement-pill"
-              onClick={() => openChat(selectedModel)}
+              className="any-btn-primary glow-cyan"
+              onClick={() => onOpenChat(selectedModel)}
             >
-              <span className="any-pill-badge">NEW</span>
-              <span className="any-pill-text">
-                Gemini 2.5 Flash, DeepSeek R1 & GPT-4o free models now ready
-              </span>
-              <span className="any-pill-arrow">→</span>
+              <span>Start for free</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+            <button
+              type="button"
+              className="any-btn-secondary"
+              onClick={() => onOpenModels()}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+              <span>Explore 400+ Models</span>
             </button>
           </div>
 
-          {/* Main Hero Header and Headline */}
-          <div className="any-hero-grid">
-            {/* Mascot Showcase Card (Referencing Image 3 Marked Area) */}
-            <div className="any-hero-mascot-card" aria-label="iamhujju AI Companion Mascot">
-              <div
-                className="any-mascot-outer-ring"
-                onClick={() => openChat(selectedModel)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => { if (e.key === 'Enter') openChat(selectedModel); }}
-                title="Click to start chatting with your AI Companion"
+          {/* Trust Badges */}
+          <div className="any-hero-trust-row">
+            <span className="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5"/></svg> No credit card required</span>
+            <span className="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5"/></svg> Free tier models ready instantly</span>
+            <span className="trust-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5"/></svg> Enterprise AES-256 cloud sync</span>
+          </div>
+
+          {/* ==============================================================
+               INTERACTIVE FEATURE SWITCHER (HERO MACOS WINDOW)
+               ============================================================== */}
+          <div className="any-showcase-container" id="workspace">
+            
+            {/* Pill Tab Bar */}
+            <div className="any-pill-tabs-bar">
+              <button
+                type="button"
+                className={`any-tab-btn ${activeHeroTab === 'chat' ? 'is-active' : ''}`}
+                onClick={() => setActiveHeroTab('chat')}
               >
-                <div className="any-mascot-inner-container">
-                  <img
-                    src="/iamhujju-mascot.jpg"
-                    alt="iamhujju mascot - Your AI Companion"
-                    className="any-mascot-visual"
-                  />
-                  <div className="any-mascot-badge">
-                    <span className="any-mascot-pulse" />
-                    <span>AI Companion Online</span>
-                  </div>
-                </div>
-              </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>AI Workspace</span>
+              </button>
+
+              <button
+                type="button"
+                className={`any-tab-btn ${activeHeroTab === 'arena' ? 'is-active' : ''}`}
+                onClick={() => setActiveHeroTab('arena')}
+              >
+                <svg className="violet-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24"/></svg>
+                <span>Side-by-Side Compare</span>
+              </button>
+
+              <button
+                type="button"
+                className={`any-tab-btn ${activeHeroTab === 'routing' ? 'is-active' : ''}`}
+                onClick={() => setActiveHeroTab('routing')}
+              >
+                <svg className="emerald-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span>Smart Auto-Routing</span>
+              </button>
+
+              <button
+                type="button"
+                className={`any-tab-btn ${activeHeroTab === 'analytics' ? 'is-active' : ''}`}
+                onClick={() => setActiveHeroTab('analytics')}
+              >
+                <svg className="cyan-stroke" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+                <span>Usage & Telemetry</span>
+              </button>
             </div>
 
-            {/* Hero Copy */}
-            <div className="any-hero-text">
-              <h1 id="hero-title" className="any-hero-title">
-                One AI Workspace for <span className="any-gradient-text">every model</span>
-              </h1>
-              <p className="any-hero-subtitle">
-                Build, test, and chat with 400+ models. Free models ready instantly with zero API keys required, smart auto-routing, and account-backed cloud sync.
-              </p>
-
-              {/* Hero CTA Buttons */}
-              <div className="any-hero-actions">
-                <button
-                  type="button"
-                  className="any-btn-primary"
-                  onClick={() => openSignup(selectedModel)}
-                >
-                  <span>{currentUser ? 'Go to Chat' : 'Get Started Free'}</span>
-                  <Icon name="arrow" size={17} />
-                </button>
-                <button
-                  type="button"
-                  className="any-btn-secondary"
-                  onClick={() => onOpenModels()}
-                >
-                  <Icon name="grid" size={17} />
-                  <span>Browse Models</span>
-                </button>
+            {/* macOS Window Frame */}
+            <div
+              className="spotlight-card any-window-frame"
+              onMouseMove={handleSpotlightMove}
+            >
+              {/* Chrome Header */}
+              <div className="any-window-chrome">
+                <div className="any-chrome-dots">
+                  <span className="dot dot-red"></span>
+                  <span className="dot dot-yellow"></span>
+                  <span className="dot dot-green"></span>
+                  <span className="chrome-title">iamhujju-workspace v2.4 // interactive preview</span>
+                </div>
+                <div className="any-chrome-status">
+                  <span className="status-ping"></span>
+                  <span>412 Models Ready</span>
+                </div>
               </div>
 
-              {/* Privacy badge */}
-              <div className="any-hero-trust">
-                <Icon name="shield" size={15} />
-                <span>Zero configuration required · Enterprise encryption · Neon PostgreSQL</span>
-              </div>
+              {/* Tab Panel 1: AI Workspace */}
+              {activeHeroTab === 'chat' && (
+                <div className="any-tab-panel">
+                  <div className="chat-demo-stack">
+                    <div className="chat-user-row">
+                      <div className="chat-user-avatar">U</div>
+                      <div className="chat-user-msg">
+                        Synthesize an ultra-low latency hybrid caching layer in TypeScript with memory fallbacks.
+                      </div>
+                    </div>
+                    <div className="chat-asst-row">
+                      <div className="chat-asst-avatar">AI</div>
+                      <div className="chat-asst-box">
+                        <div className="chat-asst-meta">
+                          <span className="meta-cyan">Claude 3.7 Sonnet · 94 t/s · 114ms TTFT</span>
+                          <span className="meta-emerald">Status: 200 OK</span>
+                        </div>
+                        <pre className="chat-code-block"><code><span className="c-cyan">export class</span> TieredCache&lt;T&gt; &#123;
+  <span className="c-muted">// L1: Fast In-Memory Map | L2: Redis Persistence</span>
+  <span className="c-cyan">private</span> memory = <span className="c-cyan">new</span> Map&lt;string, &#123; val: T; exp: number &#125;&gt;();
+  
+  <span className="c-cyan">async</span> get(key: string): Promise&lt;T | null&gt; &#123;
+    <span className="c-violet">const</span> cached = <span className="c-cyan">this</span>.memory.get(key);
+    <span className="c-violet">if</span> (cached &amp;&amp; cached.exp &gt; Date.now()) <span className="c-emerald">return</span> cached.val;
+    <span className="c-emerald">return await this</span>.hydrateFromL2(key);
+  &#125;
+&#125;</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="chat-footer-bar">
+                    <span>Model: <strong className="text-white">Claude 3.7 Sonnet</strong> (200k Context)</span>
+                    <button
+                      type="button"
+                      className="any-link-cta"
+                      onClick={() => onOpenChat('anthropic/claude-3.7-sonnet')}
+                    >
+                      Open in Full Studio →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab Panel 2: Side-by-Side Compare */}
+              {activeHeroTab === 'arena' && (
+                <div className="any-tab-panel">
+                  <div className="arena-split-grid">
+                    <div className="arena-card">
+                      <div className="arena-header">
+                        <span className="text-cyan">DeepSeek R1 (Reasoning)</span>
+                        <span className="text-slate">142 t/s · $0.00 / free</span>
+                      </div>
+                      <div className="arena-thought">&lt;thought&gt; Breaking down asymptotic complexity of lock-free queue... &lt;/thought&gt;</div>
+                      <p className="arena-body">The lock-free queue relies on atomic Compare-And-Swap (CAS) pointers to achieve zero contention across CPU cores.</p>
+                    </div>
+                    <div className="arena-card">
+                      <div className="arena-header">
+                        <span className="text-violet">GPT-4o (Multimodal)</span>
+                        <span className="text-slate">118 t/s · 98ms</span>
+                      </div>
+                      <p className="arena-body">Here is the concise implementation using atomic pointers with standard memory reclamation barriers.</p>
+                    </div>
+                  </div>
+                  <div className="chat-footer-bar">
+                    <span>Multi-Model Arena Active</span>
+                    <button type="button" className="any-link-cta" onClick={() => onOpenChat('deepseek/deepseek-r1')}>
+                      Launch Arena Session →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab Panel 3: Smart Auto-Routing */}
+              {activeHeroTab === 'routing' && (
+                <div className="any-tab-panel">
+                  <div className="routing-stack">
+                    <div className="routing-subtitle">Dynamic Gateway Policy: Auto-Failover & Latency Optimizer</div>
+                    <div className="routing-row row-active">
+                      <span className="routing-dot dot-emerald"></span>
+                      <span>[Primary Route] Claude 3.7 Sonnet (EU-Frankfurt) · Latency: 92ms · Healthy</span>
+                    </div>
+                    <div className="routing-row row-standby">
+                      <span className="routing-dot dot-slate"></span>
+                      <span>[Failover 1] DeepSeek R1 (US-East) · Hot Standby · Zero Rate Limit Lock</span>
+                    </div>
+                    <div className="routing-row row-standby">
+                      <span className="routing-dot dot-slate"></span>
+                      <span>[Failover 2] Gemini 2.5 Flash · 1,000,000 Token Buffer Ready</span>
+                    </div>
+                  </div>
+                  <div className="chat-footer-bar">
+                    <span>Automated Failover Guard (400+ Routes)</span>
+                    <button type="button" className="any-link-cta" onClick={() => onOpenChat(selectedModel)}>
+                      Test Live Router →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab Panel 4: Usage & Telemetry */}
+              {activeHeroTab === 'analytics' && (
+                <div className="any-tab-panel">
+                  <div className="analytics-quad-grid">
+                    <div className="stat-tile">
+                      <div className="stat-label">Total Requests</div>
+                      <div className="stat-val text-white">1,482,910</div>
+                    </div>
+                    <div className="stat-tile">
+                      <div className="stat-label">Avg Response Time</div>
+                      <div className="stat-val text-cyan">94ms</div>
+                    </div>
+                    <div className="stat-tile">
+                      <div className="stat-label">Tokens Generated</div>
+                      <div className="stat-val text-emerald">842.1M</div>
+                    </div>
+                    <div className="stat-tile">
+                      <div className="stat-label">Fleet Availability</div>
+                      <div className="stat-val text-violet">99.99%</div>
+                    </div>
+                  </div>
+                  <div className="chat-footer-bar">
+                    <span>Account-Backed Neon PostgreSQL Cloud Sync</span>
+                    <button type="button" className="any-link-cta" onClick={() => onOpenChat(selectedModel)}>
+                      View Your Usage →
+                    </button>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
 
-          {/* Interactive Preview Section (AnyAPI Style Tabs & Mockup) */}
-          <div className="any-preview-container">
-            {/* Tab switchers */}
-            <div className="any-preview-tabs" role="tablist" aria-label="Feature Previews">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'chat'}
-                className={`any-tab-btn ${activeTab === 'chat' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('chat')}
-              >
-                <span>AnyChat</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'cli'}
-                className={`any-tab-btn ${activeTab === 'cli' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('cli')}
-              >
-                <span>AnyCLI</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'routing'}
-                className={`any-tab-btn ${activeTab === 'routing' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('routing')}
-              >
-                <span>Smart Routing</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'analytics'}
-                className={`any-tab-btn ${activeTab === 'analytics' ? 'is-active' : ''}`}
-                onClick={() => setActiveTab('analytics')}
-              >
-                <span>Logs & Analytics</span>
-              </button>
+        </div>
+      </section>
+
+
+      {/* ==============================================================
+           3. INFINITE LOGO MARQUEE: LEADING AI PROVIDERS
+           ============================================================== */}
+      <section className="any-marquee-section">
+        <div className="any-marquee-eyebrow">
+          POWERED BY 400+ LEADING AI PROVIDERS & OPEN-SOURCE FRONTIER LABS
+        </div>
+
+        <div className="mask-marquee">
+          <div className="animate-marquee-strip">
+            
+            {/* Loop Strip A */}
+            <div className="marquee-group">
+              <span className="marquee-item"><svg className="provider-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V18h-2v-1.07A6 6 0 0 1 6.07 12H7a5 5 0 0 0 4 4.9V12H9v-2h2V7.1A5 5 0 0 0 7 12H6.07A6 6 0 0 1 11 6.07V5h2v1.07A6 6 0 0 1 17.93 12H17a5 5 0 0 0-4-4.9V10h2v2h-2v4.9A5 5 0 0 0 17 12h.93A6 6 0 0 1 13 16.93z"/></svg> OpenAI</span>
+              <span className="marquee-item"><svg className="provider-icon amber-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> Anthropic</span>
+              <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Google DeepMind</span>
+              <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-7.07 17.07L12 12l7.07 7.07A10 10 0 0 0 12 2z"/></svg> DeepSeek</span>
+              <span className="marquee-item"><svg className="provider-icon text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> xAI Grok</span>
+              <span className="marquee-item"><svg className="provider-icon cyan-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg> Meta LLaMA</span>
+              <span className="marquee-item"><svg className="provider-icon orange-fill" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 2 22 22 22"/></svg> Mistral AI</span>
+              <span className="marquee-item"><svg className="provider-icon teal-fill" viewBox="0 0 24 24" fill="currentColor"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Perplexity</span>
+              <span className="marquee-item"><svg className="provider-icon emerald-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> Qwen (Alibaba)</span>
             </div>
 
-            {/* Mockup Window */}
-            <div className="any-mockup-window" onClick={() => openChat(selectedModel)}>
-              {/* Window Header */}
-              <div className="any-mockup-chrome">
-                <div className="any-chrome-dots">
-                  <span className="dot dot-red" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                </div>
-                <div className="any-chrome-title">
-                  iamhujju - {activeTab === 'chat' ? 'AnyChat' : activeTab === 'cli' ? 'AnyCLI Terminal' : activeTab === 'routing' ? 'Smart Router' : 'Logs & Analytics'}
-                </div>
-                <div className="any-chrome-status">
-                  <span className="status-live-dot" />
-                  <span>Free Tier · Active</span>
-                </div>
-              </div>
-
-              {/* Mockup Body Content depending on active tab */}
-              <div className="any-mockup-body">
-                {activeTab === 'chat' && (
-                  <div className="any-mockup-anychat-3col">
-                    {/* Column 1: Mini Navigation Sidebar */}
-                    <div className="anychat-mini-sidebar">
-                      <div className="anychat-brand">
-                        <span className="anychat-brand-logo">A</span>
-                        <strong>AnyAPi</strong>
-                      </div>
-                      <nav className="anychat-nav-list">
-                        <div className="anychat-nav-item"><Icon name="key" size={13} /><span>API Keys</span></div>
-                        <div className="anychat-nav-item is-active"><Icon name="chat" size={13} /><span>AnyChat</span></div>
-                        <div className="anychat-nav-item"><Icon name="tool" size={13} /><span>Tools</span></div>
-                        <div className="anychat-nav-item"><Icon name="grid" size={13} /><span>Model Hub</span></div>
-                        <div className="anychat-nav-item"><Icon name="users" size={13} /><span>Team</span></div>
-                        <div className="anychat-nav-item"><Icon name="terminal" size={13} /><span>Logs</span></div>
-                        <div className="anychat-nav-item"><Icon name="credit" size={13} /><span>Billing</span></div>
-                        <div className="anychat-nav-item"><Icon name="chart" size={13} /><span>Usage</span></div>
-                      </nav>
-                      <div className="anychat-quick-links">
-                        <span className="quick-label">Quick Links</span>
-                        <div className="anychat-nav-item"><Icon name="code" size={13} /><span>API Docs</span></div>
-                      </div>
-                    </div>
-
-                    {/* Column 2: Parameters & Configuration Panel */}
-                    <div className="anychat-config-panel">
-                      <div className="config-panel-top">
-                        <div className="config-tabs">
-                          <span className="cfg-tab is-active">Configurations</span>
-                          <span className="cfg-tab">Chat History</span>
-                          <span className="cfg-add">+</span>
-                        </div>
-                        <div className="config-balance">
-                          <span className="balance-symbol">₳</span>
-                          <span className="balance-amount">93,218</span>
-                          <span className="balance-gear">⚙️</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">API Key Source</label>
-                        <div className="cfg-select-box">
-                          <span>Current UI Session</span>
-                          <span className="cfg-chevron">▾</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">Model</label>
-                        <div className="cfg-select-box model-select-box">
-                          <span className="cfg-model-plus">+</span>
-                          <span className="cfg-model-val">google/gemini-2.5-flash-lite</span>
-                          <span className="cfg-chevron">▾</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">Endpoint Type</label>
-                        <div className="cfg-select-box">
-                          <span className="cfg-mono">/v1/chat/completions</span>
-                          <span className="cfg-chevron">▾</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">Capabilities</label>
-                        <div className="cfg-chips-wrap">
-                          <span className="cfg-chip">Vision</span>
-                          <span className="cfg-chip">Audio Input</span>
-                          <span className="cfg-chip">Video Input</span>
-                          <span className="cfg-chip">System Messages</span>
-                          <span className="cfg-chip">Native Streaming</span>
-                          <span className="cfg-chip">JSON Schema</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">Tools</label>
-                        <div className="cfg-chips-wrap">
-                          <span className="cfg-chip">Function Calling</span>
-                          <span className="cfg-chip">Web Search</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">Options</label>
-                        <div className="cfg-chips-wrap">
-                          <span className="cfg-chip">Prompt Caching</span>
-                          <span className="cfg-chip">Response Schema</span>
-                        </div>
-                      </div>
-
-                      <div className="config-field-group">
-                        <label className="cfg-label">Playback</label>
-                        <div className="cfg-chips-wrap">
-                          <span className="cfg-chip">Seed</span>
-                          <span className="cfg-chip">Assistant Prefix</span>
-                          <span className="cfg-chip">Reasoning</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Column 3: Live Courtroom Chat Interaction */}
-                    <div className="anychat-conversation-area">
-                      <div className="conversation-top-bar">
-                        <span className="top-model-params">⚙ Model Parameters</span>
-                      </div>
-
-                      <div className="conversation-scroll">
-                        {/* User Message */}
-                        <div className="conv-msg-user">
-                          <span className="user-tag-pill">User</span>
-                          <div className="user-bubble-content">
-                            My friend says pineapple on pizza is a crime. Build my defence as a courtroom lawyer.
-                          </div>
-                        </div>
-
-                        {/* Assistant Message */}
-                        <div className="conv-msg-assistant">
-                          <div className="assistant-tag-pill">
-                            <span className="asst-role">assistant</span>
-                            <span className="asst-model">google/gemini-2.5-flash-lite</span>
-                          </div>
-                          <div className="assistant-bubble-content">
-                            <p>May it please the Tribunal of Taste, esteemed colleagues, and especially, my distinguished opponent, the staunch defender of the orthodox pizza.</p>
-                            <p>We stand here today not in a court of law, but in a much more sacred chamber: the chamber of personal culinary preference. My client, the humble, yet often maligned, pineapple topping, stands accused by my friend — the prosecution, if you will — of a grave offense: being a &ldquo;crime&rdquo; on a pizza.</p>
-                            <p>I submit to you, Your Honor, that this accusation is not only unfounded but a gross mischaracterization of a culinary delight. I stand before you to dismantle this baseless claim and present the irrefutable defense of pineapple on pizza.</p>
-                            <strong>Opening Statement:</strong>
-                            <p>Your Honor, the prosecution has painted a picture of anarchy, of gastronomic heresy. They claim the addition of pineapple is an act so egregious it borders on criminal. I say to you, this is an assault on freedom, an attack on innovation, and a betrayal of the very spirit of pizza — a dish born from humble origins and perfected through countless variations! My client, pineapple, is not a criminal; it is a catalyst. It is an enhancer. It is, dare I say, a visionary.</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Mockup Bottom Input Bar */}
-                      <div className="anychat-mockup-input">
-                        <input
-                          type="text"
-                          readOnly
-                          placeholder="Type your message here... (Shift+Enter for new line; Alt+R to record)"
-                        />
-                        <div className="mockup-input-actions">
-                          <span className="input-icon-mic">🎙️</span>
-                          <button type="button" className="input-send-btn" aria-label="Send">
-                            <Icon name="arrow" size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'cli' && (
-                  <div className="any-mockup-cli-layout">
-                    <div className="cli-terminal-mock">
-                      <div className="cli-terminal-header">
-                        <span className="dot dot-red" />
-                        <span className="dot dot-yellow" />
-                        <span className="dot dot-green" />
-                        <span className="cli-title">bash - iamhujju-cli v2.4.0</span>
-                      </div>
-                      <div className="cli-terminal-body">
-                        <p className="cli-line"><span className="cli-prompt">$</span> npx iamhujju chat --model &ldquo;auto&rdquo;</p>
-                        <p className="cli-line dim">→ Discovering available models...</p>
-                        <p className="cli-line success">✓ Connected to gateway. 435 models ready.</p>
-                        <p className="cli-line info">✦ Auto-selected: Google Gemini 2.5 Flash [100% Free Tier]</p>
-                        <p className="cli-line dim">→ Latency: 142ms | Context: 1049K tokens</p>
-                        <p className="cli-line prompt-text"><span className="cli-prompt">&gt;</span> Build a high-throughput multi-agent API router in Node.js</p>
-                        <p className="cli-line stream-response">Streaming response (184 tok/s)...</p>
-                        <div className="cli-code-block">
-                          <code>{`// Drop-in compatible with OpenAI SDK\nimport OpenAI from 'openai';\nconst client = new OpenAI({\n  baseURL: 'https://iamhujju.com/api/v1',\n  apiKey: 'iamhujju-free-tier'\n});\nconst res = await client.chat.completions.create({\n  model: 'openrouter/free',\n  messages: [{ role: 'user', content: 'Ready' }]\n});`}</code>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'routing' && (
-                  <div className="any-mockup-routing-layout">
-                    <div className="any-routing-grid">
-                      <div className="any-routing-card">
-                        <div className="card-top">
-                          <span className="card-tag active">HEALTHY · 99.98%</span>
-                          <span className="card-speed">142ms</span>
-                        </div>
-                        <h3>Google Gemini 2.5 Flash</h3>
-                        <p>High throughput, 1M context tokens, multimodal support.</p>
-                      </div>
-                      <div className="any-routing-card">
-                        <div className="card-top">
-                          <span className="card-tag active">HEALTHY · 99.94%</span>
-                          <span className="card-speed">198ms</span>
-                        </div>
-                        <h3>DeepSeek R1 / V3 Free</h3>
-                        <p>Advanced chain-of-thought mathematical and coding reasoning.</p>
-                      </div>
-                      <div className="any-routing-card">
-                        <div className="card-top">
-                          <span className="card-tag active">HEALTHY · 99.99%</span>
-                          <span className="card-speed">165ms</span>
-                        </div>
-                        <h3>Meta Llama 3.3 70B</h3>
-                        <p>Open-weights powerhouse for creative writing and extraction.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'analytics' && (
-                  <div className="any-mockup-analytics-layout">
-                    <div className="any-analytics-stats">
-                      <div className="stat-box">
-                        <span className="stat-label">Total Requests</span>
-                        <span className="stat-val">12,480</span>
-                      </div>
-                      <div className="stat-box">
-                        <span className="stat-label">Avg Latency</span>
-                        <span className="stat-val">174 ms</span>
-                      </div>
-                      <div className="stat-box">
-                        <span className="stat-label">Cache Hit Ratio</span>
-                        <span className="stat-val">94.8%</span>
-                      </div>
-                      <div className="stat-box">
-                        <span className="stat-label">Token Cost</span>
-                        <span className="stat-val">$0.00 (Free)</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            {/* Loop Strip B (Seamless repeat) */}
+            <div className="marquee-group">
+              <span className="marquee-item"><svg className="provider-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V18h-2v-1.07A6 6 0 0 1 6.07 12H7a5 5 0 0 0 4 4.9V12H9v-2h2V7.1A5 5 0 0 0 7 12H6.07A6 6 0 0 1 11 6.07V5h2v1.07A6 6 0 0 1 17.93 12H17a5 5 0 0 0-4-4.9V10h2v2h-2v4.9A5 5 0 0 0 17 12h.93A6 6 0 0 1 13 16.93z"/></svg> OpenAI</span>
+              <span className="marquee-item"><svg className="provider-icon amber-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> Anthropic</span>
+              <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Google DeepMind</span>
+              <span className="marquee-item"><svg className="provider-icon blue-fill" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-7.07 17.07L12 12l7.07 7.07A10 10 0 0 0 12 2z"/></svg> DeepSeek</span>
+              <span className="marquee-item"><svg className="provider-icon text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> xAI Grok</span>
+              <span className="marquee-item"><svg className="provider-icon cyan-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg> Meta LLaMA</span>
+              <span className="marquee-item"><svg className="provider-icon orange-fill" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 2 22 22 22"/></svg> Mistral AI</span>
+              <span className="marquee-item"><svg className="provider-icon teal-fill" viewBox="0 0 24 24" fill="currentColor"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Perplexity</span>
+              <span className="marquee-item"><svg className="provider-icon emerald-fill" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg> Qwen (Alibaba)</span>
             </div>
+
           </div>
         </div>
       </section>
 
-        {/* PROVIDER LOGO TICKER */}
-        <section className="any-partners-section">
-          <p className="any-partners-title">Powered by leading AI providers</p>
-          <div className="any-partners-ticker">
-            <div className="any-partners-track">
-              {providers.concat(providers).map((p, idx) => (
-                <div key={idx} className="any-provider-chip">
-                  <span className="provider-icon">{p.icon}</span>
-                  <span className="provider-name">{p.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        {/* 4 STATS GRID (EXACT ANYAPI LAYOUT) */}
-        <section className="any-stats-section">
-          <div className="any-stats-grid">
-            <div className="any-stat-card">
-              <span className="stat-sub">Access every major provider</span>
-              <h2 className="stat-number">400+</h2>
-              <span className="stat-label">AI Models</span>
+      {/* ==============================================================
+           4. FOUR-COLUMN KEY METRICS STRIP
+           ============================================================== */}
+      <section className="any-metrics-section">
+        <div className="any-section-inner">
+          <div className="metrics-quad-grid">
+            
+            <div className="spotlight-card metric-card" onMouseMove={handleSpotlightMove}>
+              <div className="metric-number text-white">400+</div>
+              <div className="metric-label">Frontier & Open Models</div>
             </div>
-            <div className="any-stat-card">
-              <span className="stat-sub">Start building in seconds</span>
-              <h2 className="stat-number">Instant</h2>
-              <span className="stat-label">Zero Setup</span>
-            </div>
-            <div className="any-stat-card">
-              <span className="stat-sub">Enterprise grade reliability</span>
-              <h2 className="stat-number">99.99%</h2>
-              <span className="stat-label">Uptime</span>
-            </div>
-            <div className="any-stat-card">
-              <span className="stat-sub">Intelligent load balancing</span>
-              <h2 className="stat-number">Global</h2>
-              <span className="stat-label">Smart Routing</span>
-            </div>
-          </div>
-        </section>
 
-        {/* FEATURE SECTION 1: UNIFIED API (EXACT ANYAPI IMAGE 1 LAYOUT) */}
-        <section className="any-feature-section" id="unified-api-section">
-          <div className="any-feature-header">
-            <span className="any-eyebrow-tag">BUILT FOR THE AI ERA</span>
-            <h2>Integrate AI into every part of your stack</h2>
-            <p>
-              iamhujju goes beyond simple API calls, handles routing for reliability, and optimizes every request.
+            <div className="spotlight-card metric-card" onMouseMove={handleSpotlightMove}>
+              <div className="metric-number text-cyan">Instant</div>
+              <div className="metric-label">Zero-Key Workspace Setup</div>
+            </div>
+
+            <div className="spotlight-card metric-card" onMouseMove={handleSpotlightMove}>
+              <div className="metric-number text-emerald">99.99%</div>
+              <div className="metric-label">Multi-Region Uptime</div>
+            </div>
+
+            <div className="spotlight-card metric-card" onMouseMove={handleSpotlightMove}>
+              <div className="metric-number text-violet">&lt;110ms</div>
+              <div className="metric-label">Global Average TTFT</div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+
+      {/* ==============================================================
+           5. BENTO / SPLIT PRODUCT SHOWCASE: "EVERYTHING IN ONE AI WORKSPACE"
+           ============================================================== */}
+      <section className="any-bento-section" id="arena">
+        <div className="any-section-inner">
+          
+          <div className="any-section-head text-center">
+            <span className="any-eyebrow">ENGINEERED FOR SCALE</span>
+            <h2 className="any-h2">Everything in one AI workspace</h2>
+            <p className="any-subhead">
+              No more juggling multiple subscriptions or tab switching. Compare answers, automate complex prompts, and switch models on the fly.
             </p>
           </div>
 
-          <div className="any-feature-content-split">
-            {/* Left Diagram Card with Animated Fiber-Optic Tree (Image 1) */}
-            <div className="any-unified-card-container">
-              <div className="any-unified-diagram">
-                {/* Brand Hub Node on Left */}
-                <div className="any-hub-node-box">
-                  <div className="any-hub-logo-mark">
-                    <span className="any-hub-a-symbol">A</span>
-                  </div>
+          <div className="bento-layout-grid">
+            
+            {/* Wide Bento Card */}
+            <div className="spotlight-card bento-card bento-wide" onMouseMove={handleSpotlightMove}>
+              <div>
+                <div className="bento-badge cyan-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <span>UNIFIED GATEWAY & PLAYGROUND</span>
                 </div>
+                <h3 className="bento-title">One subscription for every model on earth</h3>
+                <p className="bento-desc">
+                  Access GPT-4o, Claude 3.7 Sonnet, DeepSeek R1, Grok, and Gemini without managing separate API accounts or token limits.
+                </p>
+              </div>
 
-                {/* SVG Glowing Fiber Conduits */}
-                <svg className="any-fiber-svg" viewBox="0 0 160 380" fill="none" preserveAspectRatio="none">
-                  <path d="M 0 190 C 80 190, 80 38, 160 38" stroke="rgba(0, 242, 254, 0.45)" strokeWidth="2" strokeDasharray="4 4" />
-                  <path d="M 0 190 C 80 190, 80 114, 160 114" stroke="rgba(0, 242, 254, 0.55)" strokeWidth="2" />
-                  <path d="M 0 190 L 160 190" stroke="rgba(0, 242, 254, 0.75)" strokeWidth="2.5" />
-                  <path d="M 0 190 C 80 190, 80 266, 160 266" stroke="rgba(0, 242, 254, 0.55)" strokeWidth="2" />
-                  <path d="M 0 190 C 80 190, 80 342, 160 342" stroke="rgba(0, 242, 254, 0.45)" strokeWidth="2" strokeDasharray="4 4" />
-
-                  <circle cx="80" cy="38" r="3.5" fill="#00f2fe" className="pulse-dot" />
-                  <circle cx="80" cy="114" r="3.5" fill="#00f2fe" className="pulse-dot" />
-                  <circle cx="80" cy="190" r="4" fill="#00f2fe" className="pulse-dot" />
-                  <circle cx="80" cy="266" r="3.5" fill="#00f2fe" className="pulse-dot" />
-                  <circle cx="80" cy="342" r="3.5" fill="#00f2fe" className="pulse-dot" />
-                </svg>
-
-                {/* 5 Feature Cards on Right */}
-                <div className="any-fiber-cards-column">
-                  <div
-                    className={`any-fiber-row ${expandedFeature === 'sdk' ? 'is-expanded' : ''}`}
-                    onClick={() => setExpandedFeature(expandedFeature === 'sdk' ? null : 'sdk')}
-                  >
-                    <div className="row-main">
-                      <span className="row-icon"><Icon name="code" size={16} /></span>
-                      <div className="row-text">
-                        <strong>OpenAI SDK</strong>
-                        <span>Drop-in compatible</span>
-                      </div>
-                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
-                        {expandedFeature === 'sdk' ? '−' : '+'}
-                      </button>
-                    </div>
-                    {expandedFeature === 'sdk' && (
-                      <div className="row-expanded-detail">
-                        <code>import OpenAI from 'openai';<br />const ai = new OpenAI({'{'} baseURL: '/api/v1' {'}'});</code>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`any-fiber-row ${expandedFeature === 'routing' ? 'is-expanded' : ''}`}
-                    onClick={() => setExpandedFeature(expandedFeature === 'routing' ? null : 'routing')}
-                  >
-                    <div className="row-main">
-                      <span className="row-icon"><Icon name="zap" size={16} /></span>
-                      <div className="row-text">
-                        <strong>Auto-routing</strong>
-                        <span>400+ models</span>
-                      </div>
-                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
-                        {expandedFeature === 'routing' ? '−' : '+'}
-                      </button>
-                    </div>
-                    {expandedFeature === 'routing' && (
-                      <div className="row-expanded-detail">
-                        <span>Intelligently routes requests to the fastest online model with sub-second failover.</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`any-fiber-row ${expandedFeature === 'billing' ? 'is-expanded' : ''}`}
-                    onClick={() => setExpandedFeature(expandedFeature === 'billing' ? null : 'billing')}
-                  >
-                    <div className="row-main">
-                      <span className="row-icon"><Icon name="credit" size={16} /></span>
-                      <div className="row-text">
-                        <strong>Unified billing</strong>
-                        <span>One invoice</span>
-                      </div>
-                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
-                        {expandedFeature === 'billing' ? '−' : '+'}
-                      </button>
-                    </div>
-                    {expandedFeature === 'billing' && (
-                      <div className="row-expanded-detail">
-                        <span>100% Free models ready instantly with zero credit cards, plus single BYOK key for Pro.</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`any-fiber-row ${expandedFeature === 'rag' ? 'is-expanded' : ''}`}
-                    onClick={() => setExpandedFeature(expandedFeature === 'rag' ? null : 'rag')}
-                  >
-                    <div className="row-main">
-                      <span className="row-icon"><Icon name="layers" size={16} /></span>
-                      <div className="row-text">
-                        <strong>Built-in RAG</strong>
-                        <span>Vector & retrieval</span>
-                      </div>
-                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
-                        {expandedFeature === 'rag' ? '−' : '+'}
-                      </button>
-                    </div>
-                    {expandedFeature === 'rag' && (
-                      <div className="row-expanded-detail">
-                        <span>Autonomous skills, PDF upload parsing, and persistent Neon PostgreSQL vector store.</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`any-fiber-row ${expandedFeature === 'observability' ? 'is-expanded' : ''}`}
-                    onClick={() => setExpandedFeature(expandedFeature === 'observability' ? null : 'observability')}
-                  >
-                    <div className="row-main">
-                      <span className="row-icon"><Icon name="chart" size={16} /></span>
-                      <div className="row-text">
-                        <strong>Observability</strong>
-                        <span>Logs & spend</span>
-                      </div>
-                      <button type="button" className="row-plus-btn" aria-label="Toggle details">
-                        {expandedFeature === 'observability' ? '−' : '+'}
-                      </button>
-                    </div>
-                    {expandedFeature === 'observability' && (
-                      <div className="row-expanded-detail">
-                        <span>Real-time per-request token counters, latency breakdown, and cloud conversation history.</span>
-                      </div>
-                    )}
-                  </div>
+              <div className="bento-mockup-box">
+                <div className="bento-mockup-header">
+                  <span>Auto-Router Status</span>
+                  <span className="text-emerald">Optimal: Route #492 (Claude 3.7)</span>
+                </div>
+                <div className="bento-mockup-stats">
+                  <div className="mockup-stat"><strong className="text-white">0ms</strong><span>Switching Lag</span></div>
+                  <div className="mockup-stat"><strong className="text-white">100%</strong><span>Failover Guard</span></div>
+                  <div className="mockup-stat"><strong className="text-white">AES-256</strong><span>End-to-End Vault</span></div>
                 </div>
               </div>
             </div>
 
-            {/* Right Text Block */}
-            <div className="any-feature-text-block">
-              <span className="any-tag-pill">UNIFIED API</span>
-              <h2>Unified API for any model</h2>
-              <p>
-                Access every major AI model through a single, consistent API. No more juggling multiple SDKs or learning different formats. Just one interface to rule them all.
-              </p>
-              <span className="any-feature-included-note">Included with all iamhujju plans at no extra cost.</span>
-              <div className="any-feature-actions">
-                <button
-                  type="button"
-                  className="any-btn-primary"
-                  onClick={() => onOpenModels()}
-                >
-                  <span>View Model Hub</span>
-                  <Icon name="arrow" size={16} />
-                </button>
+            {/* Arena Bento Card */}
+            <div className="spotlight-card bento-card" onMouseMove={handleSpotlightMove}>
+              <div>
+                <div className="bento-badge violet-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
+                  <span>REAL-TIME ARENA</span>
+                </div>
+                <h3 className="bento-title">Side-by-Side Model Arena</h3>
+                <p className="bento-desc">
+                  Broadcast prompts to 2, 3, or 4 models in parallel. Pinpoint hallucinations, verify reasoning, and pick the best answer.
+                </p>
+              </div>
+
+              <div className="bento-arena-preview">
+                <div className="arena-preview-header">
+                  <span>DeepSeek vs Claude 3.7</span>
+                  <span className="text-cyan">Diff: 99.4% Match</span>
+                </div>
+                <div className="arena-progress-bar">
+                  <div className="arena-progress-fill"></div>
+                </div>
               </div>
             </div>
+
           </div>
-        </section>
 
-        {/* FEATURE SECTION 2: COMPARE & PROTOTYPE (IMAGE 2) */}
-        <section className="any-feature-section any-section-reverse" id="anychat-section">
-          <div className="any-feature-content-split">
-            {/* Left Copy */}
-            <div className="any-feature-text-block">
-              <span className="any-tag-pill">ANYCHAT</span>
-              <h2>Compare and prototype with leading models</h2>
-              <p>
-                Interactive developer playground to test prompts, compare model outputs side by side, debug responses, and fine-tune your AI integrations in real time before they go live.
-              </p>
-              <div className="any-feature-actions">
-                <button
-                  type="button"
-                  className="any-btn-primary"
-                  onClick={() => openChat(selectedModel)}
-                >
-                  <span>Open AnyChat</span>
-                  <Icon name="arrow" size={16} />
-                </button>
-              </div>
-            </div>
+        </div>
+      </section>
 
-            {/* Right 3D Visual Card (Image 2) */}
-            <div className="any-multimodel-card-container">
-              <div className="multimodel-glass-board">
-                {/* Left Prompt Node */}
-                <div className="prompt-node-box">
-                  <span className="prompt-chat-icon">💬</span>
-                </div>
 
-                {/* 4 Multi-colored Glowing Conduits to 4 Model Columns */}
-                <div className="multimodel-columns-grid">
-                  <div className="model-col-glass cyan-border">
-                    <div className="col-top-icon cyan-bg">✨</div>
-                    <span className="col-model-name">Gemini 2.5</span>
-                    <div className="col-sample-lines">
-                      <span className="sample-line" />
-                      <span className="sample-line short" />
-                    </div>
-                    <div className="col-stat-pill">142ms</div>
-                  </div>
-
-                  <div className="model-col-glass green-border">
-                    <div className="col-top-icon green-bg">🐋</div>
-                    <span className="col-model-name">DeepSeek R1</span>
-                    <div className="col-sample-lines">
-                      <span className="sample-line" />
-                      <span className="sample-line short" />
-                    </div>
-                    <div className="col-stat-pill">198ms</div>
-                  </div>
-
-                  <div className="model-col-glass amber-border">
-                    <div className="col-top-icon amber-bg">⚡</div>
-                    <span className="col-model-name">GPT-4.1</span>
-                    <div className="col-sample-lines">
-                      <span className="sample-line" />
-                      <span className="sample-line short" />
-                    </div>
-                    <div className="col-stat-pill">175ms</div>
-                  </div>
-
-                  <div className="model-col-glass purple-border">
-                    <div className="col-top-icon purple-bg">🧠</div>
-                    <span className="col-model-name">Claude 3.7</span>
-                    <div className="col-sample-lines">
-                      <span className="sample-line" />
-                      <span className="sample-line short" />
-                    </div>
-                    <div className="col-stat-pill">189ms</div>
-                  </div>
-                </div>
-
-                {/* Converging Green Checkmark Platform */}
-                <div className="converge-platform">
-                  <div className="converge-check-circle">✓</div>
-                  <span className="converge-label">Optimal Response Selected</span>
-                </div>
-              </div>
-            </div>
+      {/* ==============================================================
+           6. ENTERPRISE PRIVACY & SECURITY SECTION
+           ============================================================== */}
+      <section className="any-security-section" id="security">
+        <div className="any-section-inner">
+          
+          <div className="any-section-head text-center">
+            <span className="any-eyebrow emerald-eyebrow">ZERO DATA LEAKAGE</span>
+            <h2 className="any-h2">Your data stays private & strictly yours</h2>
+            <p className="any-subhead">
+              Built with enterprise-grade isolation. Your prompts and private conversations are never logged or used to train frontier models.
+            </p>
           </div>
-        </section>
 
-        {/* FEATURE SECTION 3: ANYCLI (IMAGE 3) */}
-        <section className="any-feature-section" id="anycli-section">
-          <div className="any-feature-content-split">
-            {/* Left 3D Terminal Card */}
-            <div className="any-terminal-card-container">
-              <div className="terminal-3d-box">
-                <div className="terminal-topbar">
-                  <span className="dot dot-red" />
-                  <span className="dot dot-yellow" />
-                  <span className="dot dot-green" />
-                  <span className="terminal-name">iamhujju-cli</span>
-                </div>
-                <div className="terminal-code-body">
-                  <p><span className="t-green">&gt;</span> _</p>
-                  <p className="t-cyan">$ npx iamhujju run --auto</p>
-                  <p className="t-dim">Connecting gateway... [OK]</p>
-                  <p className="t-dim">Selecting lowest latency free tier model...</p>
-                  <p className="t-green">✔ Connected: google/gemini-2.5-flash-exp (142ms)</p>
-                </div>
-                {/* Glowing Emerald Energy Conduit to Result Badge */}
-                <div className="terminal-energy-beam" />
-                <div className="terminal-result-badge">
-                  <span className="result-star">✦</span>
-                  <div className="result-lines">
-                    <span className="r-line" />
-                    <span className="r-line r-short" />
-                  </div>
-                </div>
+          <div className="security-tri-grid">
+            
+            <div className="spotlight-card security-card" onMouseMove={handleSpotlightMove}>
+              <div className="sec-icon-box bg-emerald-dim text-emerald">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </div>
-            </div>
-
-            {/* Right Text Block */}
-            <div className="any-feature-text-block">
-              <span className="any-tag-pill">ANYCLI</span>
-              <h2>Run AI from your terminal</h2>
-              <p>
-                Powerful command-line interface for managing API keys, testing endpoints, and deploying configurations directly from your terminal.
+              <h3 className="sec-card-title">Private by Default</h3>
+              <p className="sec-card-desc">
+                Strict Zero-Data-Retention policies with all upstream providers. Zero model training on any prompt you submit.
               </p>
-              <div className="any-feature-actions">
-                <button
-                  type="button"
-                  className="any-btn-primary"
-                  onClick={() => {
-                    setDocsTab('cli');
-                    setDocsOpen(true);
-                  }}
-                >
-                  <span>Install AnyCLI</span>
-                  <Icon name="arrow" size={16} />
-                </button>
-              </div>
             </div>
-          </div>
-        </section>
 
-        {/* FEATURE SECTION 2: POPULAR MODELS SHOWCASE */}
-        <section className="any-models-showcase-section">
-          <div className="any-section-head">
+            <div className="spotlight-card security-card" onMouseMove={handleSpotlightMove}>
+              <div className="sec-icon-box bg-cyan-dim text-cyan">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+              </div>
+              <h3 className="sec-card-title">Neon PostgreSQL Sync</h3>
+              <p className="sec-card-desc">
+                Your conversations and saved chats are encrypted with AES-256 and stored in an isolated, serverless PostgreSQL cloud instance.
+              </p>
+            </div>
+
+            <div className="spotlight-card security-card" onMouseMove={handleSpotlightMove}>
+              <div className="sec-icon-box bg-violet-dim text-violet">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+              </div>
+              <h3 className="sec-card-title">Drop-in OpenAI API</h3>
+              <p className="sec-card-desc">
+                Use your favorite coding extensions (Cursor, VS Code, Claude Code) with iamhujju simply by swapping the base URL.
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+
+      {/* ==============================================================
+           7. FILTERABLE FEATURED MODELS GRID
+           ============================================================== */}
+      <section className="any-models-section" id="models">
+        <div className="any-section-inner">
+          
+          <div className="models-header-row">
             <div>
-              <span className="any-eyebrow-tag">FREE & PRO READY</span>
-              <h2>Featured Models Ready to Run</h2>
-              <p>Explore live models available in your free tier without any setup.</p>
+              <span className="any-eyebrow">FLAGSHIP MODEL FLEET</span>
+              <h2 className="any-h2">Featured Models</h2>
+              <p className="any-subhead">
+                Instantly switch between leading frontier models and hyper-efficient open-weights engines.
+              </p>
             </div>
-            <form className="any-search-inline" onSubmit={submitSearch}>
-              <Icon name="search" size={16} />
-              <input
-                ref={searchRef}
-                type="search"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search models..."
-              />
-              <button type="submit">Search</button>
-            </form>
+
+            {/* Filter Pills */}
+            <div className="model-filter-pills">
+              <button
+                type="button"
+                className={`filter-pill ${activeCategory === 'all' ? 'is-active' : ''}`}
+                onClick={() => setActiveCategory('all')}
+              >
+                All Models (400+)
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${activeCategory === 'reasoning' ? 'is-active' : ''}`}
+                onClick={() => setActiveCategory('reasoning')}
+              >
+                Reasoning & Math
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${activeCategory === 'coding' ? 'is-active' : ''}`}
+                onClick={() => setActiveCategory('coding')}
+              >
+                Coding & Agentic
+              </button>
+              <button
+                type="button"
+                className={`filter-pill ${activeCategory === 'free' ? 'is-active' : ''}`}
+                onClick={() => setActiveCategory('free')}
+              >
+                100% Free Tier
+              </button>
+            </div>
           </div>
 
-          <div className="any-models-grid">
-            {visibleModels.slice(0, 6).map(model => (
-              <ModelCard
+          {/* Filtered Grid */}
+          <div className="models-cards-grid">
+            {filteredModels.map(model => (
+              <div
                 key={model.id}
-                model={model}
-                onSelect={openChat}
-                disabled={authChecking}
-              />
+                className="spotlight-card model-card"
+                onMouseMove={handleSpotlightMove}
+              >
+                <div className="model-card-top">
+                  <div className="model-card-tags">
+                    <span className={`provider-badge ${model.providerClass}`}>{model.provider}</span>
+                    <span className="context-badge">{model.context}</span>
+                  </div>
+                  <h3 className="model-title">{model.name}</h3>
+                  <p className="model-desc">{model.desc}</p>
+                </div>
+
+                <div className="model-card-bottom">
+                  <span className="model-status-pill text-emerald">{model.badge}</span>
+                  <button
+                    type="button"
+                    className="model-chat-btn"
+                    onClick={() => handleLaunchModel(model.slug, model.fallback)}
+                  >
+                    Chat Now →
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
 
-          <div className="any-models-footer-cta">
-            <button
-              type="button"
-              className="any-btn-secondary"
-              onClick={() => onOpenModels(query)}
-            >
-              <span>Explore All {models.length} Models</span>
-              <Icon name="arrow" size={16} />
-            </button>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ABOUT & WHY BUILDERS LOVE IAMHUJJU (BENTO GRID & METRICS) */}
-        <section className="any-about-home-section" id="about">
-          <div className="any-section-header">
-            <span className="any-eyebrow">THE FUTURE OF AI INTEGRATION</span>
-            <h2>Why builders love iamhujju</h2>
-            <p className="any-section-sub">
-              One powerful toolkit that handles everything. Ship smarter, scale faster, connect anything.
+
+      {/* ==============================================================
+           8. BOTTOM CONVERSION BANNER & DUAL ACTION CARDS
+           ============================================================== */}
+      <section className="any-cta-section" id="pricing">
+        <div className="any-section-inner">
+          
+          <div className="spotlight-card cosmic-cta-banner" onMouseMove={handleSpotlightMove}>
+            <h2 className="cta-headline">Everything you need to build on ANY model</h2>
+            <p className="cta-subhead">
+              Gateway · Multi-Model Arena · CLI · Analytics · Auto-Routing · Enterprise Security
             </p>
-          </div>
 
-          <div className="any-bento-home-grid">
-            <div className="any-bento-home-card bento-wide">
-              <span className="bento-badge-tag">INFRASTRUCTURE</span>
-              <h3>Reliability at Scale</h3>
-              <p>APIs should never fail your users. Multi-region routing, automatic fallbacks, and drop-in streaming SDKs keep your flows running smoothly.</p>
-              <div className="bento-home-chips">
-                <span>Multi-region routing (EU / US / ASIA)</span>
-                <span>Automatic fallbacks</span>
-                <span>Python & Node.js streaming</span>
+            <div className="cta-btn-group">
+              <button
+                type="button"
+                className="any-btn-primary glow-cyan"
+                onClick={() => onOpenChat(selectedModel)}
+              >
+                <span>Get free API key / Start Chat</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button
+                type="button"
+                className="any-btn-secondary"
+                onClick={() => setContactOpen(true)}
+              >
+                Contact Support & Sales
+              </button>
+            </div>
+
+            {/* Two Bottom Action Cards */}
+            <div className="cta-bottom-split-cards">
+              <div
+                className="cta-glass-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => { setDocsTab('pricing'); setDocsOpen(true); }}
+                onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('pricing'); setDocsOpen(true); } }}
+              >
+                <span className="card-mini-eyebrow text-cyan">PRICING ON YOUR TERMS</span>
+                <h3 className="card-mini-title">Pick the plan that fits your scale</h3>
+                <p className="card-mini-desc">Generous free tier forever with zero credit card, or pay-as-you-go Pro upgrades.</p>
+              </div>
+
+              <div
+                className="cta-glass-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => { setDocsTab('quickstart'); setDocsOpen(true); }}
+                onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('quickstart'); setDocsOpen(true); } }}
+              >
+                <span className="card-mini-eyebrow text-emerald">START BUILDING IN 60s</span>
+                <h3 className="card-mini-title">Ship your first request in minutes</h3>
+                <p className="card-mini-desc">Compatible with the official OpenAI Node & Python SDKs via standard drop-in base URL.</p>
               </div>
             </div>
 
-            <div className="any-bento-home-card">
-              <span className="bento-badge-tag">CAPABILITIES</span>
-              <h3>Advanced Capabilities</h3>
-              <p>Finetuned models, Computer Use automation, RAG vector stores, tool calling, and structured JSON.</p>
-              <div className="bento-home-chips">
-                <span>Finetuned models</span>
-                <span>Computer Use</span>
-                <span>RAG</span>
-              </div>
-            </div>
-
-            <div className="any-bento-home-card">
-              <span className="bento-badge-tag security-tag">SECURITY</span>
-              <h3>Enterprise Security</h3>
-              <p>AES-256 encrypted provider keys, isolated Neon PostgreSQL databases, and 100% zero model training.</p>
-              <div className="bento-home-chips">
-                <span>AES-256</span>
-                <span>Neon PostgreSQL</span>
-                <span>Zero Training</span>
-              </div>
-            </div>
-
-            <div className="any-bento-home-card bento-wide">
-              <span className="bento-badge-tag future-tag">ROADMAP</span>
-              <h3>Future Ready</h3>
-              <p>Built for what comes next: Multi-Agent swarms, shared context memory, intelligent auto-routing, and AnyChat Mobile.</p>
-              <div className="bento-home-chips">
-                <span>🤖 Multi-Agent Systems</span>
-                <span>🔄 Shared Context</span>
-                <span>⚡ Auto-Routing</span>
-                <span>📱 AnyChat Mobile</span>
-              </div>
-            </div>
           </div>
 
-          {/* AI That Never Sleeps Metric Counters */}
-          <div className="any-home-metrics-row">
-            <div className="home-metric-card">
-              <span className="metric-val">99.9%</span>
-              <strong>Service Availability</strong>
-              <p>Enterprise reliability every second of the day.</p>
-            </div>
-            <div className="home-metric-card">
-              <span className="metric-val">&lt;50ms</span>
-              <strong>Lightning Fast</strong>
-              <p>Ultra-low gateway latency for production.</p>
-            </div>
-            <div className="home-metric-card">
-              <span className="metric-val">AES-256</span>
-              <strong>Hardware Security</strong>
-              <p>Encrypted keys and private DB isolation.</p>
-            </div>
-            <div className="home-metric-card">
-              <span className="metric-val">400+</span>
-              <strong>Models Available</strong>
-              <p>Every frontier and open weight AI in one API.</p>
-            </div>
-          </div>
+        </div>
+      </section>
 
-          <div className="any-about-home-cta-row">
-            <button
-              type="button"
-              className="any-about-explore-btn"
-              onClick={() => setAboutOpen(true)}
-            >
-              📖 Explore Full Story & Team
-            </button>
-          </div>
-        </section>
 
-        {/* BOTTOM CALL TO ACTION & PRICING/QUICKSTART CARDS (IMAGE 4) */}
-        <section className="any-cta-banner any-cta-landscape" id="pricing">
-          <div className="any-cta-inner">
-            <div className="any-cta-content">
-              <h2>Everything you need to build on ANY model</h2>
-              <p className="any-cta-subhead">
-                Gateway · Playground · CLI · Analytics · RAG · Agents
+      {/* ==============================================================
+           9. COMPREHENSIVE FOOTER
+           ============================================================== */}
+      <footer className="any-footer-root" id="about">
+        <div className="any-section-inner">
+          
+          <div className="footer-columns-grid">
+            
+            <div className="footer-brand-col">
+              <div className="footer-brand-row">
+                <div className="any-nav-logo-ring">
+                  <div className="any-nav-logo-inner">
+                    <svg className="any-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"/><path d="M18 10v2a6 6 0 0 1-12 0v-2"/><circle cx="12" cy="14" r="1"/><path d="M12 15v5"/><path d="M8 20h8"/></svg>
+                  </div>
+                </div>
+                <span className="footer-brand-title">iamhujju</span>
+              </div>
+              <p className="footer-brand-desc">
+                One unified workspace for 400+ frontier and open AI models. Built for creators, engineers, researchers, and everyday power users.
               </p>
-              <div className="any-cta-buttons">
-                <button
-                  type="button"
-                  className="any-btn-primary"
-                  onClick={() => {
-                    if (currentUser) {
-                      onOpenApiKeys();
-                    } else {
-                      openSignup(selectedModel);
-                    }
-                  }}
-                >
-                  <span>Get free API key</span>
-                  <Icon name="arrow" size={17} />
-                </button>
-                <button
-                  type="button"
-                  className="any-btn-secondary"
-                  onClick={() => {
-                    window.location.href = 'mailto:contact@iamhujju.com?subject=iamhujju Enterprise & Sales Inquiry';
-                  }}
-                >
-                  <span>Contact sales</span>
-                </button>
-              </div>
-
-              {/* Two Bottom Glass Cards from Image 4 */}
-              <div className="any-cta-cards-grid">
-                <div
-                  className="any-cta-glass-card"
-                  onClick={() => {
-                    setDocsTab('pricing');
-                    setDocsOpen(true);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('pricing'); setDocsOpen(true); } }}
-                >
-                  <span className="cta-card-pill">PRICING ON YOUR TERMS</span>
-                  <h3>Pick the plan that fits your scale</h3>
-                  <p>Pay-as-you-go, team, and enterprise tiers with transparent per-token pricing across every provider.</p>
-                  <span className="cta-card-link">Pricing details →</span>
-                </div>
-                <div
-                  className="any-cta-glass-card"
-                  onClick={() => {
-                    setDocsTab('quickstart');
-                    setDocsOpen(true);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('quickstart'); setDocsOpen(true); } }}
-                >
-                  <span className="cta-card-pill">START BUILDING</span>
-                  <h3>Ship your first request in minutes</h3>
-                  <p>Drop-in OpenAI-compatible SDK, copy-paste curl, and SDKs for TypeScript, Python, Go, and Rust.</p>
-                  <span className="cta-card-link">Quickstart →</span>
-                </div>
+              <div className="footer-status-indicator">
+                <span className="status-ping"></span>
+                <span>All Systems Operational (412 Models)</span>
               </div>
             </div>
-          </div>
-        </section>
 
-        {/* CONTACT US SECTION */}
-        <section className="any-contact-section" id="contact">
-          <div className="any-section-header">
-            <span className="any-eyebrow">GET IN TOUCH</span>
-            <h2>Let's Build Something Smarter, Together</h2>
-            <p className="any-section-sub">
-              Got a question, idea, or integration challenge? Our team is here to help you connect iamhujju to anywhere.
-            </p>
-          </div>
-          <div className="any-contact-hero-actions">
-            <a
-              href="https://t.me/+919975649957"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="any-contact-action-pill telegram-pill"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m22 2-7 20-4-9-9-4Z" />
-                <path d="M22 2 11 13" />
-              </svg>
-              <span>Telegram: +91 99756 49957</span>
-            </a>
-            <a
-              href="mailto:huzaifakazi1991@gmail.com"
-              className="any-contact-action-pill email-pill"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
-              <span>Email: huzaifakazi1991@gmail.com</span>
-            </a>
-            <button
-              type="button"
-              className="any-contact-action-pill form-pill"
-              onClick={() => setContactOpen(true)}
-            >
-              ✉️ Open Full Contact Form
-            </button>
-          </div>
-        </section>
-      </main>
-
-      {/* FOOTER */}
-      <footer className="any-footer">
-        <div className="any-footer-inner">
-          <div className="any-footer-brand-col">
-            <div className="any-brand">
-              <div className="any-brand-mascot-ring">
-                <img src="/mascot.jpg" alt="iamhujju mascot" className="any-brand-mascot-img" />
-              </div>
-              <span className="any-brand-text">iamhujju</span>
+            <div className="footer-nav-col">
+              <h4>Products</h4>
+              <ul>
+                <li><button type="button" onClick={() => onOpenChat(selectedModel)}>AnyChat Studio</button></li>
+                <li><a href="#arena" onClick={e => handleInternalNav(e, '#arena')}>Multi-Model Arena</a></li>
+                <li><a href="#workspace" onClick={e => handleInternalNav(e, '#workspace')}>Auto-Router</a></li>
+                <li><button type="button" onClick={() => onOpenModels()}>Model Hub (400+)</button></li>
+                <li><button type="button" onClick={() => onOpenSkills()}>Skills Catalog</button></li>
+              </ul>
             </div>
-            <p className="any-footer-tagline">
-              Your Personal AI Companion · One API & Workspace for every model.
-            </p>
-            <p className="any-footer-copy">
-              © {CURRENT_YEAR} iamhujju.com · All rights reserved.
-            </p>
+
+            <div className="footer-nav-col">
+              <h4>Top Models</h4>
+              <ul>
+                <li><button type="button" onClick={() => handleLaunchModel('claude-3.7', 'anthropic/claude-3.7-sonnet')}>Claude 3.7 Sonnet</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('deepseek-r1', 'deepseek/deepseek-r1')}>DeepSeek R1</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('gpt-4o', 'openai/gpt-4o')}>GPT-4o</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('gemini', 'google/gemini-2.5-flash')}>Gemini 2.5 Flash</button></li>
+                <li><button type="button" onClick={() => handleLaunchModel('grok', 'x-ai/grok-2-1212')}>Grok 4.7</button></li>
+              </ul>
+            </div>
+
+            <div className="footer-nav-col" id="contact">
+              <h4>Support & Legal</h4>
+              <ul>
+                <li><a href="mailto:huzaifakazi1991@gmail.com">huzaifakazi1991@gmail.com</a></li>
+                <li><a href="https://t.me/+919975649957" target="_blank" rel="noopener noreferrer">Telegram Support</a></li>
+                <li><a href="#security" onClick={e => handleInternalNav(e, '#security')}>Enterprise Security</a></li>
+                <li><button type="button" onClick={() => setContactOpen(true)}>Contact Form</button></li>
+              </ul>
+            </div>
+
           </div>
 
-          <div className="any-footer-links-grid">
-            <div className="footer-col">
-              <h4>Workspace</h4>
-              <button type="button" onClick={() => openChat(selectedModel)}>Chat</button>
-              <button type="button" onClick={() => onOpenModels()}>Models</button>
-              <button type="button" onClick={onOpenSkills}>Skills</button>
-              <button type="button" onClick={onOpenSavedChats}>Saved Chats</button>
-            </div>
-            <div className="footer-col">
-              <h4>Platform</h4>
-              <button type="button" onClick={() => setAboutOpen(true)}>About iamhujju</button>
-              <button type="button" onClick={refreshModels}>Gateway Status</button>
-              <button type="button" onClick={onOpenApiKeys}>API Keys</button>
-              <button type="button" onClick={onOpenIntegrations}>Integrations</button>
-            </div>
-            <div className="footer-col">
-              <h4>Security</h4>
-              <span>Neon PostgreSQL</span>
-              <span>AES-256 Key Encryption</span>
-              <span>Zero Model Training</span>
-            </div>
-            <div className="footer-col">
-              <h4>Contact</h4>
-              <button type="button" onClick={() => setContactOpen(true)}>Contact Form</button>
-              <a href="https://t.me/+919975649957" target="_blank" rel="noopener noreferrer">Telegram (+919975649957)</a>
-              <a href="mailto:huzaifakazi1991@gmail.com">Email Us</a>
+          <div className="footer-bottom-bar">
+            <span>© 2026 iamhujju.com — All rights reserved.</span>
+            <div className="footer-bottom-links">
+              <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Terms of Service</a>
+              <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Privacy Policy</a>
+              <a href="#security" onClick={e => handleInternalNav(e, '#security')}>Status</a>
             </div>
           </div>
+
         </div>
       </footer>
 
-      {/* Live AI Copilot & Interactive Assistant Widget */}
+
+      {/* ==============================================================
+           10. BUILT-IN MODALS & AI SUPPORT COPILOT WIDGET
+           ============================================================== */}
+
+      {/* Auth Modal (Firebase Google One-Click + Email/Password) */}
+      {authOpen && (
+        <div className="any-modal-backdrop" onClick={() => setAuthOpen(false)}>
+          <div className="any-auth-dialog spotlight-card" onClick={e => e.stopPropagation()} onMouseMove={handleSpotlightMove}>
+            <div className="any-auth-header">
+              <div className="any-auth-brand">
+                <div className="any-nav-logo-ring">
+                  <div className="any-nav-logo-inner">
+                    <svg className="any-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"/><path d="M18 10v2a6 6 0 0 1-12 0v-2"/><circle cx="12" cy="14" r="1"/><path d="M12 15v5"/><path d="M8 20h8"/></svg>
+                  </div>
+                </div>
+                <div>
+                  <span className="any-auth-eyebrow">IAMHUJJU AI WORKSPACE</span>
+                  <h3 className="any-auth-title">{authMode === 'signup' ? 'Create your account' : 'Welcome back'}</h3>
+                </div>
+              </div>
+              <button type="button" className="any-modal-close" onClick={() => setAuthOpen(false)} aria-label="Close dialog">✕</button>
+            </div>
+
+            <p className="any-auth-sub">
+              {authMode === 'signup'
+                ? 'Sign up to unlock 400+ models, persistent cloud history, and high-speed auto-routing.'
+                : 'Sign in to access your models, saved prompts, and cloud conversations.'}
+            </p>
+
+            {/* Google One-Click Auth Button */}
+            <button
+              type="button"
+              className="any-google-btn"
+              onClick={handleGoogleAuth}
+              disabled={authBusy}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>{authBusy ? 'Connecting...' : 'Continue with Google'}</span>
+            </button>
+
+            <div className="any-auth-divider">
+              <span>OR CONTINUE WITH EMAIL</span>
+            </div>
+
+            <form onSubmit={handleEmailAuth} className="any-auth-form">
+              <label>
+                <span>Email address</span>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                  disabled={authBusy}
+                />
+              </label>
+
+              <label>
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  disabled={authBusy}
+                />
+              </label>
+
+              {authError && <div className="any-auth-error">{authError}</div>}
+
+              <button type="submit" className="any-auth-submit-btn" disabled={authBusy}>
+                {authBusy ? 'Authenticating...' : (authMode === 'signup' ? 'Create Account' : 'Sign in to Workspace')}
+              </button>
+            </form>
+
+            <div className="any-auth-toggle-mode">
+              {authMode === 'signup' ? (
+                <>Already have an account? <button type="button" onClick={() => setAuthMode('login')}>Sign in</button></>
+              ) : (
+                <>New to iamhujju? <button type="button" onClick={() => setAuthMode('signup')}>Create account</button></>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Modal */}
+      {contactOpen && (
+        <ContactModal
+          onClose={() => setContactOpen(false)}
+          onOpenChat={() => onOpenChat(selectedModel)}
+        />
+      )}
+
+      {/* About Modal */}
+      {aboutOpen && (
+        <AboutModal
+          onClose={() => setAboutOpen(false)}
+          onOpenChat={() => onOpenChat(selectedModel)}
+          onOpenModels={onOpenModels}
+          modelsCount={models.length}
+        />
+      )}
+
+      {/* Docs Modal */}
+      {docsOpen && (
+        <DocsModal
+          initialTab={docsTab}
+          onClose={() => setDocsOpen(false)}
+          onOpenChat={() => onOpenChat(selectedModel)}
+          onOpenModels={onOpenModels}
+        />
+      )}
+
+      {/* Floating Live AI Support Copilot */}
       <LiveSupportWidget
-        isOpen={liveSupportOpen}
-        onToggle={() => setLiveSupportOpen(prev => !prev)}
-        onOpenFullChat={(modelId) => openChat(modelId || selectedModel)}
-        onOpenModels={() => onOpenModels()}
-        onOpenSkills={onOpenSkills}
-        onOpenSavedChats={onOpenSavedChats}
-        onOpenDocs={(tab) => {
-          setDocsTab(tab || 'quickstart');
-          setDocsOpen(true);
-        }}
-        onOpenAuth={(mode = 'login') => {
-          setAuthMode(mode);
-          setAuthError('');
-          setPendingModelId(null);
-          setAuthOpen(true);
-        }}
-        onOpenContact={() => setContactOpen(true)}
-        onOpenAbout={() => setAboutOpen(true)}
-        onScrollTo={(id) => scrollToSection(id)}
-        selectedModel={selectedModel}
+        models={models}
         connected={connected}
         currentUser={currentUser}
-        models={models}
+        onOpenChat={onOpenChat}
+        onOpenModels={onOpenModels}
+        onOpenSkills={onOpenSkills}
+        onOpenSavedChats={onOpenSavedChats}
+        onOpenLogin={() => openLogin()}
       />
 
-      {/* Storage and Toast Notifications */}
-      {storageError && (
-        <div className="any-toast-warning" role="alert">
-          {storageError}
-        </div>
-      )}
-      {refreshNotice && (
-        <div className="any-toast-info" role="status" aria-live="polite">
-          {refreshNotice}
-        </div>
-      )}
-
-      {/* Auth Modal */}
-      <AuthDialog
-        isOpen={authOpen}
-        mode={authMode}
-        busy={authBusy}
-        error={authError}
-        onClose={() => {
-          setAuthOpen(false);
-          setAuthError('');
-          setPendingModelId(null);
-          onClearRequestedModel();
-        }}
-        onSubmit={submitAuth}
-        onGoogleSignIn={handleGoogleSignIn}
-        onModeChange={mode => {
-          setAuthMode(mode);
-          setAuthError('');
-        }}
-      />
-
-      {/* Docs & API Quickstart Modal */}
-      <DocsModal
-        isOpen={docsOpen}
-        onClose={() => setDocsOpen(false)}
-        initialTab={docsTab}
-        onOpenChat={() => openChat(selectedModel)}
-        onOpenApiKeys={onOpenApiKeys}
-      />
-
-      {/* AnyAPI Contact Modal */}
-      <ContactModal
-        isOpen={contactOpen}
-        onClose={() => setContactOpen(false)}
-        onOpenDocs={(tab) => {
-          setDocsTab(tab || 'quickstart');
-          setDocsOpen(true);
-        }}
-      />
-
-      {/* AnyAPI About Modal */}
-      <AboutModal
-        isOpen={aboutOpen}
-        onClose={() => setAboutOpen(false)}
-        onStartBuilding={() => openChat(selectedModel)}
-        onOpenContact={() => setContactOpen(true)}
-        onOpenDocs={(tab) => {
-          setDocsTab(tab || 'quickstart');
-          setDocsOpen(true);
-        }}
-      />
     </div>
   );
 }
-
-export default HomePage;
