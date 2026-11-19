@@ -2188,41 +2188,6 @@
   }
 }
 
-@media (max-width: 768px) {
-  .any-section-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .any-search-inline {
-    width: 100%;
-  }
-  .any-models-grid {
-    grid-template-columns: 1fr;
-  }
-  .any-stats-grid {
-    grid-template-columns: 1fr;
-  }
-  .any-footer-inner {
-    grid-template-columns: 1fr;
-  }
-  .any-footer-links-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .any-mockup-anychat-3col {
-    flex-direction: column;
-  }
-  .anychat-mini-sidebar,
-  .anychat-config-panel {
-    width: 100%;
-  }
-  .any-cta-cards-grid {
-    grid-template-columns: 1fr;
-  }
-  .multimodel-columns-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 /* ============================================================
    ANYAPI HIGH-FIDELITY CLONE STYLES (IMAGES 1, 2, 3, 4, 5)
    ============================================================ */
@@ -3350,20 +3315,557 @@
   box-shadow: 0 4px 18px rgba(0, 212, 255, 0.25);
 }
 
+/* ============================================================
+   MASTER 100% MOBILE RESPONSIVENESS (360px - 430px & <= 768px)
+   ============================================================ */
 @media (max-width: 768px) {
+  /* 1. Viewport & Layout Spacing */
+  .any-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 16px 48px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 2. Navigation Bar Mobile Hamburger & Drawer */
+  .any-nav-inner {
+    width: 100% !important;
+    height: 64px !important;
+    padding: 0 16px !important;
+    gap: 10px !important;
+  }
+  .any-nav-links {
+    display: none !important;
+  }
+  .any-nav-contact-btn {
+    display: none !important;
+  }
+  .any-nav-mobile-toggle {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    padding: 8px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    cursor: pointer !important;
+  }
+  .any-btn-dashboard {
+    padding: 7px 12px !important;
+    font-size: 13px !important;
+    gap: 4px !important;
+    border-radius: 999px !important;
+  }
+  .any-brand-text {
+    font-size: 17px !important;
+  }
+  .any-brand-mascot-ring {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .any-nav-mobile-drawer {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: rgba(7, 10, 19, 0.98) !important;
+    backdrop-filter: blur(28px) !important;
+    -webkit-backdrop-filter: blur(28px) !important;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.2) !important;
+    padding: 20px 16px 28px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.9) !important;
+    z-index: 999 !important;
+    max-height: calc(100vh - 64px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .mobile-drawer-section {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+  .mobile-drawer-label {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    color: #00d4ff !important;
+    letter-spacing: 0.08em !important;
+    padding: 0 8px !important;
+    margin-bottom: 2px !important;
+  }
+  .mobile-drawer-section button {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: #cbd5e1 !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    text-align: left !important;
+    padding: 12px 14px !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-height: 44px !important;
+    width: 100% !important;
+  }
+  .mobile-drawer-section button:hover,
+  .mobile-drawer-section button:active {
+    background: rgba(0, 212, 255, 0.1) !important;
+    border-color: rgba(0, 212, 255, 0.25) !important;
+    color: #ffffff !important;
+  }
+  .mobile-drawer-footer {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+  .mobile-contact-btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    color: #ffffff !important;
+    padding: 12px 16px !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 15px !important;
+    cursor: pointer !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  .mobile-dash-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  /* 3. Hero Section */
+  .any-hero {
+    padding: 44px 0 32px !important;
+    width: 100vw !important;
+    margin-left: calc(-50vw + 50%) !important;
+    margin-right: calc(-50vw + 50%) !important;
+  }
+  .any-hero-container {
+    padding: 0 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .any-hero-grid {
+    flex-direction: column !important;
+    text-align: center !important;
+    gap: 20px !important;
+    margin: 0 auto 28px !important;
+  }
+  .any-hero-mascot-card {
+    width: 100% !important;
+    max-width: 240px !important;
+    margin: 0 auto !important;
+  }
+  .any-hero-title {
+    font-size: clamp(1.85rem, 7.5vw, 2.5rem) !important;
+    line-height: 1.18 !important;
+    letter-spacing: -0.3px !important;
+    margin: 0 0 14px !important;
+    text-align: center !important;
+  }
+  .any-hero-subtitle {
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+    margin: 0 auto 24px !important;
+    text-align: center !important;
+    padding: 0 4px !important;
+  }
+  .any-hero-actions {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+  }
+  .any-btn-primary,
+  .any-btn-secondary {
+    width: 100% !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+    font-size: 15px !important;
+    border-radius: 12px !important;
+  }
+  .any-hero-trust {
+    font-size: 12px !important;
+    text-align: center !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    line-height: 1.4 !important;
+    padding: 0 8px !important;
+  }
+  .any-announcement-wrapper {
+    margin-bottom: 20px !important;
+    padding: 0 8px !important;
+  }
+  .any-announcement-pill {
+    max-width: 100% !important;
+    padding: 6px 10px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+  }
+  .any-pill-text {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  /* 4. Preview Window & Feature Tabs */
+  .any-preview-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 20px auto 0 !important;
+  }
+  .any-preview-tabs {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding: 4px !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    border-radius: 12px !important;
+    margin-bottom: 16px !important;
+  }
+  .any-preview-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+  .any-tab-btn {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+  }
+  .any-mockup-window {
+    border-radius: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .any-mockup-chrome {
+    height: 38px !important;
+    padding: 0 12px !important;
+  }
+  .any-chrome-title {
+    font-size: 11px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 160px !important;
+  }
+  .any-chrome-status {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+  }
+
+  /* AnyChat 3-col preview on mobile: show clean central chat conversation */
+  .any-mockup-anychat-3col {
+    flex-direction: column !important;
+    min-height: auto !important;
+  }
+  .anychat-mini-sidebar,
+  .anychat-config-panel {
+    display: none !important;
+  }
+  .anychat-conversation-area {
+    width: 100% !important;
+    min-height: 320px !important;
+    padding: 14px 12px !important;
+  }
+  .conversation-scroll {
+    padding: 12px 6px !important;
+    gap: 14px !important;
+  }
+  .user-bubble-content,
+  .assistant-bubble-content {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    padding: 12px 14px !important;
+  }
+  .asst-model {
+    font-size: 10px !important;
+    max-width: 140px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* AnyCLI terminal on mobile */
+  .cli-terminal-body {
+    padding: 14px 12px !important;
+    font-size: 12px !important;
+    overflow-x: auto !important;
+    word-break: break-word !important;
+    white-space: pre-wrap !important;
+  }
+  .cli-code-block {
+    padding: 10px 12px !important;
+    font-size: 11.5px !important;
+    overflow-x: auto !important;
+    word-break: break-all !important;
+  }
+
+  /* Smart Routing tab on mobile */
+  .any-routing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    padding: 12px 0 !important;
+  }
+  .any-routing-card {
+    padding: 14px 12px !important;
+  }
+
+  /* Logs & Analytics tab on mobile */
+  .any-analytics-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  /* 5. Section Padding & Headings */
+  .any-feature-section {
+    padding: 44px 0 !important;
+  }
+  .any-feature-header {
+    margin-bottom: 28px !important;
+    padding: 0 8px !important;
+  }
+  .any-feature-header h2 {
+    font-size: clamp(1.6rem, 6vw, 2.2rem) !important;
+    line-height: 1.22 !important;
+  }
+  .any-feature-header p {
+    font-size: 14.5px !important;
+  }
+  .any-feature-content-split {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+
+  /* Architecture Diagram Card */
+  .any-arch-diagram-card {
+    flex-direction: column !important;
+    padding: 20px 14px !important;
+    gap: 16px !important;
+  }
+  .any-fiber-svg {
+    display: none !important;
+  }
+  .any-fiber-cards-column {
+    width: 100% !important;
+  }
+  .any-fiber-row {
+    padding: 8px 12px !important;
+  }
+
+  /* Key Metrics / Stats Section */
+  .any-stats-section {
+    padding: 36px 0 !important;
+  }
+  .any-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+  .any-stat-card {
+    padding: 20px 14px !important;
+  }
+  .stat-number {
+    font-size: clamp(1.9rem, 8vw, 2.6rem) !important;
+  }
+  .stat-label {
+    font-size: 13.5px !important;
+  }
+  .stat-sub {
+    font-size: 11.5px !important;
+  }
+
+  /* Models Showcase Section */
+  .any-models-showcase-section {
+    padding: 44px 0 !important;
+  }
+  .any-section-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    margin-bottom: 24px !important;
+  }
+  .any-section-head h2 {
+    font-size: clamp(1.6rem, 6vw, 2.2rem) !important;
+  }
+  .any-search-inline {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .any-models-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  .any-model-card {
+    padding: 16px 14px !important;
+  }
+
+  /* Multi-Model Grid */
+  .multimodel-columns-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .multimodel-header-split {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+
+  /* On-Page About & Bento Grid */
+  .any-about-home-section {
+    padding: 40px 16px 36px !important;
+    margin: 28px auto 0 !important;
+    border-radius: 16px !important;
+    width: 100% !important;
+  }
   .any-bento-home-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    margin-top: 24px !important;
+  }
+  .any-bento-home-card {
+    padding: 20px 16px !important;
   }
   .any-bento-home-card.bento-wide {
-    grid-column: auto;
+    grid-column: auto !important;
   }
   .any-home-metrics-row {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-top: 24px !important;
+  }
+  .home-metric-card {
+    padding: 16px 12px !important;
+  }
+  .home-metric-card .metric-val {
+    font-size: 1.6rem !important;
+  }
+
+  /* Bottom CTA Banner */
+  .any-cta-banner {
+    width: 100vw !important;
+    margin-left: calc(-50vw + 50%) !important;
+    margin-right: calc(-50vw + 50%) !important;
+    padding: 56px 0 !important;
+    margin-top: 40px !important;
+  }
+  .any-cta-inner {
+    padding: 0 16px !important;
+  }
+  .any-cta-content h2 {
+    font-size: clamp(1.6rem, 6vw, 2.2rem) !important;
+    line-height: 1.22 !important;
+  }
+  .any-cta-subhead {
+    font-size: 15px !important;
+    margin-bottom: 24px !important;
+    padding: 0 4px !important;
+  }
+  .any-cta-buttons {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 12px !important;
+    margin-bottom: 32px !important;
+  }
+  .any-cta-buttons button {
+    width: 100% !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+    font-size: 15px !important;
+    border-radius: 12px !important;
+  }
+  .any-cta-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    margin-top: 28px !important;
+  }
+  .any-cta-glass-card {
+    padding: 22px 16px !important;
+  }
+
+  /* Contact Section */
+  .any-contact-section {
+    padding: 44px 0 !important;
+  }
+  .any-contact-hero-actions {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+  .any-contact-action-pill {
+    width: 100% !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+  }
+
+  /* Footer */
+  .any-footer {
+    padding: 44px 0 24px !important;
+  }
+  .any-footer-inner {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+    padding: 0 16px !important;
+  }
+  .any-footer-links-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
   }
 }
 
-@media (max-width: 480px) {
+/* Extra small mobile screens (360px to 430px) */
+@media (max-width: 430px) {
+  .any-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
   .any-home-metrics-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .multimodel-columns-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .any-analytics-stats {
+    grid-template-columns: 1fr !important;
+  }
+  .any-footer-links-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+  .any-hero-mascot-card {
+    max-width: 200px !important;
+  }
+  .any-floating-chat-bubble {
+    bottom: 16px !important;
+    right: 16px !important;
+    width: 48px !important;
+    height: 48px !important;
   }
 }
