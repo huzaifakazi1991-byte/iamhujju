@@ -3024,8 +3024,6 @@
 
 /* 6. SECTION 4: LANDSCAPE CTA & PRICING/QUICKSTART CARDS (EXACT ANYAPI SPECIFICATIONS) */
 .any-cta-landscape {
-  background: transparent;
-  border: none;
   position: relative;
   overflow: hidden;
 }
