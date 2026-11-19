@@ -252,9 +252,49 @@ textarea:focus-visible {
   backdrop-filter: blur(20px);
 }
 
+.brand-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.brand-btn:hover h2 {
+  color: var(--accent);
+}
+
+.topbar-branding-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.topbar-branding-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-brand-title {
+  font: 700 17px 'Space Grotesk', sans-serif;
+  margin: 0;
+  color: #fff;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.topbar-brand-title:hover {
+  color: var(--accent);
+}
+
 .topbar h3 {
   font: 700 17px 'Space Grotesk', sans-serif;
-  margin: 0 0 2px;
+  margin: 0;
   color: #fff;
 }
 
@@ -264,19 +304,25 @@ textarea:focus-visible {
 }
 
 .back-home-button {
-  display: inline-block;
-  margin-top: 4px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+  width: fit-content;
+  transition: all 0.15s ease;
 }
 
 .back-home-button:hover {
-  text-decoration: underline;
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.45);
   color: #fff;
 }
 

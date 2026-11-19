@@ -25,6 +25,7 @@ export default function SavedChatsPage({
   onClearChats,
   onOpenHome,
   onOpenModels,
+  onOpenSkills,
   onOpenApiKeys,
   onOpenIntegrations,
   onLogout
@@ -52,6 +53,8 @@ export default function SavedChatsPage({
         <nav aria-label="Main navigation">
           <button type="button" onClick={onOpenHome}>Explore</button>
           <button type="button" onClick={() => onOpenModels()}>Models</button>
+          <button type="button" onClick={onOpenSkills}>Skills</button>
+          <button type="button" className="is-current" aria-current="page">Saved Chats</button>
           <button type="button" onClick={onStartChat}>
             Chat
           </button>

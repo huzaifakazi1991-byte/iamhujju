@@ -295,7 +295,7 @@ export default function ModelsPage({
   onLogout,
   onOpenChat,
   onRequestSignInForModel,
-  onOpenSavedChats: _onOpenSavedChats,
+  onOpenSavedChats,
   onOpenApiKeys,
   onOpenIntegrations,
   onRefreshModels
@@ -422,6 +422,7 @@ export default function ModelsPage({
           <button type="button" onClick={onOpenHome}>Explore</button>
           <button type="button" className="is-current" aria-current="page">Models</button>
           <button type="button" onClick={onOpenSkills}>Skills</button>
+          <button type="button" onClick={onOpenSavedChats}>Saved Chats</button>
           <button
             type="button"
             onClick={() => currentUser

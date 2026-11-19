@@ -111,7 +111,8 @@ export default function SkillsPage({
   onRequestSignIn,
   onLogout,
   onOpenApiKeys,
-  onOpenIntegrations
+  onOpenIntegrations,
+  onOpenSavedChats
 }) {
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -241,6 +242,7 @@ export default function SkillsPage({
             <button type="button" onClick={onOpenHome}>Explore</button>
             <button type="button" onClick={() => onOpenModels()}>Models</button>
             <button type="button" className="is-current" aria-current="page">Skills</button>
+            <button type="button" onClick={onOpenSavedChats}>Saved Chats</button>
             <button
               type="button"
               onClick={() => currentUser

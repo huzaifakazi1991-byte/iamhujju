@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
+import DocsModal from './DocsModal.jsx';
 import './HomePage.css';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -49,20 +50,37 @@ function Icon({ name, size = 20 }) {
   );
 }
 
-function getFeaturedModels(models) {
-  const catalog = models.filter(model =>
-    model.id !== 'auto' &&
-    model.id !== 'fusion' &&
-    !/\bslot\b/i.test(model.name || '')
+function isFreeModel(model) {
+  if (!model) return false;
+  return Boolean(
+    model.isFree ||
+    model.tier === 'free' ||
+    model.id?.includes(':free') ||
+    model.id === 'openrouter:openrouter/free' ||
+    model.id === 'openrouter:openrouter/auto' ||
+    model.id === 'auto'
   );
+}
+
+function getFeaturedModels(models) {
+  const freeCatalog = models.filter(m =>
+    isFreeModel(m) &&
+    m.id !== 'auto' &&
+    m.id !== 'fusion' &&
+    !/\bslot\b/i.test(m.name || '')
+  );
+  const catalog = freeCatalog.length ? freeCatalog : models.filter(m => m.id !== 'auto' && m.id !== 'fusion');
   const featured = [];
 
   for (const pattern of [
     /gemini/i,
-    /gpt-(?:4|5)/i,
+    /gemma/i,
     /deepseek/i,
     /qwen/i,
-    /llama/i
+    /nemotron|nvidia/i,
+    /llama/i,
+    /ernie|baidu/i,
+    /ling|inclusion/i
   ]) {
     const match = catalog.find(model =>
       pattern.test(`${model.id} ${model.name || ''}`) &&
@@ -99,6 +117,7 @@ function contextLabel(model) {
 }
 
 function ModelCard({ model, onSelect, disabled }) {
+  const free = isFreeModel(model);
   return (
     <button
       className="any-model-card"
@@ -113,7 +132,7 @@ function ModelCard({ model, onSelect, disabled }) {
         </span>
         <div className="any-model-meta">
           <span className="any-model-provider">
-            {model.provider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI'}
+            {model.provider === 'openrouter' ? 'OpenRouter' : 'iamhujju Gateway'}
           </span>
           <strong className="any-model-name">{model.name || model.id}</strong>
           <span className="any-model-id">{model.sourceId || model.id}</span>
@@ -123,7 +142,9 @@ function ModelCard({ model, onSelect, disabled }) {
         <p className="any-model-desc">{model.description.trim()}</p>
       )}
       <div className="any-model-card-footer">
-        <span className="any-status-tag">100% Free</span>
+        <span className={free ? "any-status-tag" : "any-status-tag is-pro"}>
+          {free ? '100% Free' : 'BYOK / Pro'}
+        </span>
         {contextLabel(model) && (
           <span className="any-context-tag">{contextLabel(model)}</span>
         )}
@@ -314,6 +335,8 @@ function HomePage({
   const [authError, setAuthError] = useState('');
   const [pendingModelId, setPendingModelId] = useState(requestedModelId || null);
   const [refreshNotice, setRefreshNotice] = useState('');
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsTab, setDocsTab] = useState('quickstart');
   const searchRef = useRef(null);
   const featuredModels = useMemo(() => getFeaturedModels(models), [models]);
 
@@ -461,7 +484,7 @@ function HomePage({
               aria-current="page"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             >
-              Products
+              Explore
             </button>
             <button type="button" onClick={() => onOpenModels()}>
               Models
@@ -472,14 +495,18 @@ function HomePage({
             <button type="button" onClick={onOpenSavedChats}>
               Saved Chats
             </button>
-            <a
-              href="https://openrouter.ai/docs"
-              target="_blank"
-              rel="noreferrer"
-              className="any-nav-link-ext"
+            <button type="button" onClick={() => openChat(selectedModel)}>
+              Chat
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDocsTab('quickstart');
+                setDocsOpen(true);
+              }}
             >
               Docs
-            </a>
+            </button>
           </nav>
 
           <div className="any-nav-tools">
@@ -1256,7 +1283,10 @@ function HomePage({
                 <button
                   type="button"
                   className="any-btn-primary"
-                  onClick={() => openChat(selectedModel)}
+                  onClick={() => {
+                    setDocsTab('cli');
+                    setDocsOpen(true);
+                  }}
                 >
                   <span>Install AnyCLI</span>
                   <Icon name="arrow" size={16} />
@@ -1355,7 +1385,13 @@ function HomePage({
                 <button
                   type="button"
                   className="any-btn-primary"
-                  onClick={() => openSignup(selectedModel)}
+                  onClick={() => {
+                    if (currentUser) {
+                      onOpenApiKeys();
+                    } else {
+                      openSignup(selectedModel);
+                    }
+                  }}
                 >
                   <span>Get free API key</span>
                   <Icon name="arrow" size={17} />
@@ -1363,7 +1399,9 @@ function HomePage({
                 <button
                   type="button"
                   className="any-btn-secondary"
-                  onClick={() => onOpenModels()}
+                  onClick={() => {
+                    window.location.href = 'mailto:contact@iamhujju.com?subject=iamhujju Enterprise & Sales Inquiry';
+                  }}
                 >
                   <span>Contact sales</span>
                 </button>
@@ -1371,13 +1409,31 @@ function HomePage({
 
               {/* Two Bottom Glass Cards from Image 4 */}
               <div className="any-cta-cards-grid">
-                <div className="any-cta-glass-card" onClick={() => openSignup(selectedModel)}>
+                <div
+                  className="any-cta-glass-card"
+                  onClick={() => {
+                    setDocsTab('pricing');
+                    setDocsOpen(true);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('pricing'); setDocsOpen(true); } }}
+                >
                   <span className="cta-card-pill">PRICING ON YOUR TERMS</span>
                   <h3>Pick the plan that fits your scale</h3>
                   <p>Pay-as-you-go, team, and enterprise tiers with transparent per-token pricing across every provider.</p>
                   <span className="cta-card-link">Pricing details →</span>
                 </div>
-                <div className="any-cta-glass-card" onClick={() => onOpenModels()}>
+                <div
+                  className="any-cta-glass-card"
+                  onClick={() => {
+                    setDocsTab('quickstart');
+                    setDocsOpen(true);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('quickstart'); setDocsOpen(true); } }}
+                >
                   <span className="cta-card-pill">START BUILDING</span>
                   <h3>Ship your first request in minutes</h3>
                   <p>Drop-in OpenAI-compatible SDK, copy-paste curl, and SDKs for TypeScript, Python, Go, and Rust.</p>
@@ -1472,6 +1528,15 @@ function HomePage({
           setAuthMode(mode);
           setAuthError('');
         }}
+      />
+
+      {/* Docs & API Quickstart Modal */}
+      <DocsModal
+        isOpen={docsOpen}
+        onClose={() => setDocsOpen(false)}
+        initialTab={docsTab}
+        onOpenChat={() => openChat(selectedModel)}
+        onOpenApiKeys={onOpenApiKeys}
       />
     </div>
   );

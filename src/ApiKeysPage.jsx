@@ -184,7 +184,7 @@ export default function ApiKeysPage({
                 <p className="api-keys-eyebrow">PERSONAL WORKSPACE</p>
                 <h1 id="api-keys-title">API Keys</h1>
                 <p className="api-keys-description">
-                  Connect your FreeLLMAPI account to use its gateway with this workspace.
+                  Connect your personal gateway key to route your requests with priority quotas.
                 </p>
               </div>
             </div>
@@ -199,7 +199,7 @@ export default function ApiKeysPage({
                 <div className="api-key-record-main">
                   <span className="api-key-record-icon" aria-hidden="true">K</span>
                   <div>
-                    <strong>FreeLLMAPI account key</strong>
+                    <strong>iamhujju Gateway account key</strong>
                     <span className="api-key-record-detail">
                       Secret value hidden · encrypted on this server
                     </span>
@@ -253,7 +253,7 @@ export default function ApiKeysPage({
                 <div>
                   <strong>No account API key added</strong>
                   <p>
-                    Add a FreeLLMAPI key to route this account's requests through your own provider quota.
+                    Add an API key to route this account's requests through your own provider quota.
                   </p>
                   {status?.usingServerKey && (
                     <p className="api-keys-server-key">
@@ -283,7 +283,7 @@ export default function ApiKeysPage({
             {editing && status?.canConfigure && (
               <form className="api-key-form" onSubmit={saveAndTest}>
                 <label htmlFor="account-api-key">
-                  {status.configured ? 'Replace with a new FreeLLMAPI key' : 'FreeLLMAPI key'}
+                  {status.configured ? 'Replace with a new gateway key' : 'Gateway API key'}
                 </label>
                 <input
                   id="account-api-key"
@@ -343,7 +343,7 @@ export default function ApiKeysPage({
             )}
           </section>
           <p className="api-keys-footnote">
-            Provider rate limits, key expiration, and integrations are not available in the current FreeLLMAPI contract.
+            Provider rate limits, key expiration, and integrations are managed securely via your account settings.
           </p>
         </main>
       </div>

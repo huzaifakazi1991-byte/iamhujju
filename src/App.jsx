@@ -1032,6 +1032,7 @@ function App() {
         onLogout={handleLogout}
         onOpenApiKeys={openApiKeys}
         onOpenIntegrations={openIntegrations}
+        onOpenSavedChats={openSavedChats}
       />
     );
   }
@@ -1059,6 +1060,7 @@ function App() {
         onImportLegacy={importLegacyBrowserChats}
         onOpenHome={() => navigateToView('home')}
         onOpenModels={openModels}
+        onOpenSkills={openSkills}
         onOpenApiKeys={openApiKeys}
         onOpenIntegrations={openIntegrations}
         onLogout={handleLogout}
@@ -1102,7 +1104,13 @@ function App() {
     <div className="app-shell">
 
       <aside className="sidebar">
-        <div className="brand">
+        <button
+          className="brand brand-btn"
+          type="button"
+          onClick={() => navigateToView('home')}
+          title="Return to iamhujju Explore"
+          aria-label="Return to iamhujju Explore"
+        >
           <div className="brand-icon">
             <img src="/mascot.jpg" alt="iamhujju mascot" className="brand-mascot-img" />
           </div>
@@ -1110,7 +1118,7 @@ function App() {
             <h2>iamhujju</h2>
             <span>PERSONAL AI</span>
           </div>
-        </div>
+        </button>
 
 
 
@@ -1150,15 +1158,25 @@ function App() {
 
       <main className="main-panel">
         <header className="topbar">
-          <div>
-            <h3>iamhujju</h3>
-            <span className="top-subtitle">Your Personal AI Workspace</span>
+          <div className="topbar-branding-block">
+            <div className="topbar-branding-row">
+              <button
+                className="topbar-brand-title"
+                type="button"
+                onClick={() => navigateToView('home')}
+                title="Return to iamhujju Explore"
+              >
+                iamhujju
+              </button>
+              <span className="top-subtitle">Your Personal AI Workspace</span>
+            </div>
             <button
               className="back-home-button"
               type="button"
               onClick={() => navigateToView('home')}
+              title="Back to models & workspace explore"
             >
-              Explore models
+              ← Explore models
             </button>
           </div>
 
