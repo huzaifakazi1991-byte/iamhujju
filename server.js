@@ -1640,7 +1640,7 @@ export function createApp({
       if (typeof m.id === 'string' && m.id.endsWith(':batch')) return false;
       return true;
     });
-    if (!requestApiKey && !cleanModels.some(m => m.id === HUZAIFA_OMNI_MODEL_ID)) {
+    if (!apiKey && !cleanModels.some(m => m.id === HUZAIFA_OMNI_MODEL_ID)) {
       cleanModels.unshift(HUZAIFA_OMNI_MODEL_METADATA);
     }
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
@@ -2820,7 +2820,7 @@ What would you like to explore or do right now?
       if (typeof m.id === 'string' && m.id.endsWith(':batch')) return false;
       return true;
     });
-    if (!effectiveApiKey && !cleanModels.some(m => m.id === HUZAIFA_OMNI_MODEL_ID)) {
+    if (!apiKey && !cleanModels.some(m => m.id === HUZAIFA_OMNI_MODEL_ID)) {
       cleanModels.unshift(HUZAIFA_OMNI_MODEL_METADATA);
     }
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
