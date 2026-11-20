@@ -172,7 +172,7 @@ async function responseErrorMessage(response, fallback) {
 
 function App() {
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('openrouter:openrouter/free');
+  const [selectedModel, setSelectedModel] = useState('huzaifa-kazi-omni');
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -424,11 +424,14 @@ function App() {
         m.isFree ||
         m.tier === 'free' ||
         m.id?.includes(':free') ||
+        m.id === 'huzaifa-kazi-omni' ||
+        m.id === 'huzaifa-kazi' ||
         m.id === 'openrouter:openrouter/free' ||
         m.id === 'openrouter:openrouter/auto' ||
         m.id === 'auto'
       );
       const defaultAutoModel =
+        available.find(m => m.id === 'huzaifa-kazi-omni' || m.id === 'huzaifa-kazi') ||
         available.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free') ||
         available.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto') ||
         available.find(checkFree) ||
@@ -634,6 +637,8 @@ function App() {
 
     // Verified free routers
     if (
+      id === 'huzaifa-kazi-omni' ||
+      id === 'huzaifa-kazi' ||
       id === 'openrouter:openrouter/free' ||
       id === 'openrouter/free' ||
       id === 'free-router' ||
@@ -661,11 +666,12 @@ function App() {
 
   const getAutoFreeModelId = useCallback(() => {
     return (
+      models.find(m => m.id === 'huzaifa-kazi-omni' || m.id === 'huzaifa-kazi')?.id ||
       models.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free')?.id ||
       models.find(m => m.id === 'free-router')?.id ||
       models.find(m => m.id === 'auto')?.id ||
       models.find(isModelFree)?.id ||
-      'openrouter:openrouter/free'
+      'huzaifa-kazi-omni'
     );
   }, [models, isModelFree]);
 
@@ -680,6 +686,7 @@ function App() {
   useEffect(() => {
     if (chatModelOptions.length > 0 && !chatModelOptions.some(m => m.id === selectedModel)) {
       const fallback =
+        chatModelOptions.find(m => m.id === 'huzaifa-kazi-omni' || m.id === 'huzaifa-kazi') ||
         chatModelOptions.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free') ||
         chatModelOptions.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto') ||
         chatModelOptions[0];
@@ -1489,14 +1496,14 @@ function App() {
 
     const markdown = messages
       .map(message => {
-        const speaker = message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers';
+        const speaker = message.role === 'user' ? 'You' : 'Huzaifa Kazi';
         return `## ${speaker}\n\n${message.content}`;
       })
       .join('\n\n---\n\n');
 
     const plainText = messages
       .map(message => {
-        const speaker = message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers';
+        const speaker = message.role === 'user' ? 'You' : 'Huzaifa Kazi';
         return `${speaker}\n\n${message.content}`;
       })
       .join('\n\n------------------------------\n\n');
@@ -1519,7 +1526,7 @@ function App() {
         })[character]);
 
       const printableContent = messages.map(message => {
-        const speaker = message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers';
+        const speaker = message.role === 'user' ? 'You' : 'Huzaifa Kazi';
 
         return `
           <section class="message">
@@ -1535,7 +1542,7 @@ function App() {
         <html>
           <head>
             <meta charset="UTF-8">
-            <title>Ratnagiri_Enterprenuers Workspace Conversation</title>
+            <title>Huzaifa Kazi Workspace Conversation</title>
             <style>
               body {
                 font-family: Arial, sans-serif;
@@ -1585,7 +1592,7 @@ function App() {
             <div class="toolbar">
               <button onclick="window.print()">Print / Save as PDF</button>
             </div>
-            <h1>Ratnagiri_Enterprenuers Workspace Conversation</h1>
+            <h1>Huzaifa Kazi Workspace Conversation</h1>
             ${printableContent}
           </body>
         </html>
@@ -1596,7 +1603,7 @@ function App() {
     const isText = format === 'txt';
     const content = isText
       ? plainText
-      : `# Ratnagiri_Enterprenuers Workspace Conversation\n\n${markdown}`;
+      : `# Huzaifa Kazi Workspace Conversation\n\n${markdown}`;
 
     const blob = new Blob(
       [content],
@@ -1623,6 +1630,12 @@ function App() {
   // Quick model selection list
   const quickModels = useMemo(() => {
     const presets = [
+      {
+        id: 'omni',
+        label: '✨ Huzaifa Kazi (Omni AI)',
+        match: m => m.id === 'huzaifa-kazi-omni' || m.id === 'huzaifa-kazi' || m.id === 'omni',
+        fallbackId: 'huzaifa-kazi-omni'
+      },
       {
         id: 'auto-free',
         label: '⚡ Auto Free Router',
@@ -1884,14 +1897,14 @@ function App() {
               setMobileChatSidebarOpen(false);
               navigateToView('home');
             }}
-            title="Return to Ratnagiri_Enterprenuers Explore"
-            aria-label="Return to Ratnagiri_Enterprenuers Explore"
+            title="Return to Huzaifa Kazi Explore"
+            aria-label="Return to Huzaifa Kazi Explore"
           >
             <div className="brand-icon">
-              <img src="/mascot.jpg" alt="Ratnagiri_Enterprenuers mascot" className="brand-mascot-img" />
+              <img src="/mascot.jpg" alt="Huzaifa Kazi mascot" className="brand-mascot-img" />
             </div>
             <div>
-              <h2>Ratnagiri_Enterprenuers</h2>
+              <h2>Huzaifa Kazi</h2>
               <span>PERSONAL AI</span>
             </div>
           </button>
@@ -1935,7 +1948,7 @@ function App() {
             <span className={connected ? 'status-dot online' : 'status-dot'} />
             {connected ? 'API Connected' : 'API Disconnected'}
           </div>
-          <span className="version">Ratnagiri_Enterprenuers AI Workspace · v2.0</span>
+          <span className="version">Huzaifa Kazi AI Workspace · v2.0</span>
         </div>
       </aside>
 
@@ -1966,9 +1979,9 @@ function App() {
                 className="topbar-brand-title"
                 type="button"
                 onClick={() => navigateToView('home')}
-                title="Return to Ratnagiri_Enterprenuers Explore"
+                title="Return to Huzaifa Kazi Explore"
               >
-                Ratnagiri_Enterprenuers
+                Huzaifa Kazi
               </button>
               <span className="top-subtitle">Your Personal AI Workspace</span>
             </div>
@@ -2097,7 +2110,7 @@ function App() {
                 <div className="gyro-ring ring-y" />
                 <div className="gyro-ring ring-z" />
                 <div className="gyro-center-orb">
-                  <img src="/mascot.jpg" alt="Ratnagiri_Enterprenuers mascot" className="welcome-mascot-img" />
+                  <img src="/mascot.jpg" alt="Huzaifa Kazi mascot" className="welcome-mascot-img" />
                 </div>
                 <div className="gyro-glow-pulse" />
               </div>
@@ -2137,7 +2150,7 @@ function App() {
                   <div className="message-content">
 
                     <strong>
-                      {message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers'}
+                      {message.role === 'user' ? 'You' : 'Huzaifa Kazi'}
                     </strong>
                     {/* Attached Photos, Videos, and Documents */}
                     {message.attachments && message.attachments.length > 0 && (

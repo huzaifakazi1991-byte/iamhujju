@@ -237,7 +237,7 @@ export default function SkillsPage({
         <div className="skills-nav-inner">
           <button className="skills-brand" type="button" onClick={onOpenHome} aria-label="iamhujju Explore">
             <span className="skills-brand-mark" aria-hidden="true">R</span>
-            <span>Ratnagiri_Enterprenuers</span>
+            <span>Huzaifa Kazi</span>
           </button>
           <nav className="skills-nav-links" aria-label="Main navigation">
             <button type="button" onClick={onOpenHome}>Explore</button>

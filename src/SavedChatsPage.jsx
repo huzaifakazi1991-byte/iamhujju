@@ -49,7 +49,7 @@ export default function SavedChatsPage({
       <header className="saved-chats-nav">
         <button className="saved-chats-brand" type="button" onClick={onOpenHome}>
           <span aria-hidden="true">R</span>
-          Ratnagiri_Enterprenuers
+          Huzaifa Kazi
         </button>
         <nav aria-label="Main navigation">
           <button type="button" onClick={onOpenHome}>Explore</button>

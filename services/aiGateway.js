@@ -467,8 +467,8 @@ export function resolveModelTarget(modelName, { keyPool = null } = {}) {
   }
   const norm = trimmed.toLowerCase();
 
-  // 1. Universal aliases: auto, default, free
-  if (norm === 'auto' || norm === 'default' || norm === 'free') {
+  // 1. Universal aliases: auto, default, free, omni, huzaifa-kazi-omni
+  if (norm === 'auto' || norm === 'default' || norm === 'free' || norm === 'omni' || norm === 'huzaifa-kazi-omni' || norm === 'huzaifa-kazi') {
     if (keyPool && keyPool.hasKeys('freellmapi') && !keyPool.hasKeys('openrouter')) {
       return {
         provider: 'freellmapi',

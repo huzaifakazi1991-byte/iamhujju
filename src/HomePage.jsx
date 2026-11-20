@@ -66,6 +66,8 @@ function isFreeModel(model) {
     model.isFree ||
     model.tier === 'free' ||
     model.id?.includes(':free') ||
+    model.id === 'huzaifa-kazi-omni' ||
+    model.id === 'huzaifa-kazi' ||
     model.id === 'openrouter:openrouter/free' ||
     model.id === 'openrouter:openrouter/auto' ||
     model.id === 'auto'
@@ -628,7 +630,7 @@ function HomePage({
             <div className="any-brand-mascot-ring">
               <img src="/mascot.jpg" alt="iamhujju mascot" className="any-brand-mascot-img" />
             </div>
-            <span className="any-brand-text">Ratnagiri_Enterprenuers</span>
+            <span className="any-brand-text">Huzaifa Kazi</span>
           </button>
 
           <nav className="any-nav-links" aria-label="Main navigation">
@@ -776,10 +778,10 @@ function HomePage({
                       </div>
                       <div className="dropdown-item-text">
                         <div className="dropdown-item-title-row">
-                          <strong>Live AI Support</strong>
-                          <span className="dropdown-item-badge badge-new">Copilot</span>
+                          <strong>Huzaifa Kazi AI</strong>
+                          <span className="dropdown-item-badge badge-new">AI Companion</span>
                         </div>
-                        <p>Live interactive assistant for instant app guidance</p>
+                        <p>Live interactive assistant & unified multi-model intelligence</p>
                       </div>
                     </button>
                   </div>
@@ -1068,7 +1070,7 @@ function HomePage({
                 setAboutOpen(true);
               }}>
                 <Icon name="info" size={18} />
-                <span>About Ratnagiri_Enterprenuers</span>
+                <span>About Huzaifa Kazi</span>
               </button>
             </div>
 
@@ -2120,7 +2122,7 @@ function HomePage({
               <div className="any-brand-mascot-ring">
                 <img src="/mascot.jpg" alt="iamhujju mascot" className="any-brand-mascot-img" />
               </div>
-              <span className="any-brand-text">Ratnagiri_Enterprenuers</span>
+              <span className="any-brand-text">Huzaifa Kazi</span>
             </div>
             <p className="any-footer-tagline">
               Your Personal AI Companion · One API & Workspace for every model.

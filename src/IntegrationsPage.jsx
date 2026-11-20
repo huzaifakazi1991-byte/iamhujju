@@ -405,7 +405,7 @@ export default function IntegrationsPage({
           <div className="ak-brand-mascot-ring">
             <img src="/mascot.jpg" alt="iamhujju mascot" className="ak-brand-mascot-img" />
           </div>
-          <span className="ak-brand-text">Ratnagiri_Enterprenuers</span>
+          <span className="ak-brand-text">Huzaifa Kazi</span>
         </button>
 
         <nav className="ak-nav-links" aria-label="Main navigation">

@@ -39,6 +39,11 @@ import {
   pollGeminiVideoTask,
   DEFAULT_GEMINI_MODELS
 } from './services/googleGeminiAdapter.js';
+import {
+  HUZAIFA_OMNI_MODEL_ID,
+  HUZAIFA_OMNI_MODEL_METADATA,
+  executeHuzaifaOmniChat
+} from './services/huzaifaOmniRouter.js';
 
 dotenv.config();
 
@@ -1635,6 +1640,9 @@ export function createApp({
       if (typeof m.id === 'string' && m.id.endsWith(':batch')) return false;
       return true;
     });
+    if (!requestApiKey && !cleanModels.some(m => m.id === HUZAIFA_OMNI_MODEL_ID)) {
+      cleanModels.unshift(HUZAIFA_OMNI_MODEL_METADATA);
+    }
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
     } catch {
       if (!res.headersSent && !res.destroyed) {
@@ -1658,6 +1666,25 @@ export function createApp({
     if (!user) {
       return res.status(401).json({
         error: { message: 'Sign in to send messages.' }
+      });
+    }
+
+    const isHuzaifaOmni = body.model === HUZAIFA_OMNI_MODEL_ID ||
+      body.model === 'huzaifa-kazi' ||
+      body.model === 'omni' ||
+      body.model === 'huzaifa-kazi-omni';
+
+    if (isHuzaifaOmni) {
+      return executeHuzaifaOmniChat({
+        req,
+        res,
+        body,
+        user,
+        accountStore,
+        keyPool,
+        fetchImpl,
+        timeoutMs,
+        upstreamBase
       });
     }
 
@@ -1929,8 +1956,8 @@ export function createApp({
     const userMessage = body.message;
     const history = body.history || [];
 
-    const systemInstruction = `You are iamhujju Copilot, the official interactive AI assistant and website navigator for iamhujju (https://iamhujju.com).
-Your mission is to provide comprehensive help, answer queries about any subject related to iamhujju, and guide/navigate users through the platform.
+    const systemInstruction = `You are Huzaifa Kazi, the official AI Companion, unified multi-model intelligence, and platform navigator for iamhujju (https://iamhujju.com).
+Your mission is to provide comprehensive help, answer queries with razor-sharp expertise across all models and features, and guide/navigate users through the platform.
 
 PLATFORM KNOWLEDGE:
 - Purpose: One AI Workspace for 400+ Models. Switch between providers instantly, test prompts side-by-side, access a drop-in OpenAI-compatible API, and run models from the terminal.
@@ -2115,7 +2142,7 @@ iamhujju includes a catalog of **34+ curated AI developer skills** and MCP (Mode
 [[action:contact|📬 Open Contact Form]] [[action:telegram|✈️ Telegram (+91 99756 49957)]] [[action:models|🚀 Explore Models]]`;
     }
 
-    return `I'm your **iamhujju Copilot**! I can help you with anything related to the platform:
+    return `I'm **Huzaifa Kazi**, your unified AI companion! I can help you with anything related to the platform:
 
 • **Explore 400+ Models:** Benchmark bars, context sizes, and free tier auto-routing.
 • **AnyChat Playground:** Test prompts and compare model responses side-by-side.
@@ -2793,6 +2820,9 @@ What would you like to explore or do right now?
       if (typeof m.id === 'string' && m.id.endsWith(':batch')) return false;
       return true;
     });
+    if (!effectiveApiKey && !cleanModels.some(m => m.id === HUZAIFA_OMNI_MODEL_ID)) {
+      cleanModels.unshift(HUZAIFA_OMNI_MODEL_METADATA);
+    }
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
   }
 
@@ -2812,6 +2842,25 @@ What would you like to explore or do right now?
       'Request must include a model and 1-100 valid messages, including a user message.'
     );
     if (!body) return;
+
+    const isHuzaifaOmni = body.model === HUZAIFA_OMNI_MODEL_ID ||
+      body.model === 'huzaifa-kazi' ||
+      body.model === 'omni' ||
+      body.model === 'huzaifa-kazi-omni';
+
+    if (isHuzaifaOmni) {
+      return executeHuzaifaOmniChat({
+        req,
+        res,
+        body,
+        user,
+        accountStore,
+        keyPool,
+        fetchImpl,
+        timeoutMs,
+        upstreamBase
+      });
+    }
 
     const modelTarget = resolveModelTarget(body.model, { keyPool });
     let { provider: targetProvider, sourceModel } = modelTarget;

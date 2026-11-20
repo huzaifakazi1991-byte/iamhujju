@@ -195,7 +195,7 @@ export default function PricingPage({
           title="Return to iamhujju Home"
         >
           <img src="/mascot.jpg" alt="iamhujju mascot" />
-          <span>Ratnagiri_Enterprenuers</span>
+          <span>Huzaifa Kazi</span>
         </button>
 
         <div className="pricing-nav-actions">

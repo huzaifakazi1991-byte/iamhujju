@@ -269,7 +269,7 @@ I am your 24/7 in-app AI assistant! Ask me any question about models, code, setu
 [[action:about|ℹ️ About iamhujju]] [[action:contact|✉️ Contact Founder]] [[action:models|🚀 Explore Models]] [[action:chat|⚡ Launch AnyChat]]`;
   }
 
-  return `I'm your **Ratnagiri_Enterprenuers Copilot**! I can help you with anything across the platform:
+  return `I'm **Huzaifa Kazi**, your unified AI Companion & Multi-Model Orchestrator! I can help you with anything across the platform:
 
 • **Explore ${countStr} Models:** Live benchmarks, context sizes, and free tier routing.
 • **AnyChat Playground:** Test prompts and compare model responses side-by-side.
@@ -325,7 +325,7 @@ export default function LiveSupportWidget({
   onOpenAbout,
   onOpenCheckout,
   onScrollTo,
-  selectedModel = 'openrouter:openrouter/free',
+  selectedModel = 'huzaifa-kazi-omni',
   connected = true,
   currentUser = null,
   models = []
@@ -334,7 +334,7 @@ export default function LiveSupportWidget({
     {
       id: 'welcome',
       role: 'assistant',
-      content: `👋 **Hi! I'm your Ratnagiri_Enterprenuers Copilot & Platform Navigator.**
+      content: `👋 **Hi! I'm Huzaifa Kazi, your AI Companion & Platform Navigator.**
 
 I have complete knowledge of everything on **iamhujju.com** — from our **400+ AI models**, drop-in **OpenAI SDK**, **AnyCLI**, and **Pricing**, to **Firebase Auth** and **Cloud Firestore** sync.
 
@@ -377,7 +377,7 @@ Ask me any question or tell me where you'd like to navigate!
     'Drag & pull me anywhere! 🛸',
     '400+ Free Models ⚡',
     'Double-click for a flip! 🌀',
-    'Need help? Ask Copilot! 💡',
+    'Need help? Ask Huzaifa Kazi! 💡',
     'I can follow you everywhere! ✨'
   ];
 
@@ -792,19 +792,19 @@ Ask me any question or tell me where you'd like to navigate!
         <aside
           className="live-support-window"
           role="complementary"
-          aria-label="iamhujju Live Support Copilot"
+          aria-label="Huzaifa Kazi Live AI Companion"
           style={getChatWindowStyle()}
         >
           {/* Header */}
           <header className="live-support-header">
             <div className="live-support-header-brand">
               <div className="live-support-avatar">
-                <img src="/copilot.jpg" alt="Ratnagiri_Enterprenuers copilot" />
+                <img src="/copilot.jpg" alt="Huzaifa Kazi" />
                 <span className={`live-support-status-dot ${connected ? 'is-online' : ''}`} />
               </div>
               <div className="live-support-header-info">
-                <strong>Ratnagiri_Enterprenuers Copilot</strong>
-                <span>Live AI Support & Navigator · 100% Free</span>
+                <strong>Huzaifa Kazi</strong>
+                <span>AI Companion · Unified Multi-Model Intelligence</span>
               </div>
             </div>
 
@@ -941,7 +941,7 @@ Ask me any question or tell me where you'd like to navigate!
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onDoubleClick={handleDoubleClick}
-        title="Ratnagiri_Enterprenuers AI Companion · Drag me anywhere, double-click for a flip!"
+        title="Huzaifa Kazi · AI Companion · Unified Multi-Model Intelligence · Drag me anywhere, double-click for a flip!"
         role="button"
         tabIndex={0}
         aria-label={isOpen ? 'Close Live AI Support' : 'Open Live AI Support'}
@@ -949,7 +949,7 @@ Ask me any question or tell me where you'd like to navigate!
         <div className="any-floating-chat-bubble-inner">
           <img
             src="/copilot.jpg"
-            alt="Ratnagiri_Enterprenuers copilot"
+            alt="Huzaifa Kazi"
             className="any-floating-mascot-img"
             draggable={false}
           />

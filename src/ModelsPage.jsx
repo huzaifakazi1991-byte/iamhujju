@@ -75,7 +75,7 @@ function ModelDetailModal({ model, isOpen, onClose, onSelectModel }) {
   const benchmarks = getModelBenchmarks(model);
   const contextWindow = getModelContextWindow(model);
   const snippet = generateCodeSnippet(model.id, selectedLang);
-  const isFree = model.isFree !== false && (model.isFree || model.tier === 'free' || model.id?.includes(':free') || model.id === 'openrouter:openrouter/free' || model.id === 'openrouter:openrouter/auto');
+  const isFree = model.isFree !== false && (model.isFree || model.tier === 'free' || model.id?.includes(':free') || model.id === 'huzaifa-kazi-omni' || model.id === 'huzaifa-kazi' || model.id === 'openrouter:openrouter/free' || model.id === 'openrouter:openrouter/auto');
 
   async function copyCode() {
     try {
@@ -207,7 +207,7 @@ function ModelCard({ model, selected, signedIn, onOpenChat, onRequestSignIn, onO
   const contextWindow = getModelContextWindow(model);
   const benchmarks = getModelBenchmarks(model);
 
-  const isFree = model.isFree !== false && (model.isFree || model.tier === 'free' || model.id?.includes(':free') || model.id === 'openrouter:openrouter/free' || model.id === 'openrouter:openrouter/auto');
+  const isFree = model.isFree !== false && (model.isFree || model.tier === 'free' || model.id?.includes(':free') || model.id === 'huzaifa-kazi-omni' || model.id === 'huzaifa-kazi' || model.id === 'openrouter:openrouter/free' || model.id === 'openrouter:openrouter/auto');
 
   function openModel() {
     if (signedIn) {
@@ -417,7 +417,7 @@ export default function ModelsPage({
           <div className="models-brand-mascot-ring">
             <img src="/mascot.jpg" alt="iamhujju mascot" className="models-brand-mascot-img" />
           </div>
-          <span>Ratnagiri_Enterprenuers</span>
+          <span>Huzaifa Kazi</span>
         </button>
         <nav className="models-nav-links" aria-label="Main navigation">
           <button type="button" onClick={onOpenHome}>Explore</button>

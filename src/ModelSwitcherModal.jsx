@@ -53,6 +53,9 @@ export default function ModelSwitcherModal({
   // Helper to determine provider name & theme
   function getProviderInfo(model) {
     const raw = `${model.id} ${model.provider || ''} ${model.name || ''}`.toLowerCase();
+    if (model.id === 'huzaifa-kazi-omni' || raw.includes('huzaifa')) {
+      return { name: 'Huzaifa Kazi Omni AI', badgeClass: 'provider-omni', icon: '✨' };
+    }
     if (raw.includes('google') || raw.includes('gemini')) {
       return { name: 'Google DeepMind', badgeClass: 'provider-google', icon: '✦' };
     }
@@ -85,39 +88,46 @@ export default function ModelSwitcherModal({
     let list = models || [];
 
     if (activeCategory === 'free') {
-      list = list.filter(m => isModelFree(m));
+      list = list.filter(m => m.id === 'huzaifa-kazi-omni' || isModelFree(m));
     } else if (activeCategory === 'image') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name || ''} ${m.modality || ''}`.toLowerCase();
         return m.modality === 'image' || text.includes('flux') || text.includes('sdxl') || text.includes('stable-diffusion') || text.includes('dall-e') || text.includes('imagen');
       });
     } else if (activeCategory === 'video') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name || ''} ${m.modality || ''}`.toLowerCase();
         return m.modality === 'video' || text.includes('kling') || text.includes('wan') || text.includes('luma') || text.includes('runway') || text.includes('sora') || text.includes('video');
       });
     } else if (activeCategory === 'agent') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name || ''} ${m.modality || ''}`.toLowerCase();
         return m.supportsTools || m.modality === 'agent' || text.includes('agent') || text.includes('tool') || text.includes('gpt-4o') || text.includes('claude-3-5') || text.includes('qwen-2.5-coder') || text.includes('r1');
       });
     } else if (activeCategory === 'reasoning') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name}`.toLowerCase();
         return text.includes('r1') || text.includes('o1') || text.includes('o3') || text.includes('reason') || text.includes('deepseek');
       });
     } else if (activeCategory === 'coding') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name}`.toLowerCase();
         return text.includes('coder') || text.includes('coding') || text.includes('code') || text.includes('qwen') || text.includes('starcoder');
       });
     } else if (activeCategory === 'vision') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name}`.toLowerCase();
         return text.includes('flash') || text.includes('vision') || text.includes('vl') || text.includes('4o') || text.includes('claude') || text.includes('gemini');
       });
     } else if (activeCategory === 'flash') {
       list = list.filter(m => {
+        if (m.id === 'huzaifa-kazi-omni') return true;
         const text = `${m.id} ${m.name}`.toLowerCase();
         return text.includes('flash') || text.includes('fast') || text.includes('instant') || text.includes('mini') || text.includes('groq');
       });
@@ -132,7 +142,13 @@ export default function ModelSwitcherModal({
       );
     }
 
-    return list;
+    const sorted = [...list].sort((a, b) => {
+      if (a.id === 'huzaifa-kazi-omni') return -1;
+      if (b.id === 'huzaifa-kazi-omni') return 1;
+      return 0;
+    });
+
+    return sorted;
   }, [models, activeCategory, search, isModelFree]);
 
   if (!isOpen) return null;
@@ -247,7 +263,9 @@ export default function ModelSwitcherModal({
                       <span>{provider.name}</span>
                     </span>
 
-                    {isFree ? (
+                    {model.id === 'huzaifa-kazi-omni' ? (
+                      <span className="badge-omni">OMNI BRAIN (100% Free)</span>
+                    ) : isFree ? (
                       <span className="badge-free">100% Free</span>
                     ) : (
                       <span className="badge-pro">{model.provider === 'gemini' || model.isPaidOnly ? 'PRO (Paid Plan)' : 'Pro (BYOK)'}</span>
