@@ -34,7 +34,12 @@ function Icon({ name, size = 20 }) {
     chart: <><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></>,
     credit: <><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></>,
     plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
-    minus: <line x1="5" y1="12" x2="19" y2="12" />
+    minus: <line x1="5" y1="12" x2="19" y2="12" />,
+    tag: <><path d="m12 2 8 8-8 8H4V2Z" /><circle cx="8" cy="8" r="2" /></>,
+    book: <><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" /><path d="M6 2v20" /></>,
+    info: <><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+    bookmark: <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z" />
   };
 
   return (
@@ -424,6 +429,16 @@ function HomePage({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [mobileMenuOpen]);
 
   function handleDropdownEnter(menu) {
     if (dropdownCloseTimeoutRef.current) {
@@ -999,62 +1014,102 @@ function HomePage({
         {mobileMenuOpen && (
           <div className="any-nav-mobile-drawer">
             <div className="mobile-drawer-section">
-              <span className="mobile-drawer-label">Products</span>
-              <button type="button" onClick={() => scrollToSection('unified-api-section')}>
-                <Icon name="layers" size={16} /> Unified API (400+ Models)
-              </button>
+              <span className="mobile-drawer-label">Models & Workspace</span>
               <button type="button" onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}>
-                <Icon name="chat" size={16} /> AnyChat Playground
-              </button>
-              <button type="button" onClick={() => scrollToSection('anycli-section')}>
-                <Icon name="terminal" size={16} /> AnyCLI Terminal
+                <Icon name="chat" size={18} />
+                <span>AnyChat Workspace</span>
               </button>
               <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenModels(); }}>
-                <Icon name="grid" size={16} /> Model Hub
+                <Icon name="grid" size={18} />
+                <span>400+ Models Catalog</span>
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}>
+                <Icon name="cpu" size={18} />
+                <span>Skills Catalog</span>
+              </button>
+              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSavedChats(); }}>
+                <Icon name="bookmark" size={18} />
+                <span>Saved Conversations</span>
               </button>
             </div>
 
             <div className="mobile-drawer-section">
-              <span className="mobile-drawer-label">Navigation</span>
+              <span className="mobile-drawer-label">Products & Architecture</span>
+              <button type="button" onClick={() => scrollToSection('unified-api-section')}>
+                <Icon name="layers" size={18} />
+                <span>Unified API Gateway</span>
+              </button>
+              <button type="button" onClick={() => scrollToSection('anycli-section')}>
+                <Icon name="terminal" size={18} />
+                <span>AnyCLI Terminal</span>
+              </button>
+            </div>
+
+            <div className="mobile-drawer-section">
+              <span className="mobile-drawer-label">Pricing & Resources</span>
               <button type="button" onClick={() => {
                 setMobileMenuOpen(false);
                 if (onOpenPricing) onOpenPricing();
                 else { setDocsTab('pricing'); setDocsOpen(true); }
               }}>
-                Pricing
+                <Icon name="tag" size={18} />
+                <span>Transparent Pricing</span>
               </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); setDocsTab('quickstart'); setDocsOpen(true); }}>
-                Docs
+              <button type="button" onClick={() => {
+                setMobileMenuOpen(false);
+                setDocsTab('quickstart');
+                setDocsOpen(true);
+              }}>
+                <Icon name="book" size={18} />
+                <span>Documentation & Guides</span>
               </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSkills(); }}>
-                Skills Catalog
-              </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); onOpenSavedChats(); }}>
-                Saved Chats
-              </button>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); setAboutOpen(true); }}>
-                About
+              <button type="button" onClick={() => {
+                setMobileMenuOpen(false);
+                setAboutOpen(true);
+              }}>
+                <Icon name="info" size={18} />
+                <span>About Ratnagiri_Enterprenuers</span>
               </button>
             </div>
 
+            <div className="mobile-drawer-section">
+              <span className="mobile-drawer-label">Account & Security</span>
+              <button type="button" onClick={() => {
+                setMobileMenuOpen(false);
+                if (onOpenApiKeys) onOpenApiKeys();
+              }}>
+                <Icon name="key" size={18} />
+                <span>API Keys Dashboard</span>
+              </button>
+              {onOpenIntegrations && (
+                <button type="button" onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenIntegrations();
+                }}>
+                  <Icon name="settings" size={18} />
+                  <span>Integrations</span>
+                </button>
+              )}
+            </div>
+
             <div className="mobile-drawer-footer">
+              <button
+                className="any-btn-dashboard mobile-dash-btn"
+                type="button"
+                onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}
+              >
+                <span>Launch Chat Workspace</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
+              </button>
               <button
                 className="mobile-contact-btn"
                 type="button"
                 onClick={() => { setMobileMenuOpen(false); setContactOpen(true); }}
               >
                 Contact Us
-              </button>
-              <button
-                className="any-btn-dashboard mobile-dash-btn"
-                type="button"
-                onClick={() => { setMobileMenuOpen(false); openChat(selectedModel); }}
-              >
-                <span>Dashboard</span>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14" />
-                  <path d="m13 6 6 6-6 6" />
-                </svg>
               </button>
             </div>
           </div>

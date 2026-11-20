@@ -526,18 +526,39 @@
 }
 
 /* Mobile Responsive */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .payment-modal-backdrop {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
   .payment-modal-dialog {
-    width: 95vw;
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 88vh !important;
+    max-height: 88dvh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 20px 20px 0 0 !important;
   }
 
   .payment-modal-card {
-    padding: 18px 14px;
-    gap: 16px;
+    padding: 18px 14px calc(16px + var(--sab, 0px)) !important;
+    gap: 16px !important;
+  }
+
+  .payment-modal-close {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .payment-modal-title {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .total-inr {
@@ -561,12 +582,30 @@
 
   .upi-utr-input-row {
     flex-direction: column;
+    gap: 8px;
   }
 
-  .payment-btn-verify {
-    padding: 10px;
+  .upi-utr-input,
+  .payment-modal-input {
+    font-size: 16px !important;
+    min-height: 44px;
     width: 100%;
   }
+
+  .payment-btn-verify,
+  .payment-btn-primary,
+  .payment-btn-secondary {
+    padding: 12px;
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .payment-modal-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+}
 
   .payment-modal-footer {
     flex-direction: column;

@@ -188,6 +188,7 @@ function App() {
   const [legacyImportNotice, setLegacyImportNotice] = useState('');
   const [modelsLoading, setModelsLoading] = useState(false);
   const [currentView, setCurrentView] = useState('home');
+  const [mobileChatSidebarOpen, setMobileChatSidebarOpen] = useState(false);
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
@@ -541,6 +542,7 @@ function App() {
     setMessages([]);
     setActiveChatId(null);
     setError('');
+    setMobileChatSidebarOpen(false);
   }
 
   function openChat(chat) {
@@ -549,6 +551,7 @@ function App() {
     setActiveChatId(chat.id);
     setMessages(chat.messages);
     setError('');
+    setMobileChatSidebarOpen(false);
     navigateToView('chat');
   }
 
@@ -1600,24 +1603,35 @@ function App() {
       {(currentView === 'chat' || (currentView !== 'home' && currentView !== 'models' && currentView !== 'skills' && currentView !== 'saved-chats' && currentView !== 'api-keys' && currentView !== 'integrations' && currentView !== 'pricing')) && (
         <div className="app-shell">
 
-      <aside className="sidebar">
-        <button
-          className="brand brand-btn"
-          type="button"
-          onClick={() => navigateToView('home')}
-          title="Return to Ratnagiri_Enterprenuers Explore"
-          aria-label="Return to Ratnagiri_Enterprenuers Explore"
-        >
-          <div className="brand-icon">
-            <img src="/mascot.jpg" alt="Ratnagiri_Enterprenuers mascot" className="brand-mascot-img" />
-          </div>
-          <div>
-            <h2>Ratnagiri_Enterprenuers</h2>
-            <span>PERSONAL AI</span>
-          </div>
-        </button>
-
-
+      <aside className={`sidebar ${mobileChatSidebarOpen ? 'is-mobile-open' : ''}`}>
+        <div className="sidebar-header-row">
+          <button
+            className="brand brand-btn"
+            type="button"
+            onClick={() => {
+              setMobileChatSidebarOpen(false);
+              navigateToView('home');
+            }}
+            title="Return to Ratnagiri_Enterprenuers Explore"
+            aria-label="Return to Ratnagiri_Enterprenuers Explore"
+          >
+            <div className="brand-icon">
+              <img src="/mascot.jpg" alt="Ratnagiri_Enterprenuers mascot" className="brand-mascot-img" />
+            </div>
+            <div>
+              <h2>Ratnagiri_Enterprenuers</h2>
+              <span>PERSONAL AI</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="chat-mobile-sidebar-close"
+            onClick={() => setMobileChatSidebarOpen(false)}
+            aria-label="Close chat sidebar"
+          >
+            ✕
+          </button>
+        </div>
 
         <button className="new-chat" onClick={newChat} disabled={loading}>
           <span>+</span> New chat
@@ -1653,8 +1667,27 @@ function App() {
         </div>
       </aside>
 
+      {mobileChatSidebarOpen && (
+        <div
+          className="chat-sidebar-backdrop"
+          onClick={() => setMobileChatSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       <main className="main-panel">
         <header className="topbar">
+          <button
+            type="button"
+            className="chat-mobile-sidebar-toggle"
+            aria-label="Toggle chat history"
+            onClick={() => setMobileChatSidebarOpen(prev => !prev)}
+            title="Open Conversations History"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
           <div className="topbar-branding-block">
             <div className="topbar-branding-row">
               <button

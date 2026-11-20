@@ -2221,12 +2221,12 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .any-nav-links {
-    display: none;
+    display: none !important;
   }
   .any-nav-mobile-toggle {
-    display: inline-flex;
+    display: inline-flex !important;
   }
 }
 
@@ -3428,15 +3428,15 @@
   /* 2. Navigation Bar Mobile Hamburger & Drawer */
   .any-nav-inner {
     width: 100% !important;
-    height: 64px !important;
+    height: 56px !important;
+    min-height: 56px !important;
     padding: 0 16px !important;
-    gap: 10px !important;
+    gap: 8px !important;
   }
   .any-nav-links {
     display: none !important;
   }
   .any-nav-tools .any-nav-contact-btn,
-  .any-nav-tools .any-btn-dashboard,
   .any-nav-contact-btn {
     display: none !important;
   }
@@ -3444,53 +3444,78 @@
     margin-left: auto !important;
     display: flex !important;
     align-items: center !important;
-    gap: 0 !important;
+    gap: 8px !important;
+  }
+  .any-nav-tools .any-btn-dashboard {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 14px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 9px !important;
+    white-space: nowrap !important;
+    gap: 6px !important;
   }
   .any-nav-mobile-toggle {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 42px !important;
-    height: 42px !important;
-    min-width: 42px !important;
-    min-height: 42px !important;
-    padding: 8px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 10px !important;
     background: rgba(255, 255, 255, 0.08) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 10px !important;
     color: #ffffff !important;
     cursor: pointer !important;
+    flex-shrink: 0 !important;
   }
   .any-brand-text {
-    font-size: 17px !important;
+    font-size: 15px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 140px !important;
   }
   .any-brand-mascot-ring {
     width: 32px !important;
     height: 32px !important;
+    flex-shrink: 0 !important;
   }
   .any-nav-mobile-drawer {
-    position: absolute !important;
-    top: 100% !important;
+    position: fixed !important;
+    top: 56px !important;
     left: 0 !important;
     right: 0 !important;
+    bottom: 0 !important;
     background: rgba(7, 10, 19, 0.98) !important;
     backdrop-filter: blur(28px) !important;
     -webkit-backdrop-filter: blur(28px) !important;
     border-bottom: 1px solid rgba(0, 212, 255, 0.2) !important;
-    padding: 20px 16px 28px !important;
+    padding: 20px 16px calc(24px + var(--sab, 0px)) !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 18px !important;
-    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.9) !important;
-    z-index: 999 !important;
-    max-height: calc(100vh - 64px) !important;
+    gap: 16px !important;
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.95) !important;
+    z-index: 9999 !important;
+    max-height: calc(100dvh - 56px) !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
   }
   .mobile-drawer-section {
     display: flex !important;
     flex-direction: column !important;
-    gap: 6px !important;
+    gap: 4px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding-bottom: 12px !important;
+  }
+  .mobile-drawer-section:last-of-type {
+    border-bottom: none !important;
   }
   .mobile-drawer-label {
     font-family: 'JetBrains Mono', monospace !important;
@@ -3500,7 +3525,7 @@
     color: #00d4ff !important;
     letter-spacing: 0.08em !important;
     padding: 0 8px !important;
-    margin-bottom: 2px !important;
+    margin-bottom: 4px !important;
   }
   .mobile-drawer-section button {
     background: transparent !important;
@@ -3515,8 +3540,9 @@
     display: flex !important;
     align-items: center !important;
     gap: 12px !important;
-    min-height: 44px !important;
+    min-height: 48px !important;
     width: 100% !important;
+    transition: all 0.15s ease !important;
   }
   .mobile-drawer-section button:hover,
   .mobile-drawer-section button:active {
@@ -3528,8 +3554,8 @@
     display: flex !important;
     flex-direction: column !important;
     gap: 10px !important;
-    padding-top: 14px !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding-top: 10px !important;
+    margin-top: auto !important;
   }
   .mobile-contact-btn {
     background: rgba(255, 255, 255, 0.08) !important;

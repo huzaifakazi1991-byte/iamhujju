@@ -306,6 +306,23 @@
   }
 
   .account-menu-trigger {
-    padding-right: 6px;
+    padding: 6px;
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .account-menu-panel {
+    right: -4px;
+    width: min(320px, calc(100vw - 20px));
+    max-height: calc(85dvh - 56px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px;
+  }
+
+  .account-menu-item {
+    min-height: 44px;
+    padding: 10px 12px;
   }
 }

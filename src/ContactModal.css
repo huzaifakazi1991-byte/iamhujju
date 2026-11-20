@@ -563,29 +563,60 @@
 
 /* Mobile & Tablet Responsiveness */
 @media (max-width: 768px) {
+  .contact-modal-backdrop {
+    padding: 8px;
+    align-items: flex-end;
+  }
+
   .contact-modal-container {
-    max-height: 96vh;
-    border-radius: 16px;
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 90vh !important;
+    max-height: 90dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+
+  .contact-modal-close {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .contact-modal-scroll {
-    padding: 24px 18px 32px;
-    gap: 28px;
+    padding: 20px 16px 32px;
+    gap: 24px;
   }
 
   .contact-hero h1 {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
   }
 
   .contact-form-inner {
     grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .contact-input,
+  .contact-textarea {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+
+  .contact-submit-btn {
+    min-height: 48px;
+    width: 100%;
   }
 
   .contact-card-box {
-    padding: 22px 18px;
+    padding: 20px 16px;
   }
 
   .contact-channels-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 }

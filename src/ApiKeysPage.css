@@ -1729,21 +1729,46 @@
 
 @media (max-width: 768px) {
   .ak-nav {
-    padding: 0 20px;
-    gap: 16px;
+    padding: 0 16px;
+    height: 56px;
+    min-height: 56px;
+    gap: 12px;
+  }
+
+  .ak-nav-left {
+    gap: 8px;
+  }
+
+  .ak-nav-logo span {
+    font-size: 13.5px;
+    max-width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ak-nav-back {
+    min-height: 38px;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
   .ak-layout {
     display: block;
-    width: calc(100% - 32px);
-    padding-top: 20px;
+    width: 100%;
+    max-width: 100%;
+    padding: 16px 14px calc(24px + var(--sab, 0px));
+    box-sizing: border-box;
   }
 
   .ak-sidebar {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     gap: 8px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
+    padding-bottom: 6px;
   }
 
   .ak-sidebar-label,
@@ -1752,12 +1777,14 @@
   }
 
   .ak-sidebar button {
-    min-height: 36px;
-    padding: 0 12px;
-    font-size: 12px;
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
-  /* hide date columns on mobile */
+  /* hide date and extra columns on mobile */
   .ak-table thead th:nth-child(3),
   .ak-table td:nth-child(3),
   .ak-table thead th:nth-child(4),
@@ -1765,25 +1792,80 @@
     display: none;
   }
 
+  .ak-table td {
+    padding: 12px 10px;
+  }
+
+  .ak-action-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
   .ak-conn-params {
     grid-template-columns: 1fr;
-    padding: 16px 20px;
+    padding: 16px 14px;
   }
 
   .ak-drawer-top {
-    padding: 20px;
+    padding: 16px 14px;
   }
 
   .ak-tabs {
-    padding: 12px 20px 0;
+    padding: 10px 14px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .ak-snippet-pre {
-    padding: 18px 20px;
+    padding: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 12px;
+  }
+
+  .ak-modal-backdrop {
+    padding: 12px;
   }
 
   .ak-modal {
-    padding: 22px 20px;
+    width: 94vw;
+    max-width: 94vw;
+    max-height: 86vh;
+    max-height: 86dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+
+  .ak-modal-close {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ak-modal-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ak-modal-actions button,
+  .ak-modal-copy-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .ak-modal-key-display {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    word-break: break-all;
+  }
+
+  .ak-key-input,
+  .ak-test-key-input {
+    font-size: 16px !important;
   }
 }
 
@@ -1794,11 +1876,12 @@
   }
 
   .ak-page-header {
-    gap: 14px;
+    gap: 12px;
   }
 
   .ak-create-key-btn {
     width: 100%;
+    min-height: 44px;
   }
 
   .ak-test-key-input {

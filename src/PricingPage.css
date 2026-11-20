@@ -559,3 +559,67 @@
   align-items: center;
   gap: 0.5rem;
 }
+
+@media (max-width: 768px) {
+  .pricing-nav {
+    padding: 0 16px;
+    height: 56px;
+    min-height: 56px;
+  }
+  .pricing-nav-brand {
+    font-size: 0.95rem;
+  }
+  .pricing-nav-brand span {
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pricing-nav-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 38px;
+  }
+  .pricing-main {
+    padding: 1.5rem 1rem 3rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .pricing-header h1 {
+    font-size: clamp(1.8rem, 6.5vw, 2.4rem);
+    line-height: 1.2;
+  }
+  .pricing-header p {
+    font-size: 14px;
+  }
+  .pricing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+  .pricing-top-strip {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+  .pricing-card {
+    padding: 1.5rem 1.25rem;
+    border-radius: 16px;
+  }
+  .pricing-card-btn {
+    min-height: 48px;
+    width: 100%;
+  }
+  .pricing-history-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+  .pricing-history-table {
+    min-width: 500px;
+  }
+  .pricing-footer-guarantee {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+  }
+}
