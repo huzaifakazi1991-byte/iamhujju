@@ -2760,76 +2760,6 @@ What would you like to explore or do right now?
   app.post(['/v1/chat/completions', '/v1/chat/completions/'], chatRateLimiter, handleV1ChatCompletions);
   app.post(['/api/v1/chat/completions', '/api/v1/chat/completions/'], chatRateLimiter, handleV1ChatCompletions);
 
-  // Catch-all for API & Gateway paths that did not match any endpoint: return JSON 404, NEVER HTML
-  app.all(['/v1', '/v1/{*splat}', '/api/v1', '/api/v1/{*splat}'], (req, res) => {
-    setGatewayCors(res);
-    res.status(404).json({
-      error: {
-        message: `Route not found: ${req.method} ${req.path}. Available endpoints: GET /v1/models, POST /v1/chat/completions`,
-        type: 'invalid_request_error',
-        code: 'route_not_found'
-      }
-    });
-  });
-
-  app.all(['/api', '/api/{*splat}'], (req, res) => {
-    res.status(404).json({
-      error: { message: `API endpoint not found: ${req.method} ${req.path}` }
-    });
-  });
-
-  // Cache-busted immutable assets; never cache index.html or service worker.
-  app.use(
-    express.static(DIST_DIRECTORY, {
-      index: false,
-      etag: false,
-      setHeaders: (res, filePath) => {
-        if (/\.html$/.test(filePath) || filePath.endsWith("sw.js")) {
-          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-          res.setHeader("Pragma", "no-cache");
-          res.setHeader("Expires", "0");
-        } else {
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        }
-      }
-    })
-  );
-
-  app.get("/{*splat}", (req, res, next) => {
-    if (
-      req.path === "/api" ||
-      req.path.startsWith("/api/") ||
-      req.path === "/v1" ||
-      req.path.startsWith("/v1/")
-    ) {
-      return next();
-    }
-
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-    res.sendFile(INDEX_FILE, error => {
-      if (error) next(error);
-    });
-  });
-  app.use((error, req, res, next) => {
-    if (res.headersSent) return next(error);
-
-    if (error.type !== 'entity.too.large' && error.type !== 'entity.parse.failed') {
-      console.error('Local API request failed:', error.message);
-      return res.status(500).json({
-        error: { message: 'The local API could not complete the request.' }
-      });
-    }
-
-    const status = error.type === 'entity.too.large' ? 413 : 400;
-    const message = status === 413
-      ? 'Request body is too large.'
-      : 'Request body must be valid JSON.';
-    res.status(status).json({ error: { message } });
-  });
-
-
   // ── Multimodal Endpoints: Image & Video Generation ────────────────────────
 
   // CORS preflight for multimodal endpoints
@@ -2946,6 +2876,76 @@ What would you like to explore or do right now?
   }
 
   app.get(['/api/generate/video/:taskId', '/v1/videos/generations/:taskId'], handlePollVideoStatus);
+
+  // Catch-all for API & Gateway paths that did not match any endpoint: return JSON 404, NEVER HTML
+  app.all(['/v1', '/v1/{*splat}', '/api/v1', '/api/v1/{*splat}'], (req, res) => {
+    setGatewayCors(res);
+    res.status(404).json({
+      error: {
+        message: `Route not found: ${req.method} ${req.path}. Available endpoints: GET /v1/models, POST /v1/chat/completions, POST /v1/images/generations, POST /v1/videos/generations`,
+        type: 'invalid_request_error',
+        code: 'route_not_found'
+      }
+    });
+  });
+
+  app.all(['/api', '/api/{*splat}'], (req, res) => {
+    res.status(404).json({
+      error: { message: `API endpoint not found: ${req.method} ${req.path}` }
+    });
+  });
+
+  // Cache-busted immutable assets; never cache index.html or service worker.
+  app.use(
+    express.static(DIST_DIRECTORY, {
+      index: false,
+      etag: false,
+      setHeaders: (res, filePath) => {
+        if (/\.html$/.test(filePath) || filePath.endsWith("sw.js")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      }
+    })
+  );
+
+  app.get("/{*splat}", (req, res, next) => {
+    if (
+      req.path === "/api" ||
+      req.path.startsWith("/api/") ||
+      req.path === "/v1" ||
+      req.path.startsWith("/v1/")
+    ) {
+      return next();
+    }
+
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.sendFile(INDEX_FILE, error => {
+      if (error) next(error);
+    });
+  });
+  app.use((error, req, res, next) => {
+    if (res.headersSent) return next(error);
+
+    if (error.type !== 'entity.too.large' && error.type !== 'entity.parse.failed') {
+      console.error('Local API request failed:', error.message);
+      return res.status(500).json({
+        error: { message: 'The local API could not complete the request.' }
+      });
+    }
+
+    const status = error.type === 'entity.too.large' ? 413 : 400;
+    const message = status === 413
+      ? 'Request body is too large.'
+      : 'Request body must be valid JSON.';
+    res.status(status).json({ error: { message } });
+  });
+
 
   return app;
 }
