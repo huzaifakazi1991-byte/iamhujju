@@ -22,6 +22,12 @@
   overflow: hidden;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(16, 185, 129, 0.15);
   animation: docsModalIn 0.2s ease-out;
+  transition: max-width 0.25s ease;
+}
+
+.docs-modal-container.is-pricing-wide {
+  max-width: 1140px;
+  width: 95vw;
 }
 
 @keyframes docsModalIn {
@@ -120,6 +126,20 @@
   overflow-y: auto;
   flex: 1;
   color: #cbd5e1;
+}
+
+.docs-tab-content.is-pricing-tab {
+  position: relative;
+  padding: 8px 4px 24px;
+  overflow: hidden;
+}
+
+.docs-tab-content.is-pricing-tab .pricing_container {
+  max-width: 100%;
+}
+
+.docs-tab-content.is-pricing-tab .pricing_header {
+  margin-bottom: 32px;
 }
 
 .docs-tab-content h3 {

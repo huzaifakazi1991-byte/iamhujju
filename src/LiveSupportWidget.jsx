@@ -371,7 +371,8 @@ Ask me any question or tell me where you'd like to navigate!
       return true;
     }
     if (/^(take me to|navigate to|go to|open|show me)\s+(pricing|plans|cost)/i.test(q)) {
-      if (onScrollTo) onScrollTo('pricing');
+      if (onOpenDocs) onOpenDocs('pricing');
+      else if (onScrollTo) onScrollTo('pricing');
       return true;
     }
     if (/^(take me to|navigate to|go to|open|show me)\s+(chat|anychat|playground)/i.test(q)) {
