@@ -84,6 +84,66 @@
   white-space: nowrap;
 }
 
+.account-menu-tier-pill-wrap {
+  margin-top: 2px;
+}
+
+.account-tier-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #a1a1aa;
+}
+
+.account-tier-tag.is-pro {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: rgba(6, 182, 212, 0.35);
+  color: #22d3ee;
+}
+
+.account-tier-tag.is-developer {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+}
+
+.account-tier-tag.is-enterprise {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #c084fc;
+}
+
+.account-menu-action-upgrade {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.12), rgba(16, 185, 129, 0.08)) !important;
+  border: 1px solid rgba(6, 182, 212, 0.28) !important;
+  margin-bottom: 6px;
+  color: #ffffff !important;
+}
+
+.account-menu-action-upgrade:hover {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.22), rgba(16, 185, 129, 0.15)) !important;
+  border-color: rgba(6, 182, 212, 0.5) !important;
+}
+
+.account-upgrade-label {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.account-upgrade-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: #22d3ee;
+  background: rgba(6, 182, 212, 0.18);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 .account-menu-status {
   display: flex;
   align-items: center;

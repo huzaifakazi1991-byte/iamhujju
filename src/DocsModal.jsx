@@ -36,7 +36,8 @@ export default function DocsModal({
   onOpenApiKeys,
   onOpenContact,
   currentUser,
-  onOpenSignup
+  onOpenSignup,
+  onOpenCheckout
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [pricingBillingCycle, setPricingBillingCycle] = useState('monthly');
@@ -431,7 +432,16 @@ iamhujju chat --stream`;
                       className="pricing_cta_btn is--secondary"
                       onClick={() => {
                         onClose();
-                        if (currentUser) {
+                        if (onOpenCheckout) {
+                          onOpenCheckout({
+                            planId: 'payg',
+                            name: 'Pay-as-you-go',
+                            amountInr: 1699,
+                            amountFormatted: '₹1,699',
+                            billingCycle: 'once',
+                            amountUsd: 'From $20'
+                          });
+                        } else if (currentUser) {
                           if (onOpenApiKeys) onOpenApiKeys();
                         } else {
                           if (onOpenSignup) onOpenSignup();
@@ -439,7 +449,7 @@ iamhujju chat --stream`;
                         }
                       }}
                     >
-                      <span>Get started</span>
+                      <span>Choose Pay-as-you-go</span>
                       <TabIcon name="arrow" size={16} />
                     </button>
                   </div>
@@ -507,7 +517,16 @@ iamhujju chat --stream`;
                       className="pricing_cta_btn is--secondary"
                       onClick={() => {
                         onClose();
-                        if (currentUser) {
+                        if (onOpenCheckout) {
+                          onOpenCheckout({
+                            planId: 'developer',
+                            name: 'Developer Plan',
+                            amountInr: pricingBillingCycle === 'annual' ? 16308 : 1699,
+                            amountFormatted: pricingBillingCycle === 'annual' ? '₹16,308 (₹1,359/mo)' : '₹1,699 / mo',
+                            billingCycle: pricingBillingCycle,
+                            amountUsd: pricingBillingCycle === 'annual' ? '$15.90 / mo' : '$19.90 / mo'
+                          });
+                        } else if (currentUser) {
                           if (onOpenApiKeys) onOpenApiKeys();
                         } else {
                           if (onOpenSignup) onOpenSignup();
@@ -515,7 +534,7 @@ iamhujju chat --stream`;
                         }
                       }}
                     >
-                      <span>Get started</span>
+                      <span>Upgrade to Developer</span>
                       <TabIcon name="arrow" size={16} />
                     </button>
                   </div>
@@ -588,7 +607,16 @@ iamhujju chat --stream`;
                       className="pricing_cta_btn is--primary"
                       onClick={() => {
                         onClose();
-                        if (currentUser) {
+                        if (onOpenCheckout) {
+                          onOpenCheckout({
+                            planId: 'pro',
+                            name: 'Pro Plan',
+                            amountInr: pricingBillingCycle === 'annual' ? 78708 : 8199,
+                            amountFormatted: pricingBillingCycle === 'annual' ? '₹78,708 (₹6,559/mo)' : '₹8,199 / mo',
+                            billingCycle: pricingBillingCycle,
+                            amountUsd: pricingBillingCycle === 'annual' ? '$76.70 / mo' : '$95.90 / mo'
+                          });
+                        } else if (currentUser) {
                           if (onOpenApiKeys) onOpenApiKeys();
                         } else {
                           if (onOpenSignup) onOpenSignup();
@@ -596,7 +624,7 @@ iamhujju chat --stream`;
                         }
                       }}
                     >
-                      <span>Get started</span>
+                      <span>Upgrade to Pro</span>
                       <TabIcon name="arrow" size={16} />
                     </button>
                   </div>
@@ -661,14 +689,23 @@ iamhujju chat --stream`;
                       className="pricing_cta_btn is--secondary"
                       onClick={() => {
                         onClose();
-                        if (onOpenContact) {
+                        if (onOpenCheckout) {
+                          onOpenCheckout({
+                            planId: 'enterprise',
+                            name: 'Enterprise Plan',
+                            amountInr: pricingBillingCycle === 'annual' ? 230388 : 23999,
+                            amountFormatted: pricingBillingCycle === 'annual' ? '₹230,388 (₹19,199/mo)' : '₹23,999 / mo',
+                            billingCycle: pricingBillingCycle,
+                            amountUsd: pricingBillingCycle === 'annual' ? '$223.90 / mo' : '$279.90 / mo'
+                          });
+                        } else if (onOpenContact) {
                           onOpenContact();
                         } else {
                           window.location.href = 'mailto:contact@iamhujju.com?subject=iamhujju Enterprise Plan Inquiry (INR)';
                         }
                       }}
                     >
-                      <span>Contact Enterprise</span>
+                      <span>Upgrade or Contact Enterprise</span>
                       <TabIcon name="arrow" size={16} />
                     </button>
                   </div>

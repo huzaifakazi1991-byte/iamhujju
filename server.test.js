@@ -805,3 +805,64 @@ test('contact endpoint accepts valid inquiries and validates inputs', async (t) 
   const data = await valid.json();
   assert.equal(data.success, true);
 });
+
+test('payment endpoints support Razorpay config, order creation, UPI verification, and tier updates', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'test-secret',
+    officialUpiId: '9975649957@mbk',
+    razorpayAccountName: 'iamhujju',
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // 1. Config check
+  const configRes = await fetch(`${baseUrl}/api/payment/config`);
+  assert.equal(configRes.status, 200);
+  const config = await configRes.json();
+  assert.equal(config.upiId, '9975649957@mbk');
+  assert.equal(config.currency, 'INR');
+
+  // 2. Order creation check
+  const orderRes = await fetch(`${baseUrl}/api/payment/create-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ planId: 'pro', billingCycle: 'monthly', email: 'buyer@example.com' })
+  });
+  assert.equal(orderRes.status, 200);
+  const orderData = await orderRes.json();
+  assert.equal(orderData.success, true);
+  assert.equal(orderData.amountInr, 8199);
+  assert.equal(orderData.planId, 'pro');
+
+  // 3. Payment verification with UPI reference
+  const verifyRes = await fetch(`${baseUrl}/api/payment/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      planId: 'pro',
+      billingCycle: 'monthly',
+      upi_ref: 'UTR492819284192',
+      email: 'buyer@example.com'
+    })
+  });
+  assert.equal(verifyRes.status, 200);
+  const verifyData = await verifyRes.json();
+  assert.equal(verifyData.success, true);
+  assert.equal(verifyData.tier, 'pro');
+
+  // 4. Status check
+  const statusRes = await fetch(`${baseUrl}/api/subscription/status`, {
+    headers: { Cookie: cookie }
+  });
+  assert.equal(statusRes.status, 200);
+  const statusData = await statusRes.json();
+  assert.equal(statusData.tier, 'pro');
+  assert.equal(statusData.isPro, true);
+});

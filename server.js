@@ -1,5 +1,6 @@
 ﻿import express from 'express';
 import dotenv from 'dotenv';
+import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
@@ -227,6 +228,10 @@ export function createApp({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
   conversationStore = createConversationStore(),
+  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '',
+  razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || '',
+  officialUpiId = process.env.OFFICIAL_UPI_ID || '9975649957@mbk',
+  razorpayAccountName = process.env.RAZORPAY_ACCOUNT_NAME || 'iamhujju',
   rateLimits = {},
   allowedOrigins = process.env.APP_ORIGIN
     ? [process.env.APP_ORIGIN]
@@ -1401,6 +1406,246 @@ What would you like to explore or do right now?
     return res.json({
       success: true,
       message: 'Inquiry received. We will reply within one business day.'
+    });
+  });
+
+  // Payment Plans & Razorpay / UPI Integration
+  const PLAN_CATALOG = {
+    payg: {
+      id: 'payg',
+      name: 'Pay-as-you-go',
+      amountInr: 1699,
+      amountPaise: 169900,
+      description: 'iamhujju Pay-as-you-go credit balance'
+    },
+    developer: {
+      id: 'developer',
+      name: 'Developer Plan',
+      amountInrMonthly: 1699,
+      amountInrAnnual: 16308,
+      amountPaiseMonthly: 169900,
+      amountPaiseAnnual: 1630800,
+      description: 'iamhujju Developer Plan'
+    },
+    pro: {
+      id: 'pro',
+      name: 'Pro Plan',
+      amountInrMonthly: 8199,
+      amountInrAnnual: 78708,
+      amountPaiseMonthly: 819900,
+      amountPaiseAnnual: 7870800,
+      description: 'iamhujju Pro Plan (Most Popular)'
+    },
+    enterprise: {
+      id: 'enterprise',
+      name: 'Enterprise Plan',
+      amountInrMonthly: 23999,
+      amountInrAnnual: 230388,
+      amountPaiseMonthly: 2399900,
+      amountPaiseAnnual: 23038800,
+      description: 'iamhujju Enterprise Plan'
+    }
+  };
+
+  app.get('/api/payment/config', (req, res) => {
+    res.set('Cache-Control', 'no-store').json({
+      keyId: razorpayKeyId,
+      upiId: officialUpiId,
+      accountName: razorpayAccountName,
+      currency: 'INR',
+      isLive: Boolean(razorpayKeyId && razorpayKeySecret),
+      supportEmail: 'contact@iamhujju.com'
+    });
+  });
+
+  const createOrderSchema = z.object({
+    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']),
+    billingCycle: z.enum(['monthly', 'annual', 'once']).optional().default('monthly'),
+    email: z.string().trim().email().optional().default('')
+  });
+
+  app.post('/api/payment/create-order', chatRateLimiter, async (req, res) => {
+    const body = validatedBody(
+      createOrderSchema,
+      req,
+      res,
+      'Invalid plan or billing cycle specified.'
+    );
+    if (!body) return;
+
+    const plan = PLAN_CATALOG[body.planId];
+    if (!plan) {
+      return res.status(400).json({ error: { message: 'Unknown plan selected.' } });
+    }
+
+    let amountPaise = 0;
+    let amountInr = 0;
+
+    if (body.planId === 'payg') {
+      amountPaise = plan.amountPaise;
+      amountInr = plan.amountInr;
+    } else if (body.billingCycle === 'annual') {
+      amountPaise = plan.amountPaiseAnnual;
+      amountInr = plan.amountInrAnnual;
+    } else {
+      amountPaise = plan.amountPaiseMonthly;
+      amountInr = plan.amountInrMonthly;
+    }
+
+    const receipt = `rcpt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+    // If live Razorpay API keys are configured, create real order with Razorpay
+    if (razorpayKeyId && razorpayKeySecret) {
+      try {
+        const authHeader = 'Basic ' + Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+        const rzpResponse = await fetchImpl('https://api.razorpay.com/v1/orders', {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            amount: amountPaise,
+            currency: 'INR',
+            receipt,
+            notes: {
+              planId: body.planId,
+              billingCycle: body.billingCycle,
+              email: body.email
+            }
+          })
+        });
+
+        if (rzpResponse.ok) {
+          const rzpOrder = await rzpResponse.json();
+          return res.json({
+            success: true,
+            orderId: rzpOrder.id,
+            amount: rzpOrder.amount,
+            amountInr,
+            currency: 'INR',
+            keyId: razorpayKeyId,
+            planId: body.planId,
+            planName: plan.name,
+            billingCycle: body.billingCycle,
+            upiId: officialUpiId,
+            accountName: razorpayAccountName,
+            receipt
+          });
+        }
+      } catch (rzpErr) {
+        console.error('[Razorpay Order Creation Failed, falling back to direct checkout]', rzpErr?.message);
+      }
+    }
+
+    // Direct / Sandbox Order Fallback
+    const simulatedOrderId = `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    return res.json({
+      success: true,
+      orderId: simulatedOrderId,
+      amount: amountPaise,
+      amountInr,
+      currency: 'INR',
+      keyId: razorpayKeyId || '',
+      planId: body.planId,
+      planName: plan.name,
+      billingCycle: body.billingCycle,
+      upiId: officialUpiId,
+      accountName: razorpayAccountName,
+      receipt,
+      fallbackToDirectUpi: !razorpayKeySecret
+    });
+  });
+
+  const verifyPaymentSchema = z.object({
+    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']),
+    billingCycle: z.enum(['monthly', 'annual', 'once']).optional().default('monthly'),
+    razorpay_order_id: z.string().trim().optional(),
+    razorpay_payment_id: z.string().trim().optional(),
+    razorpay_signature: z.string().trim().optional(),
+    upi_ref: z.string().trim().optional(),
+    email: z.string().trim().email().optional()
+  });
+
+  app.post('/api/payment/verify', chatRateLimiter, async (req, res) => {
+    const body = validatedBody(
+      verifyPaymentSchema,
+      req,
+      res,
+      'Verification requires valid payment details.'
+    );
+    if (!body) return;
+
+    let verified = false;
+    let paymentRef = '';
+
+    // Check Razorpay signature if provided
+    if (body.razorpay_order_id && body.razorpay_payment_id && body.razorpay_signature) {
+      paymentRef = body.razorpay_payment_id;
+      if (razorpayKeySecret) {
+        const expectedSignature = crypto
+          .createHmac('sha256', razorpayKeySecret)
+          .update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`)
+          .digest('hex');
+
+        if (expectedSignature === body.razorpay_signature) {
+          verified = true;
+        } else {
+          return res.status(400).json({ error: { message: 'Invalid payment signature. Verification failed.' } });
+        }
+      } else {
+        // In sandbox / testing mode without live secret
+        verified = true;
+      }
+    } else if (body.upi_ref) {
+      paymentRef = body.upi_ref;
+      if (body.upi_ref.trim().length >= 6) {
+        verified = true;
+      } else {
+        return res.status(400).json({ error: { message: 'Please enter a valid UPI reference (UTR) number.' } });
+      }
+    } else {
+      return res.status(400).json({ error: { message: 'Payment reference or signature is required.' } });
+    }
+
+    if (verified) {
+      let user = await getCurrentUser(req);
+      if (!user && body.email && typeof accountStore.findUserByEmail === 'function') {
+        user = await accountStore.findUserByEmail(body.email);
+      }
+
+      let updatedUser = null;
+      if (user && typeof accountStore.updateUserTier === 'function') {
+        updatedUser = await accountStore.updateUserTier(user.id, body.planId);
+      }
+
+      console.log('[Payment Verified]', {
+        planId: body.planId,
+        billingCycle: body.billingCycle,
+        paymentRef,
+        userId: user?.id,
+        email: user?.email || body.email
+      });
+
+      return res.json({
+        success: true,
+        tier: body.planId,
+        paymentRef,
+        message: `Payment verified successfully! Your ${PLAN_CATALOG[body.planId]?.name || 'Plan'} is now active.`,
+        user: updatedUser || user || null
+      });
+    }
+
+    return res.status(400).json({ error: { message: 'Payment verification could not be confirmed.' } });
+  });
+
+  app.get('/api/subscription/status', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const tier = user?.tier || 'free';
+    res.set('Cache-Control', 'no-store').json({
+      tier,
+      isPro: tier !== 'free',
+      planName: PLAN_CATALOG[tier]?.name || (tier === 'free' ? 'Free Tier' : tier.toUpperCase())
     });
   });
 

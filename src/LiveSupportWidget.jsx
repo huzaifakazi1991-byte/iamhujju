@@ -109,15 +109,27 @@ You can also connect your personal OpenRouter key in Account settings for Claude
     q.includes('bill') ||
     q.includes('tier') ||
     q.includes('subscription') ||
-    q.includes('token')
+    q.includes('token') ||
+    q.includes('razorpay') ||
+    q.includes('upi') ||
+    q.includes('pay') ||
+    q.includes('upgrade') ||
+    q.includes('inr') ||
+    q.includes('rupee')
   ) {
-    return `**Pricing on Your Terms — 100% Transparent:**
+    return `**Pricing & Payment Options (INR / ₹ & USD):**
 
-• **Free Tier ($0/month forever):** Instant access to 18+ high-speed models without entering a credit card or API key.
-• **Bring-Your-Own-Key (BYOK):** Connect your personal provider keys in your Account menu. Pay only wholesale provider token rates directly.
-• **No Markup or Hidden Fees:** We never charge surcharges on top of upstream provider rates.
+iamhujju offers transparent plans in Indian Rupees with Razorpay & UPI support:
+• **Free Forever ($0 / ₹0):** 18+ high-speed models without entering payment or API keys.
+• **Developer Plan (₹1,699/mo · $19.90):** 100M tokens across all 400+ models.
+• **Pro Plan (₹8,199/mo · $95.90):** 500M tokens, priority smart routing & 120 RPM.
+• **Enterprise Plan (₹23,999/mo · $279.90):** Dedicated instances, 1.5B tokens & 99.99% SLA.
 
-[[action:pricing|💰 View Pricing Details]] [[action:docs:pricing|📖 Per-Token Documentation]]`;
+**Payment Methods:**
+• **Razorpay:** UPI (GPay, PhonePe, Paytm, CRED), Cards, NetBanking.
+• **Direct UPI:** \`9975649957@mbk\` (Huzaifa Kazi / iamhujju).
+
+[[action:checkout:pro|💳 Upgrade to Pro]] [[action:checkout:developer|⚡ Upgrade to Developer]] [[action:pricing|💰 View All Plans]]`;
   }
 
   if (
@@ -280,6 +292,7 @@ export default function LiveSupportWidget({
   onOpenAuth,
   onOpenContact,
   onOpenAbout,
+  onOpenCheckout,
   onScrollTo,
   selectedModel = 'openrouter:openrouter/free',
   connected = true,
@@ -342,6 +355,47 @@ Ask me any question or tell me where you'd like to navigate!
       case 'pricing':
         if (onOpenDocs) onOpenDocs('pricing');
         else if (onScrollTo) onScrollTo('pricing');
+        break;
+      case 'checkout':
+        if (onOpenCheckout) {
+          const plans = {
+            pro: {
+              planId: 'pro',
+              name: 'Pro Plan',
+              amountInr: 8199,
+              amountFormatted: '₹8,199 / mo',
+              billingCycle: 'monthly',
+              amountUsd: '$95.90'
+            },
+            developer: {
+              planId: 'developer',
+              name: 'Developer Plan',
+              amountInr: 1699,
+              amountFormatted: '₹1,699 / mo',
+              billingCycle: 'monthly',
+              amountUsd: '$19.90'
+            },
+            payg: {
+              planId: 'payg',
+              name: 'Pay-as-you-go',
+              amountInr: 1699,
+              amountFormatted: '₹1,699',
+              billingCycle: 'once',
+              amountUsd: 'From $20'
+            },
+            enterprise: {
+              planId: 'enterprise',
+              name: 'Enterprise Plan',
+              amountInr: 23999,
+              amountFormatted: '₹23,999 / mo',
+              billingCycle: 'monthly',
+              amountUsd: '$279.90'
+            }
+          };
+          onOpenCheckout(plans[param] || plans.pro);
+        } else if (onOpenDocs) {
+          onOpenDocs('pricing');
+        }
         break;
       case 'auth':
         if (onOpenAuth) onOpenAuth(param || 'login');

@@ -4,6 +4,7 @@ import DocsModal from './DocsModal.jsx';
 import ContactModal from './ContactModal.jsx';
 import AboutModal from './AboutModal.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
+import PaymentModal from './PaymentModal.jsx';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
 import './HomePage.css';
 
@@ -364,6 +365,20 @@ function HomePage({
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState(null);
+
+  function handleOpenCheckout(plan) {
+    setCheckoutPlan(plan || {
+      planId: 'pro',
+      name: 'Pro Plan',
+      amountInr: 8199,
+      amountFormatted: '₹8,199 / mo',
+      billingCycle: 'monthly',
+      amountUsd: '$95.90'
+    });
+    setPaymentModalOpen(true);
+  }
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownCloseTimeoutRef = useRef(null);
@@ -936,6 +951,11 @@ function HomePage({
                 onLogout={onLogout}
                 onOpenApiKeys={onOpenApiKeys}
                 onOpenIntegrations={onOpenIntegrations}
+                onOpenCheckout={handleOpenCheckout}
+                onOpenPricing={() => {
+                  setDocsTab('pricing');
+                  setDocsOpen(true);
+                }}
               />
             ) : null}
 
@@ -2092,6 +2112,7 @@ function HomePage({
         }}
         onOpenContact={() => setContactOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
+        onOpenCheckout={handleOpenCheckout}
         onScrollTo={(id) => scrollToSection(id)}
         selectedModel={selectedModel}
         connected={connected}
@@ -2141,6 +2162,7 @@ function HomePage({
         onOpenContact={() => setContactOpen(true)}
         currentUser={currentUser}
         onOpenSignup={() => openSignup(selectedModel)}
+        onOpenCheckout={handleOpenCheckout}
       />
 
       {/* AnyAPI Contact Modal */}
@@ -2162,6 +2184,19 @@ function HomePage({
         onOpenDocs={(tab) => {
           setDocsTab(tab || 'quickstart');
           setDocsOpen(true);
+        }}
+      />
+
+      {/* Razorpay & UPI Secure Payment Checkout Modal */}
+      <PaymentModal
+        isOpen={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        plan={checkoutPlan}
+        currentUser={currentUser}
+        onPaymentSuccess={(updatedUser) => {
+          if (updatedUser && onAuthenticated) {
+            onAuthenticated(updatedUser);
+          }
         }}
       />
     </div>

@@ -399,6 +399,13 @@ export function createAccountStore({
     async revokeSession(token) {
       if (typeof token !== 'string' || token.length > 128) return;
       await db.query('DELETE FROM sessions WHERE token_hash = $1', [hashToken(token)]);
+    },
+
+    async updateUserTier(userId, tier) {
+      if (!userId || typeof tier !== 'string') return null;
+      await db.query('UPDATE users SET tier = $1 WHERE id = $2', [tier, userId]);
+      const result = await db.query('SELECT id, email, COALESCE(tier, $1) AS tier FROM users WHERE id = $2', [tier, userId]);
+      return result.rows[0] ? publicUser(result.rows[0]) : null;
     }
   };
 }

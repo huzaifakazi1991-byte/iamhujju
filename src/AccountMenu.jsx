@@ -16,7 +16,9 @@ export default function AccountMenu({
   modelCount,
   onLogout,
   onOpenApiKeys,
-  onOpenIntegrations
+  onOpenIntegrations,
+  onOpenCheckout,
+  onOpenPricing
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -95,6 +97,11 @@ export default function AccountMenu({
             <div>
               <span className="account-menu-caption">Signed in as</span>
               <strong title={user.email}>{user.email}</strong>
+              <div className="account-menu-tier-pill-wrap">
+                <span className={`account-tier-tag is-${user?.tier || 'free'}`}>
+                  {user?.tier ? user.tier.toUpperCase() : 'FREE TIER'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -108,6 +115,29 @@ export default function AccountMenu({
           </p>
 
           {error && <p className="account-menu-error" role="alert">{error}</p>}
+
+          <button
+            className="account-menu-action account-menu-action-upgrade"
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              if (onOpenCheckout) {
+                onOpenCheckout({
+                  planId: 'pro',
+                  name: 'Pro Plan',
+                  amountInr: 8199,
+                  amountFormatted: '₹8,199 / mo',
+                  billingCycle: 'monthly',
+                  amountUsd: '$95.90'
+                });
+              } else if (onOpenPricing) {
+                onOpenPricing();
+              }
+            }}
+          >
+            <span className="account-upgrade-label">💳 Subscription & Plans</span>
+            <span className="account-upgrade-pill">INR (₹) ›</span>
+          </button>
 
           <button
             className="account-menu-action"

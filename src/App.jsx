@@ -1250,6 +1250,8 @@ function App() {
                 onLogout={handleLogout}
                 onOpenApiKeys={openApiKeys}
                 onOpenIntegrations={openIntegrations}
+                onOpenPricing={() => setCurrentView('home')}
+                onOpenCheckout={() => setCurrentView('home')}
               />
             )}
           </div>
