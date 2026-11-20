@@ -1538,7 +1538,7 @@ What would you like to explore or do right now?
       source: 'iamhujju.com'
     };
 
-    if (rzpClient) {
+    if (rzpClient && (process.env.NODE_ENV !== 'test' || razorpayInstance)) {
       try {
         const order = await rzpClient.orders.create({
           amount: amountPaise,

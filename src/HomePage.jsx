@@ -960,6 +960,7 @@ function HomePage({
                   setDocsTab('pricing');
                   setDocsOpen(true);
                 })}
+                onOpenSavedChats={onOpenSavedChats}
               />
             ) : null}
 

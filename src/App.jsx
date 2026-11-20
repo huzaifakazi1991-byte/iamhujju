@@ -1143,6 +1143,8 @@ function App() {
         onLogout={handleLogout}
         onOpenHome={() => navigateToView('home')}
         onOpenModels={openModels}
+        onOpenSkills={openSkills}
+        onOpenSavedChats={openSavedChats}
         onOpenChat={() => openChatFromHome(selectedModel)}
         onOpenIntegrations={openIntegrations}
         onOpenPricing={openPricing}
@@ -1160,6 +1162,8 @@ function App() {
         onLogout={handleLogout}
         onOpenHome={() => navigateToView('home')}
         onOpenModels={openModels}
+        onOpenSkills={openSkills}
+        onOpenSavedChats={openSavedChats}
         onOpenChat={() => openChatFromHome(selectedModel)}
         onOpenApiKeys={openApiKeys}
         onOpenPricing={openPricing}
@@ -1180,6 +1184,7 @@ function App() {
         onOpenChat={() => openChatFromHome(selectedModel)}
         onOpenApiKeys={openApiKeys}
         onOpenIntegrations={openIntegrations}
+        onOpenSavedChats={openSavedChats}
         onAuthenticated={handleAuthenticated}
       />
     );
@@ -1326,6 +1331,7 @@ function App() {
                 onOpenIntegrations={openIntegrations}
                 onOpenPricing={openPricing}
                 onOpenCheckout={openPricing}
+                onOpenSavedChats={openSavedChats}
               />
             )}
           </div>

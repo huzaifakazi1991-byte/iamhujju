@@ -267,6 +267,7 @@ export default function SkillsPage({
                 onOpenApiKeys={onOpenApiKeys}
                 onOpenIntegrations={onOpenIntegrations}
                 onOpenPricing={onOpenPricing}
+                onOpenSavedChats={onOpenSavedChats}
               />
             ) : (
               <button

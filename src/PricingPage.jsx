@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import AccountMenu from './AccountMenu.jsx';
 import './PricingPage.css';
 import { PRICING_PLANS, resolvePlan, CURRENCY_SYMBOL } from './pricingConfig.js';
 import { useRazorpayCheckout } from './useRazorpayCheckout.js';
@@ -14,6 +15,7 @@ export default function PricingPage({
   onOpenChat = null,
   onOpenApiKeys = null,
   onOpenIntegrations = null,
+  onOpenSavedChats = null,
   onAuthenticated = null
 }) {
   const [billingCycle, setBillingCycle] = useState('monthly');
@@ -213,9 +215,16 @@ export default function PricingPage({
             </button>
           )}
           {user ? (
-            <button className="pricing-nav-btn" type="button" onClick={onLogout}>
-              Sign out
-            </button>
+            <AccountMenu
+              user={user}
+              connected={connected}
+              modelCount={modelCount}
+              onLogout={onLogout}
+              onOpenApiKeys={onOpenApiKeys}
+              onOpenIntegrations={onOpenIntegrations}
+              onOpenPricing={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              onOpenSavedChats={onOpenSavedChats}
+            />
           ) : (
             <button
               className="pricing-nav-btn primary"

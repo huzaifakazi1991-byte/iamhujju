@@ -447,6 +447,7 @@ export default function ModelsPage({
               onOpenApiKeys={onOpenApiKeys}
               onOpenIntegrations={onOpenIntegrations}
               onOpenPricing={onOpenPricing}
+              onOpenSavedChats={onOpenSavedChats}
             />
           ) : (
             <button

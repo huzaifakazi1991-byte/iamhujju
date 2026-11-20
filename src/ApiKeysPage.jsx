@@ -522,6 +522,8 @@ export default function ApiKeysPage({
   onLogout,
   onOpenHome,
   onOpenModels,
+  onOpenSkills,
+  onOpenSavedChats,
   onOpenChat,
   onOpenIntegrations,
   onOpenPricing,
@@ -696,57 +698,106 @@ export default function ApiKeysPage({
 
   return (
     <div className="ak-page">
+      {/* Atmosphere Background Glow & Tech Grid */}
+      <div className="ak-bg-glow" aria-hidden="true" />
+      <div className="ak-bg-grid" aria-hidden="true" />
+
       {/* ── Top Navigation Bar ── */}
       <header className="ak-nav">
-        <button className="ak-brand" type="button" onClick={onOpenHome}>
-          <span className="ak-brand-mark" aria-hidden="true">i</span>
-          <span>iamhujju</span>
+        <button
+          className="ak-brand"
+          type="button"
+          onClick={onOpenHome}
+          aria-label="iamhujju Explore"
+          title="Return to iamhujju Explore"
+        >
+          <div className="ak-brand-mascot-ring">
+            <img src="/mascot.jpg" alt="iamhujju mascot" className="ak-brand-mascot-img" />
+          </div>
+          <span className="ak-brand-text">iamhujju</span>
         </button>
 
         <nav className="ak-nav-links" aria-label="Main navigation">
           <button type="button" onClick={onOpenHome}>Explore</button>
-          <button type="button" onClick={() => onOpenModels()}>Models</button>
-          <button type="button" onClick={onOpenChat}>Chat</button>
+          <button type="button" onClick={() => onOpenModels && onOpenModels()}>Models</button>
+          {onOpenSkills && <button type="button" onClick={onOpenSkills}>Skills</button>}
+          {onOpenPricing && <button type="button" onClick={onOpenPricing}>Pricing</button>}
+          <button type="button" onClick={onOpenChat}>Companion</button>
         </nav>
 
-        <AccountMenu
-          user={user}
-          connected={connected}
-          modelCount={modelCount}
-          onLogout={onLogout}
-          onOpenApiKeys={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          onOpenIntegrations={onOpenIntegrations}
-          onOpenPricing={onOpenPricing}
-        />
+        <div className="ak-nav-tools">
+          <span className={`ak-gateway-status${connected ? ' is-online' : ''}`} role="status">
+            <span aria-hidden="true" />
+            {connected ? 'Gateway online' : 'Gateway offline'}
+          </span>
+          <AccountMenu
+            user={user}
+            connected={connected}
+            modelCount={modelCount}
+            onLogout={onLogout}
+            onOpenApiKeys={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onOpenIntegrations={onOpenIntegrations}
+            onOpenPricing={onOpenPricing}
+            onOpenSavedChats={onOpenSavedChats}
+          />
+        </div>
       </header>
 
       {/* ── Two-column Obsidian Dashboard Layout ── */}
       <div className="ak-layout">
         {/* Sidebar */}
         <aside className="ak-sidebar" aria-label="Account Settings Navigation">
-          <span className="ak-sidebar-label">DEVELOPER SETTINGS</span>
+          <span className="ak-sidebar-label">DEVELOPER & ACCOUNT</span>
           <button type="button" className="is-current" aria-current="page">
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="7.5" cy="15.5" r="4.5" />
               <path d="M10.8 12.2L18.5 4.5M17 6l2 2M15 8l2 2" />
             </svg>
             <span>API Keys</span>
           </button>
           <button type="button" onClick={onOpenIntegrations}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 00-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 007.94-7.94l-3.76 3.76z" />
             </svg>
             <span>Integrations</span>
           </button>
           {onOpenPricing && (
             <button type="button" onClick={onOpenPricing}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="5" width="20" height="14" rx="2" />
                 <line x1="2" y1="10" x2="22" y2="10" />
               </svg>
               <span>Subscription & Plans</span>
             </button>
           )}
+          {onOpenSavedChats && (
+            <button type="button" onClick={onOpenSavedChats}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>Saved Chats</span>
+            </button>
+          )}
+
+          <div className="ak-sidebar-divider" />
+
+          <span className="ak-sidebar-label">WORKSPACE</span>
+          <button type="button" onClick={onOpenChat}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            <span>Companion Chat</span>
+          </button>
+          <button type="button" onClick={() => onOpenModels && onOpenModels()}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+            </svg>
+            <span>Explore Models</span>
+          </button>
+
           <p className="ak-sidebar-note">
             Gateway credentials are cryptographically hashed and managed per account.
           </p>
