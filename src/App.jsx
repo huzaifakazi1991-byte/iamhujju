@@ -13,6 +13,7 @@ import SkillsPage from './SkillsPage.jsx';
 import PricingPage from './PricingPage.jsx';
 import AccountMenu from './AccountMenu.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
+import ModelSwitcherModal from './ModelSwitcherModal.jsx';
 import { sanitizeMarkdown } from './safeMarkdown.js';
 import {
   clearChatState,
@@ -50,12 +51,13 @@ function extractCodeText(node) {
   return '';
 }
 
-function CodeBlock({ children }) {
+function CodeBlock({ children, className }) {
   const [copied, setCopied] = useState(false);
+  const langMatch = /language-(\w+)/.exec(className || '');
+  const language = langMatch ? langMatch[1].toUpperCase() : 'CODE';
 
   async function copyCode() {
     const code = extractCodeText(children);
-
     try {
       await navigator.clipboard.writeText(code.trimEnd());
       setCopied(true);
@@ -69,9 +71,19 @@ function CodeBlock({ children }) {
   return (
     <div className="code-block-wrapper">
       <div className="code-block-toolbar">
-        <span>CODE</span>
-        <button type="button" onClick={copyCode}>
-          {copied ? 'Copied!' : 'Copy code'}
+        <div className="code-block-dots">
+          <span className="code-dot dot-red" />
+          <span className="code-dot dot-yellow" />
+          <span className="code-dot dot-green" />
+          <span className="code-lang-label">{language}</span>
+        </div>
+        <button
+          type="button"
+          className={`copy-code-btn ${copied ? 'is-copied' : ''}`}
+          onClick={copyCode}
+          aria-label="Copy code snippet"
+        >
+          {copied ? '✓ Copied!' : '📋 Copy Code'}
         </button>
       </div>
       <pre>{children}</pre>
@@ -177,6 +189,7 @@ function App() {
   const [modelsLoading, setModelsLoading] = useState(false);
   const [currentView, setCurrentView] = useState('home');
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
+  const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [authRestoreError, setAuthRestoreError] = useState('');
@@ -1215,6 +1228,67 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  // Quick model selection list
+  const quickModels = useMemo(() => {
+    const presets = [
+      {
+        id: 'auto',
+        label: '⚡ Auto Free Router',
+        match: m => m.id.includes('free') && (m.id.includes('openrouter') || m.id.includes('auto')),
+        fallbackId: chatModelOptions[0]?.id || 'openrouter:openrouter/free'
+      },
+      {
+        id: 'deepseek-r1',
+        label: '🧠 DeepSeek R1',
+        match: m => m.id.toLowerCase().includes('deepseek-r1') || m.id.toLowerCase().includes('r1:free') || m.name?.toLowerCase().includes('r1'),
+        fallbackId: null
+      },
+      {
+        id: 'gemini-flash',
+        label: '⚡ Gemini 2.5 Flash',
+        match: m => m.id.toLowerCase().includes('gemini') && m.id.toLowerCase().includes('flash'),
+        fallbackId: null
+      },
+      {
+        id: 'llama-3.3',
+        label: '🦙 Llama 3.3 70B',
+        match: m => m.id.toLowerCase().includes('llama-3.3') || m.id.toLowerCase().includes('70b'),
+        fallbackId: null
+      },
+      {
+        id: 'qwen-coder',
+        label: '💻 Qwen 2.5 Coder',
+        match: m => m.id.toLowerCase().includes('qwen') && (m.id.toLowerCase().includes('coder') || m.id.toLowerCase().includes('code')),
+        fallbackId: null
+      }
+    ];
+
+    return presets.map(item => {
+      const found = chatModelOptions.find(item.match);
+      return {
+        ...item,
+        targetId: found ? found.id : item.fallbackId,
+        available: Boolean(found || item.fallbackId)
+      };
+    }).filter(item => item.available);
+  }, [chatModelOptions]);
+
+  // Current active model display metadata
+  const currentModelInfo = useMemo(() => {
+    const found = chatModelOptions.find(m => m.id === selectedModel);
+    if (!found) {
+      if (selectedModel.includes('auto') || selectedModel.includes('free')) {
+        return { name: 'Free Models Router', isFree: true, tag: '100% Free · Auto-Speed' };
+      }
+      return { name: selectedModel, isFree: true, tag: 'Active Model' };
+    }
+    return {
+      name: found.name || found.id,
+      isFree: isModelFree(found),
+      tag: isModelFree(found) ? '100% Free' : 'Pro Model'
+    };
+  }, [chatModelOptions, selectedModel, isModelFree]);
+
   const renderLiveSupportWidget = () => (
     <LiveSupportWidget
       isOpen={liveSupportOpen}
@@ -1486,27 +1560,29 @@ function App() {
             </button>
           </div>
 
-          <div className="model-control">
-            <label htmlFor="model-select">MODEL</label>
-            <select
-              id="model-select"
-              value={selectedModel}
-              onChange={e => setSelectedModel(e.target.value)}
-              disabled={!chatModelOptions.length || loading}
-              aria-label="Select an AI model"
+          <div className="model-control-vfx">
+            <button
+              type="button"
+              className="active-model-card-btn"
+              onClick={() => setModelSwitcherOpen(true)}
+              title="Click to toggle or browse 400+ AI models"
+              aria-label="Current model, click to change"
             >
-              {chatModelOptions.map(model => (
-                <option key={model.id} value={model.id}>
-                  {model.name || model.id}
-                  {isModelFree(model) ? ' (100% Free)' : ''}
-                </option>
-              ))}
-              {isFreeTierUser && (
-                <option value="__pro_locked__" disabled>
-                  ── 400+ Pro Models (Connect Key in Account) ──
-                </option>
-              )}
-            </select>
+              <span className={`model-status-orb ${currentModelInfo.isFree ? 'orb-free' : 'orb-pro'}`} />
+              <div className="model-info-column">
+                <span className="model-title-text">{currentModelInfo.name}</span>
+                <span className="model-subtitle-text">{currentModelInfo.tag} · Click to Switch ▾</span>
+              </div>
+            </button>
+
+            <button
+              className="models-catalog-trigger-btn"
+              type="button"
+              onClick={() => setModelSwitcherOpen(true)}
+              title="Browse all 400+ models with 3D filters"
+            >
+              <span>⚡ All Models</span>
+            </button>
 
             <button
               className="refresh-button"
@@ -1515,7 +1591,7 @@ function App() {
               title="Refresh available models"
               onClick={() => loadModels()}
             >
-              {modelsLoading ? 'Loading…' : '↻ Models'}
+              {modelsLoading ? '…' : '↻'}
             </button>
           </div>
 
@@ -1553,11 +1629,55 @@ function App() {
           </div>
         </header>
 
+        {/* Ambient 3D VFX Background */}
+        <div className="chat-ambient-vfx" aria-hidden="true">
+          <div className="chat-vfx-grid-floor" />
+          <div className="chat-vfx-orb orb-cyan" />
+          <div className="chat-vfx-orb orb-purple" />
+          <div className="chat-vfx-scanlines" />
+        </div>
+
+        {/* Quick Model Fast-Switch Bar */}
+        <div className="chat-quick-model-bar">
+          <span className="quick-bar-title">⚡ Fast Switch:</span>
+          <div className="quick-bar-pills">
+            {quickModels.map(qm => {
+              const isActive = qm.targetId === selectedModel;
+              return (
+                <button
+                  key={qm.id}
+                  type="button"
+                  className={`quick-model-pill ${isActive ? 'is-active' : ''}`}
+                  onClick={() => setSelectedModel(qm.targetId)}
+                  title={`Switch to ${qm.label}`}
+                >
+                  <span>{qm.label}</span>
+                  {isActive && <span className="active-glow-indicator" />}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className="quick-model-pill browse-more-pill"
+              onClick={() => setModelSwitcherOpen(true)}
+              title="Explore all 400+ models in 3D modal"
+            >
+              <span>✨ 400+ Models...</span>
+            </button>
+          </div>
+        </div>
+
         <section className="chat-area">
           {messages.length === 0 ? (
             <div className="welcome">
-              <div className="welcome-icon">
-                <img src="/mascot.jpg" alt="iamhujju mascot" className="welcome-mascot-img" />
+              <div className="welcome-3d-gyro-core" aria-hidden="true">
+                <div className="gyro-ring ring-x" />
+                <div className="gyro-ring ring-y" />
+                <div className="gyro-ring ring-z" />
+                <div className="gyro-center-orb">
+                  <img src="/mascot.jpg" alt="Ratnagiri_Enterprenuers mascot" className="welcome-mascot-img" />
+                </div>
+                <div className="gyro-glow-pulse" />
               </div>
               <p className="eyebrow">WELCOME TO YOUR AI WORKSPACE</p>
               <h1>What can I help you<br /><span>create today?</span></h1>
@@ -1857,6 +1977,17 @@ function App() {
             </div>
           </div>
         )}
+
+        <ModelSwitcherModal
+          isOpen={modelSwitcherOpen}
+          onClose={() => setModelSwitcherOpen(false)}
+          models={chatModelOptions}
+          selectedModel={selectedModel}
+          onSelectModel={id => setSelectedModel(id)}
+          isModelFree={isModelFree}
+          isFreeTierUser={isFreeTierUser}
+          onOpenIntegrations={openIntegrations}
+        />
       </main>
         </div>
       )}
