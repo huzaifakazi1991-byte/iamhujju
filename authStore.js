@@ -363,15 +363,6 @@ export function createAccountStore({
       return result.rowCount > 0;
     },
 
-    async revokeApiKey(userId) {
-      const result = await db.query(
-        `DELETE FROM provider_credentials
-         WHERE user_id = $1 AND provider = 'freellmapi'`,
-        [userId]
-      );
-      return result.rowCount > 0;
-    },
-
     async createSession(userId) {
       const token = randomBytes(32).toString('base64url');
       const expiresAt = Date.now() + SESSION_TTL_MS;
@@ -406,6 +397,138 @@ export function createAccountStore({
       await db.query('UPDATE users SET tier = $1 WHERE id = $2', [tier, userId]);
       const result = await db.query('SELECT id, email, COALESCE(tier, $1) AS tier FROM users WHERE id = $2', [tier, userId]);
       return result.rows[0] ? publicUser(result.rows[0]) : null;
+    },
+
+    // ── API Key management ──────────────────────────────────────────────────
+
+    async listApiKeys(userId) {
+      const result = await db.query(
+        `SELECT id, name, prefix, created_at, last_used_at, request_count, status
+         FROM api_keys
+         WHERE user_id = $1 AND status = 'active'
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+      return result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        prefix: row.prefix,
+        createdAt: isoDate(row.created_at),
+        lastUsedAt: isoDate(row.last_used_at),
+        requestCount: row.request_count,
+        status: row.status
+      }));
+    },
+
+    async createApiKey(userId, name) {
+      const rawKey = 'sk-hujju-' + randomBytes(24).toString('hex');
+      const keyHash = createHash('sha256').update(rawKey).digest('hex');
+      const prefix = rawKey.slice(0, 9) + '••••' + rawKey.slice(-4);
+      const result = await db.query(
+        `INSERT INTO api_keys (user_id, name, key_hash, prefix)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, prefix, created_at, status`,
+        [userId, name, keyHash, prefix]
+      );
+      const row = result.rows[0];
+      return {
+        rawKey,
+        key: {
+          id: row.id,
+          name: row.name,
+          prefix: row.prefix,
+          createdAt: isoDate(row.created_at),
+          status: row.status
+        }
+      };
+    },
+
+    async regenerateApiKey(userId, keyId) {
+      // Verify ownership and get name before revoking
+      const existing = await db.query(
+        `SELECT id, name FROM api_keys WHERE id = $1 AND user_id = $2 AND status = 'active'`,
+        [keyId, userId]
+      );
+      if (!existing.rows[0]) {
+        const error = new Error('API key not found or already revoked.');
+        error.code = 'API_KEY_NOT_FOUND';
+        throw error;
+      }
+      const keyName = existing.rows[0].name;
+
+      const rawKey = 'sk-hujju-' + randomBytes(24).toString('hex');
+      const keyHash = createHash('sha256').update(rawKey).digest('hex');
+      const prefix = rawKey.slice(0, 9) + '••••' + rawKey.slice(-4);
+
+      // Atomically revoke old, create new
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `DELETE FROM api_keys WHERE id = $1 AND user_id = $2`,
+          [keyId, userId]
+        );
+        const result = await client.query(
+          `INSERT INTO api_keys (user_id, name, key_hash, prefix)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, name, prefix, created_at, status`,
+          [userId, keyName, keyHash, prefix]
+        );
+        await client.query('COMMIT');
+        const row = result.rows[0];
+        return {
+          rawKey,
+          key: {
+            id: row.id,
+            name: row.name,
+            prefix: row.prefix,
+            createdAt: isoDate(row.created_at),
+            status: row.status
+          }
+        };
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
+    async revokeApiKey(userId, keyId) {
+      // When called with two args it targets a specific key by id; with one arg (userId only) it
+      // falls back to the legacy behaviour of removing the FreeLLMAPI provider credential.
+      if (keyId === undefined) {
+        // Legacy path: delete FreeLLMAPI provider credential
+        const result = await db.query(
+          `DELETE FROM provider_credentials WHERE user_id = $1 AND provider = 'freellmapi'`,
+          [userId]
+        );
+        return result.rowCount > 0;
+      }
+      const result = await db.query(
+        `UPDATE api_keys SET status = 'revoked' WHERE id = $1 AND user_id = $2`,
+        [keyId, userId]
+      );
+      return result.rowCount > 0;
+    },
+
+    async verifyAndTrackApiKey(rawKey) {
+      if (typeof rawKey !== 'string' || !rawKey.startsWith('sk-hujju-')) return null;
+      const keyHash = createHash('sha256').update(rawKey).digest('hex');
+      const result = await db.query(
+        `UPDATE api_keys
+         SET last_used_at = NOW(), request_count = request_count + 1
+         WHERE key_hash = $1 AND status = 'active'
+         RETURNING user_id`,
+        [keyHash]
+      );
+      if (!result.rows[0]) return null;
+      const userId = result.rows[0].user_id;
+      const userResult = await db.query(
+        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE id = $1`,
+        [userId]
+      );
+      return userResult.rows[0] ? publicUser(userResult.rows[0]) : null;
     }
   };
 }

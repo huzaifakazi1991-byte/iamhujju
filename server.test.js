@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { DataType, newDb } from 'pg-mem';
 import { createAccountStore } from './authStore.js';
@@ -26,6 +27,14 @@ async function createTestStores(t, encryptionSecret = 'test-encryption-secret-th
         : typeof value === 'object'
           ? 'object'
           : typeof value
+  });
+  // pg-mem does not ship gen_random_uuid(); register it so schema v4 migration works
+  memory.public.registerFunction({
+    name: 'gen_random_uuid',
+    args: [],
+    returns: DataType.uuid,
+    impure: true,
+    implementation: () => randomUUID()
   });
   const { Pool } = memory.adapters.createPg();
   const pool = new Pool();
@@ -865,4 +874,493 @@ test('payment endpoints support Razorpay config, order creation, UPI verificatio
   const statusData = await statusRes.json();
   assert.equal(statusData.tier, 'pro');
   assert.equal(statusData.isPro, true);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API Key Management + OpenAI-compatible Gateway tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FAKE_STREAM = 'data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n\n';
+const FAKE_COMPLETION = JSON.stringify({
+  id: 'chatcmpl-test',
+  object: 'chat.completion',
+  choices: [{ index: 0, message: { role: 'assistant', content: 'Hello!' }, finish_reason: 'stop' }]
+});
+const FAKE_MODELS = JSON.stringify({
+  object: 'list',
+  data: [{ id: 'auto', name: 'Auto', object: 'model' }]
+});
+
+function makeFetchForGateway({ _streamResponse = false } = {}) {
+  return async (url, options) => {
+    if (url.includes('/models')) {
+      return new Response(FAKE_MODELS, { headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url.includes('/chat/completions')) {
+      const body = JSON.parse(options.body);
+      if (body.stream) {
+        return new Response(FAKE_STREAM, { headers: { 'Content-Type': 'text/event-stream' } });
+      }
+      return new Response(FAKE_COMPLETION, { headers: { 'Content-Type': 'application/json' } });
+    }
+    throw new Error(`Unexpected upstream URL: ${url}`);
+  };
+}
+
+test('POST /api/keys creates a named key with sk-hujju- prefix and stored hash', async t => {
+  const { accountStore, pool } = await createTestStores(t);
+  const user = await accountStore.register('keytest@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // POST /api/keys requires name
+  const badReq = await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({})
+  });
+  assert.equal(badReq.status, 400);
+
+  const res = await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ name: 'My Cursor IDE Key' })
+  });
+  assert.equal(res.status, 201);
+  const body = await res.json();
+
+  // rawKey must have correct prefix
+  assert.match(body.rawKey, /^sk-hujju-[0-9a-f]{48}$/);
+  // metadata returned
+  assert.equal(body.key.name, 'My Cursor IDE Key');
+  assert.equal(body.key.status, 'active');
+  // prefix is masked
+  assert.match(body.key.prefix, /^sk-hujju-••••.{4}$/);
+
+  // Verify hash was stored and rawKey does NOT appear in DB
+  const dbRows = await pool.query('SELECT key_hash FROM api_keys WHERE user_id = $1', [user.id]);
+  assert.equal(dbRows.rows.length, 1);
+  assert.ok(!JSON.stringify(dbRows.rows).includes(body.rawKey), 'raw key must not appear in DB');
+});
+
+test('GET /api/keys lists active keys with masked prefix and correct counts', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('listkeys@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // No keys yet
+  const emptyRes = await fetch(`${baseUrl}/api/keys`, { headers: { Cookie: cookie } });
+  assert.equal(emptyRes.status, 200);
+  const { keys: emptyKeys } = await emptyRes.json();
+  assert.equal(emptyKeys.length, 0);
+
+  // Create two keys
+  await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ name: 'Key Alpha' })
+  });
+  await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ name: 'Key Beta' })
+  });
+
+  const listRes = await fetch(`${baseUrl}/api/keys`, { headers: { Cookie: cookie } });
+  assert.equal(listRes.status, 200);
+  const { keys } = await listRes.json();
+  assert.equal(keys.length, 2);
+
+  for (const key of keys) {
+    // Prefix is masked: starts with sk-hujju-••••
+    assert.match(key.prefix, /^sk-hujju-••••/);
+    assert.equal(key.status, 'active');
+    assert.equal(key.requestCount, 0);
+    assert.ok('id' in key && 'name' in key && 'createdAt' in key);
+  }
+});
+
+test('GET /v1/models with valid sk-hujju- bearer token returns 200 and model list', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('v1models@example.com', 'correct horse battery');
+  const { rawKey } = await accountStore.createApiKey(user.id, 'Test Key');
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(`${baseUrl}/v1/models`, {
+    headers: { Authorization: `Bearer ${rawKey}` }
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.object, 'list');
+  assert.ok(Array.isArray(body.data));
+  assert.ok(body.data.length > 0);
+
+  // Also check CORS header
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+});
+
+test('POST /v1/chat/completions with valid sk-hujju- bearer token returns 200 and completion', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('v1chat@example.com', 'correct horse battery');
+  const { rawKey } = await accountStore.createApiKey(user.id, 'Chat Key');
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${rawKey}`
+    },
+    body: JSON.stringify({
+      model: 'auto',
+      messages: [{ role: 'user', content: 'Hello' }]
+    })
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.ok(data.choices || data.id || data.object, 'completion response must contain completion fields');
+});
+
+test('POST /v1/chat/completions with stream:true returns 200 with text/event-stream', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('v1stream@example.com', 'correct horse battery');
+  const { rawKey } = await accountStore.createApiKey(user.id, 'Stream Key');
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway({ streamResponse: true })
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${rawKey}`
+    },
+    body: JSON.stringify({
+      model: 'auto',
+      messages: [{ role: 'user', content: 'Hello' }],
+      stream: true
+    })
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') || '', /text\/event-stream/);
+  const text = await res.text();
+  assert.match(text, /data:.*DONE/);
+});
+
+test('POST /api/keys/:keyId/regenerate generates a new key and returns rawKey', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('regen@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // Create initial key
+  const createRes = await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ name: 'Regen Key' })
+  });
+  const { key: { id: keyId }, rawKey: originalKey } = await createRes.json();
+
+  // Regenerate
+  const regenRes = await fetch(`${baseUrl}/api/keys/${keyId}/regenerate`, {
+    method: 'POST',
+    headers: { Cookie: cookie }
+  });
+  assert.equal(regenRes.status, 200);
+  const regenBody = await regenRes.json();
+  const newRawKey = regenBody.rawKey;
+
+  assert.match(newRawKey, /^sk-hujju-[0-9a-f]{48}$/);
+  assert.notEqual(newRawKey, originalKey, 'regenerated key must differ from original');
+  assert.equal(regenBody.key.status, 'active');
+  assert.equal(regenBody.key.name, 'Regen Key');
+});
+
+test('old revoked key is rejected 401 and new regenerated key returns 200', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('revoke-regen@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // Create key
+  const createRes = await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ name: 'Revokeable Key' })
+  });
+  const { key: { id: keyId }, rawKey: oldKey } = await createRes.json();
+
+  // Regenerate (revokes old key)
+  const regenRes = await fetch(`${baseUrl}/api/keys/${keyId}/regenerate`, {
+    method: 'POST',
+    headers: { Cookie: cookie }
+  });
+  const { rawKey: newKey } = await regenRes.json();
+
+  // Old key → 401 with invalid_api_key code
+  const oldKeyRes = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${oldKey}`
+    },
+    body: JSON.stringify({ model: 'auto', messages: [{ role: 'user', content: 'hi' }] })
+  });
+  assert.equal(oldKeyRes.status, 401);
+  const oldKeyBody = await oldKeyRes.json();
+  assert.equal(oldKeyBody.error.code, 'invalid_api_key');
+  assert.equal(oldKeyBody.error.type, 'invalid_request_error');
+
+  // New key → 200
+  const newKeyRes = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${newKey}`
+    },
+    body: JSON.stringify({ model: 'auto', messages: [{ role: 'user', content: 'hi' }] })
+  });
+  assert.equal(newKeyRes.status, 200);
+});
+
+test('DELETE /api/keys/:keyId permanently revokes key (401 on subsequent use)', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('delete-key@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // Create key
+  const createRes = await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ name: 'To Delete' })
+  });
+  const { key: { id: keyId }, rawKey } = await createRes.json();
+
+  // Confirm it works
+  const beforeDelete = await fetch(`${baseUrl}/v1/models`, {
+    headers: { Authorization: `Bearer ${rawKey}` }
+  });
+  assert.equal(beforeDelete.status, 200);
+
+  // Delete
+  const deleteRes = await fetch(`${baseUrl}/api/keys/${keyId}`, {
+    method: 'DELETE',
+    headers: { Cookie: cookie }
+  });
+  assert.equal(deleteRes.status, 204);
+
+  // Key no longer in list
+  const listRes = await fetch(`${baseUrl}/api/keys`, { headers: { Cookie: cookie } });
+  const { keys } = await listRes.json();
+  assert.ok(!keys.some(k => k.id === keyId), 'deleted key must not appear in list');
+
+  // Key is rejected
+  const afterDelete = await fetch(`${baseUrl}/v1/models`, {
+    headers: { Authorization: `Bearer ${rawKey}` }
+  });
+  assert.equal(afterDelete.status, 401);
+});
+
+test('edge cases: invalid key format, missing key, revoked key, wrong model', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('edges@example.com', 'correct horse battery');
+  const { rawKey } = await accountStore.createApiKey(user.id, 'Edge Key');
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: async (url) => {
+      if (url.includes('/models')) return new Response(FAKE_MODELS, { headers: { 'Content-Type': 'application/json' } });
+      // Wrong model → 404 from upstream
+      return new Response(JSON.stringify({ error: { message: 'Model not found' } }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const chatPayload = (model = 'auto') => JSON.stringify({
+    model,
+    messages: [{ role: 'user', content: 'hi' }]
+  });
+
+  // Missing Authorization header → 401
+  const noAuth = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: chatPayload()
+  });
+  assert.equal(noAuth.status, 401);
+  const noAuthBody = await noAuth.json();
+  assert.equal(noAuthBody.error.code, 'invalid_api_key');
+
+  // Invalid key format (not sk-hujju- prefix) → 401
+  const badFormat = await fetch(`${baseUrl}/v1/models`, {
+    headers: { Authorization: 'Bearer sk-openai-notours1234567890' }
+  });
+  assert.equal(badFormat.status, 401);
+
+  // Completely wrong key → 401
+  const wrongKey = await fetch(`${baseUrl}/v1/models`, {
+    headers: { Authorization: 'Bearer sk-hujju-aabbccddeeff00112233445566778899aabbccddeeff0011' }
+  });
+  assert.equal(wrongKey.status, 401);
+
+  // Valid key but wrong model (upstream 404) → passes through upstream error status
+  const wrongModel = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${rawKey}`
+    },
+    body: chatPayload('nonexistent/model-xyz')
+  });
+  // Should propagate upstream error (not 200)
+  assert.notEqual(wrongModel.status, 200);
+
+  // OPTIONS preflight → 204 with CORS headers
+  const preflight = await fetch(`${baseUrl}/v1/models`, { method: 'OPTIONS' });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
+});
+
+test('request_count is incremented on each verified gateway use', async t => {
+  const { accountStore, pool } = await createTestStores(t);
+  const user = await accountStore.register('tracking@example.com', 'correct horse battery');
+  const { rawKey, key: { id: keyId } } = await accountStore.createApiKey(user.id, 'Tracking Key');
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // Two gateway requests
+  for (let i = 0; i < 2; i++) {
+    await fetch(`${baseUrl}/v1/models`, { headers: { Authorization: `Bearer ${rawKey}` } });
+  }
+
+  const row = await pool.query('SELECT request_count FROM api_keys WHERE id = $1', [keyId]);
+  assert.equal(row.rows[0].request_count, 2);
+});
+
+test('/api/keys endpoints require authentication (no session, no bearer)', async t => {
+  const { accountStore } = await createTestStores(t);
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const listRes = await fetch(`${baseUrl}/api/keys`);
+  assert.equal(listRes.status, 401);
+
+  const createRes = await fetch(`${baseUrl}/api/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Unauthorized Key' })
+  });
+  assert.equal(createRes.status, 401);
+});
+
+test('DELETE /api/keys/:keyId with non-existent keyId returns 404', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('notfound@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    apiKey: 'server-key',
+    allowSharedGatewayKey: true,
+    fetchImpl: makeFetchForGateway()
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const fakeId = randomUUID();
+  const res = await fetch(`${baseUrl}/api/keys/${fakeId}`, {
+    method: 'DELETE',
+    headers: { Cookie: cookie }
+  });
+  assert.equal(res.status, 404);
 });

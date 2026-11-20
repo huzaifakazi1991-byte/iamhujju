@@ -328,6 +328,9 @@ export function createApp({
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
   }));
   app.use('/api', (req, res, next) => {
+    // OpenAI-compatible gateway sub-paths allow cross-origin requests (auth is via API key)
+    if (req.path.startsWith('/v1/')) return next();
+
     const origin = req.get('Origin');
     if (!origin) return next();
 
@@ -1653,6 +1656,284 @@ What would you like to explore or do right now?
       planName: PLAN_CATALOG[tier]?.name || (tier === 'free' ? 'Free Tier' : tier.toUpperCase())
     });
   });
+
+  // ── API Key Management Endpoints (/api/keys) ──────────────────────────────
+  // Accepts session cookie OR Authorization Bearer token (platform API key)
+
+  async function requireAccountOrApiKey(req, res) {
+    // Try session cookie first
+    const sessionUser = await getCurrentUser(req);
+    if (sessionUser) return sessionUser;
+
+    // Try Authorization Bearer sk-hujju-... key
+    const authHeader = req.headers.authorization || '';
+    if (authHeader.startsWith('Bearer ') && typeof accountStore.verifyAndTrackApiKey === 'function') {
+      const rawKey = authHeader.slice(7).trim();
+      if (rawKey.startsWith('sk-hujju-')) {
+        const user = await accountStore.verifyAndTrackApiKey(rawKey);
+        if (user) return user;
+      }
+    }
+
+    res.status(401).json({ error: { message: 'Sign in to manage API keys.' } });
+    return null;
+  }
+
+  const apiKeyNameSchema = z.object({ name: z.string().trim().min(1).max(128) }).strict();
+  const apiKeyRateLimiter = makeRateLimiter(
+    rateLimits.apiKeys || 30,
+    60 * 1000,
+    'Too many API key requests. Try again later.'
+  );
+
+  app.get('/api/keys', apiKeyRateLimiter, async (req, res) => {
+    const user = await requireAccountOrApiKey(req, res);
+    if (!user) return;
+    if (typeof accountStore.listApiKeys !== 'function') {
+      return res.status(503).json({ error: { message: 'API key management is not available.' } });
+    }
+    const keys = await accountStore.listApiKeys(user.id);
+    res.set('Cache-Control', 'no-store').json({ keys });
+  });
+
+  app.post('/api/keys', apiKeyRateLimiter, async (req, res) => {
+    const user = await requireAccountOrApiKey(req, res);
+    if (!user) return;
+    if (typeof accountStore.createApiKey !== 'function') {
+      return res.status(503).json({ error: { message: 'API key management is not available.' } });
+    }
+    const body = validatedBody(apiKeyNameSchema, req, res, 'Provide a name (1-128 characters) for the API key.');
+    if (!body) return;
+    const result = await accountStore.createApiKey(user.id, body.name);
+    res.set('Cache-Control', 'no-store').status(201).json(result);
+  });
+
+  app.post('/api/keys/:keyId/regenerate', apiKeyRateLimiter, async (req, res) => {
+    const user = await requireAccountOrApiKey(req, res);
+    if (!user) return;
+    if (typeof accountStore.regenerateApiKey !== 'function') {
+      return res.status(503).json({ error: { message: 'API key management is not available.' } });
+    }
+    try {
+      const result = await accountStore.regenerateApiKey(user.id, req.params.keyId);
+      res.set('Cache-Control', 'no-store').json(result);
+    } catch (error) {
+      if (error.code === 'API_KEY_NOT_FOUND') {
+        return res.status(404).json({ error: { message: error.message } });
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/api/keys/:keyId', apiKeyRateLimiter, async (req, res) => {
+    const user = await requireAccountOrApiKey(req, res);
+    if (!user) return;
+    if (typeof accountStore.revokeApiKey !== 'function') {
+      return res.status(503).json({ error: { message: 'API key management is not available.' } });
+    }
+    const deleted = await accountStore.revokeApiKey(user.id, req.params.keyId);
+    if (!deleted) {
+      return res.status(404).json({ error: { message: 'API key not found.' } });
+    }
+    res.set('Cache-Control', 'no-store').status(204).end();
+  });
+
+  // ── OpenAI-compatible Gateway (/v1/* and /api/v1/*) ──────────────────────
+  // Permissive CORS for external clients (curl, OpenAI SDK, etc.)
+
+  function setGatewayCors(res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+
+  async function gatewayAuth(req, res) {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
+        error: {
+          message: 'No API key provided.',
+          type: 'invalid_request_error',
+          code: 'invalid_api_key'
+        }
+      });
+      return null;
+    }
+    const rawKey = authHeader.slice(7).trim();
+    if (typeof accountStore.verifyAndTrackApiKey !== 'function' || !rawKey.startsWith('sk-hujju-')) {
+      res.status(401).json({
+        error: {
+          message: `Incorrect API key provided: ${rawKey.slice(0, 10)}...`,
+          type: 'invalid_request_error',
+          code: 'invalid_api_key'
+        }
+      });
+      return null;
+    }
+    const user = await accountStore.verifyAndTrackApiKey(rawKey);
+    if (!user) {
+      res.status(401).json({
+        error: {
+          message: `Incorrect API key provided: ${rawKey.slice(0, 10)}...`,
+          type: 'invalid_request_error',
+          code: 'invalid_api_key'
+        }
+      });
+      return null;
+    }
+    return user;
+  }
+
+  // OPTIONS preflight for both /v1 and /api/v1 paths
+  app.options(['/v1/{*splat}', '/api/v1/{*splat}'], (req, res) => {
+    setGatewayCors(res);
+    res.status(204).end();
+  });
+
+  // GET /v1/models and /api/v1/models — return OpenAI-formatted model list
+  async function handleV1Models(req, res) {
+    setGatewayCors(res);
+    const user = await gatewayAuth(req, res);
+    if (!user) return;
+
+    const userApiKey = typeof accountStore.getApiKey === 'function'
+      ? await accountStore.getApiKey(user.id)
+      : null;
+    const effectiveApiKey = userApiKey || (allowSharedGatewayKey ? apiKey : '');
+    const userOpenRouterKey = await getOpenRouterKeyForUser(user.id);
+    const effectiveOpenRouterKey = userOpenRouterKey || serverOpenRouterKey;
+
+    const models = [];
+
+    async function fetchModels(url, headers) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        const response = await fetchImpl(url, { headers, signal: controller.signal });
+        clearTimeout(timer);
+        if (!response.ok) return [];
+        const data = await response.json();
+        return Array.isArray(data?.data) ? data.data.filter(m => m && typeof m.id === 'string') : [];
+      } catch {
+        return [];
+      }
+    }
+
+    if (effectiveApiKey) {
+      const upstream = await fetchModels(
+        `${upstreamBase}/models?available=true`,
+        { Authorization: `Bearer ${effectiveApiKey}` }
+      );
+      models.push(...upstream);
+    }
+
+    if (effectiveOpenRouterKey) {
+      const orModels = await fetchModels(
+        `${openRouterUpstreamBase}/models`,
+        { Authorization: `Bearer ${effectiveOpenRouterKey}`, 'X-OpenRouter-Title': 'iamhujju' }
+      );
+      models.push(...orModels.map(openRouterModel));
+    }
+
+    res.set('Cache-Control', 'no-store').json({ object: 'list', data: models });
+  }
+
+  app.get('/v1/models', modelsRateLimiter, handleV1Models);
+  app.get('/api/v1/models', modelsRateLimiter, handleV1Models);
+
+  // POST /v1/chat/completions and /api/v1/chat/completions — proxy to upstream
+  async function handleV1ChatCompletions(req, res) {
+    setGatewayCors(res);
+    const user = await gatewayAuth(req, res);
+    if (!user) return;
+
+    const body = validatedBody(
+      chatRequestSchema,
+      req,
+      res,
+      'Request must include a model and 1-100 valid messages, including a user message.'
+    );
+    if (!body) return;
+
+    const usesOpenRouter = body.model.startsWith('openrouter:') || body.model.startsWith('openrouter/');
+    const sourceModel = body.model.startsWith('openrouter:')
+      ? body.model.slice('openrouter:'.length)
+      : body.model;
+
+    let requestApiKey;
+    if (usesOpenRouter) {
+      requestApiKey = (await getOpenRouterKeyForUser(user.id)) || serverOpenRouterKey;
+    } else {
+      const userApiKey = typeof accountStore.getApiKey === 'function'
+        ? await accountStore.getApiKey(user.id)
+        : null;
+      requestApiKey = userApiKey || (allowSharedGatewayKey ? apiKey : '');
+    }
+
+    if (!requestApiKey) {
+      return res.status(403).json({
+        error: {
+          message: usesOpenRouter
+            ? 'No OpenRouter key configured for this account.'
+            : 'No upstream API key available.',
+          type: 'invalid_request_error',
+          code: 'no_upstream_key'
+        }
+      });
+    }
+
+    const providerName = usesOpenRouter ? 'OpenRouter' : 'FreeLLMAPI';
+    const providerBase = usesOpenRouter ? openRouterUpstreamBase : upstreamBase;
+    const requestBody = { ...body, model: sourceModel };
+
+    const request = requestAbortSignal(req, res, timeoutMs);
+
+    try {
+      const upstream = await fetchImpl(`${providerBase}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${requestApiKey}`,
+          'Content-Type': 'application/json',
+          ...(usesOpenRouter ? { 'X-OpenRouter-Title': 'iamhujju' } : {})
+        },
+        body: JSON.stringify(requestBody),
+        signal: request.controller.signal
+      });
+
+      if (!upstream.ok) {
+        const errorBody = await upstream.text();
+        return res.status(upstream.status).json({
+          error: { message: safeUpstreamMessage(errorBody, upstream.status, requestApiKey, providerName) }
+        });
+      }
+
+      if (!upstream.body) {
+        return res.status(502).json({ error: { message: `${providerName} returned an empty response.` } });
+      }
+
+      res.status(upstream.status);
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      await pipeline(Readable.fromWeb(upstream.body), res);
+    } catch {
+      if (!res.headersSent && !res.destroyed) {
+        const status = request.timedOut ? 504 : 502;
+        const message = request.timedOut
+          ? `${providerName} did not finish responding in time.`
+          : `${providerName} request failed. Check that the provider is available.`;
+        res.status(status).json({ error: { message } });
+      } else if (!res.destroyed) {
+        res.destroy();
+      }
+    } finally {
+      request.cleanup();
+    }
+  }
+
+  app.post('/v1/chat/completions', chatRateLimiter, handleV1ChatCompletions);
+  app.post('/api/v1/chat/completions', chatRateLimiter, handleV1ChatCompletions);
 
   // Cache-busted immutable assets; never cache index.html or service worker.
   app.use(

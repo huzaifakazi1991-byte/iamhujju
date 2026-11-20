@@ -1219,7 +1219,7 @@ function HomePage({
                         <strong>AnyAPi</strong>
                       </div>
                       <nav className="anychat-nav-list">
-                        <div className="anychat-nav-item"><Icon name="key" size={13} /><span>API Keys</span></div>
+                        <div className="anychat-nav-item" role="button" tabIndex={0} onClick={onOpenApiKeys} style={{ cursor: 'pointer' }}><Icon name="key" size={13} /><span>API Keys</span></div>
                         <div className="anychat-nav-item is-active"><Icon name="chat" size={13} /><span>AnyChat</span></div>
                         <div className="anychat-nav-item"><Icon name="tool" size={13} /><span>Tools</span></div>
                         <div className="anychat-nav-item"><Icon name="grid" size={13} /><span>Model Hub</span></div>

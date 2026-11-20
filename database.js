@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -173,7 +173,28 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       );
     }
 
-    await client.query('COMMIT');
+    if (currentVersion < 4) {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS api_keys (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          key_hash CHAR(64) NOT NULL UNIQUE,
+          prefix TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_used_at TIMESTAMPTZ,
+          request_count INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked'))
+        );
+        CREATE INDEX IF NOT EXISTS api_keys_user_id_idx ON api_keys (user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS api_keys_hash_idx ON api_keys (key_hash);
+      `);
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [4]
+      );
+    }
+
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
