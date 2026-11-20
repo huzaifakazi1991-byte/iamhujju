@@ -251,7 +251,7 @@ textarea:focus-visible {
 /* Main panel and topbar */
 
 .main-panel {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -259,9 +259,11 @@ textarea:focus-visible {
   min-height: 100dvh;
   height: 100dvh;
   overflow: hidden;
+  position: relative;
 }
 
 .topbar {
+  flex-shrink: 0;
   position: relative;
   z-index: 1000;
   min-height: 72px;
@@ -397,8 +399,10 @@ textarea:focus-visible {
 /* Chat area */
 
 .chat-area {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   justify-content: center;
   padding: 40px 24px 24px;
@@ -485,6 +489,7 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  padding-bottom: 28px;
 }
 
 .message {
@@ -570,11 +575,21 @@ textarea:focus-visible {
 /* Composer */
 
 .composer-area {
-  padding: 12px 24px 24px;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  width: 100%;
+  padding: 12px 24px calc(18px + var(--sab, 0px));
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: linear-gradient(transparent, #030712 30%);
+  background: linear-gradient(180deg, rgba(3, 7, 18, 0) 0%, rgba(3, 7, 18, 0.85) 25%, #030712 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 -12px 32px rgba(3, 7, 18, 0.65);
 }
 
 .composer {
@@ -901,7 +916,8 @@ textarea:focus-visible {
 
   /* 3. Chat Area & Message Bubbles */
   .chat-area {
-    padding: 14px 10px 8px !important;
+    padding: 14px 10px 18px !important;
+    min-height: 0 !important;
   }
   .chat-stream {
     width: 100% !important;
@@ -948,8 +964,18 @@ textarea:focus-visible {
 
   /* 4. Composer & Typing Ergonomics */
   .composer-area {
-    padding: 6px 10px calc(10px + var(--sab, 0px)) 10px !important;
+    padding: 8px 10px calc(12px + var(--sab, 0px)) 10px !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    flex-shrink: 0 !important;
+    z-index: 50 !important;
     width: 100% !important;
+    background: linear-gradient(180deg, rgba(3, 7, 18, 0) 0%, rgba(3, 7, 18, 0.92) 22%, #030712 100%) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    box-shadow: 0 -10px 28px rgba(3, 7, 18, 0.85) !important;
   }
   .composer {
     width: 100% !important;
@@ -1418,7 +1444,6 @@ textarea:focus-visible {
 .main-panel {
   position: relative;
   overflow: hidden;
-  perspective: 1200px;
 }
 
 /* Ambient 3D VFX Elements */
@@ -1500,6 +1525,7 @@ textarea:focus-visible {
 
 /* Quick Model Fast-Switch Bar */
 .chat-quick-model-bar {
+  flex-shrink: 0;
   position: relative;
   z-index: 2;
   display: flex;
@@ -1874,8 +1900,9 @@ textarea:focus-visible {
 
 /* Enhanced Composer Area */
 .composer-area {
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
 }
 
 .composer {
