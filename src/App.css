@@ -2492,3 +2492,35 @@ textarea:focus-visible {
   font-weight: 700;
   color: #c084fc;
 }
+
+
+/* Real-Time Web Grounding & Live Search Status Badges */
+.live-search-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+  animation: pulseGlow 1.8s infinite;
+}
+
+.live-search-spin {
+  font-size: 15px;
+  animation: spinSlow 3s linear infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.99); }
+}

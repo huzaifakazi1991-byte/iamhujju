@@ -26,6 +26,7 @@ import {
   getVideoTaskStatus,
   generateImageResult
 } from './services/aiGateway.js';
+import { browseWeb, shouldTriggerLiveSearch } from './services/webSearch.js';
 
 dotenv.config();
 
@@ -1611,7 +1612,47 @@ export function createApp({
       }
     }
 
-    const requestBody = sanitizePayloadForModel(targetProvider, sourceModel, body, { isFreeTierUsingServerKey });
+    // Real-Time Web Search & Anti-Hallucination Grounding Engine
+    const lastUserMessage = [...(body.messages || [])].reverse().find(m => m.role === 'user');
+    const userQueryText = typeof lastUserMessage?.content === 'string'
+      ? lastUserMessage.content
+      : Array.isArray(lastUserMessage?.content)
+      ? lastUserMessage.content.map(c => c.text || '').join(' ')
+      : '';
+
+    const needsLiveSearch = shouldTriggerLiveSearch(userQueryText, Boolean(body.browse || body.webSearch));
+    let liveSources = [];
+    let groundedBody = body;
+
+    if (needsLiveSearch && userQueryText) {
+      try {
+        const searchResult = await browseWeb(userQueryText, { maxResults: 6 });
+        liveSources = searchResult.sources || [];
+        if (liveSources.length > 0) {
+          const updatedMessages = [...(body.messages || [])];
+          const sysIdx = updatedMessages.findIndex(m => m.role === 'system');
+          if (sysIdx >= 0) {
+            updatedMessages[sysIdx] = {
+              ...updatedMessages[sysIdx],
+              content: `${updatedMessages[sysIdx].content}\n\n${searchResult.formattedContext}`
+            };
+          } else {
+            updatedMessages.unshift({
+              role: 'system',
+              content: searchResult.formattedContext
+            });
+          }
+          groundedBody = {
+            ...body,
+            messages: updatedMessages
+          };
+        }
+      } catch (err) {
+        console.warn('[LiveGrounding] Search failed, falling back:', err.message);
+      }
+    }
+
+    const requestBody = sanitizePayloadForModel(targetProvider, sourceModel, groundedBody, { isFreeTierUsingServerKey });
 
     const providerConfig = PROVIDERS[targetProvider];
     const providerName = providerConfig ? providerConfig.name : (targetProvider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI');
@@ -1629,7 +1670,7 @@ export function createApp({
           const curConfig = (currentProvider && PROVIDERS[currentProvider]) || providerConfig;
           const curEndpoint = curConfig ? curConfig.chatUrl : `${upstreamBase}/chat/completions`;
           const curModel = currentModel || sourceModel;
-          const curBody = sanitizePayloadForModel(currentProvider || targetProvider, curModel, body, { isFreeTierUsingServerKey });
+          const curBody = sanitizePayloadForModel(currentProvider || targetProvider, curModel, groundedBody, { isFreeTierUsingServerKey });
 
           return await fetchImpl(
             curEndpoint,
@@ -1680,6 +1721,11 @@ export function createApp({
       );
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('X-Accel-Buffering', 'no');
+
+      if (liveSources.length > 0) {
+        res.write(`data: ${JSON.stringify({ status: `Verified ${liveSources.length} live web & news sources` })}\n\n`);
+        res.write(`data: ${JSON.stringify({ sources: liveSources })}\n\n`);
+      }
 
       await pipeline(Readable.fromWeb(response.body), res);
     } catch {
@@ -2652,6 +2698,46 @@ What would you like to explore or do right now?
     const hasPersonalKey = Boolean(userPersonalKey);
     const isFreeTierUsingServerKey = !isUserPro && !hasPersonalKey;
 
+    // Real-Time Web Search & Grounding Engine for Gateway
+    const lastUserMessage = [...(body.messages || [])].reverse().find(m => m.role === 'user');
+    const userQueryText = typeof lastUserMessage?.content === 'string'
+      ? lastUserMessage.content
+      : Array.isArray(lastUserMessage?.content)
+      ? lastUserMessage.content.map(c => c.text || '').join(' ')
+      : '';
+
+    const needsLiveSearch = shouldTriggerLiveSearch(userQueryText, Boolean(body.browse || body.webSearch));
+    let liveSources = [];
+    let groundedBody = body;
+
+    if (needsLiveSearch && userQueryText) {
+      try {
+        const searchResult = await browseWeb(userQueryText, { maxResults: 6 });
+        liveSources = searchResult.sources || [];
+        if (liveSources.length > 0) {
+          const updatedMessages = [...(body.messages || [])];
+          const sysIdx = updatedMessages.findIndex(m => m.role === 'system');
+          if (sysIdx >= 0) {
+            updatedMessages[sysIdx] = {
+              ...updatedMessages[sysIdx],
+              content: `${updatedMessages[sysIdx].content}\n\n${searchResult.formattedContext}`
+            };
+          } else {
+            updatedMessages.unshift({
+              role: 'system',
+              content: searchResult.formattedContext
+            });
+          }
+          groundedBody = {
+            ...body,
+            messages: updatedMessages
+          };
+        }
+      } catch (err) {
+        console.warn('[V1 LiveGrounding] Search failed:', err.message);
+      }
+    }
+
     const providerConfig = PROVIDERS[targetProvider];
     const providerName = providerConfig ? providerConfig.name : (targetProvider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI');
     const chatEndpoint = providerConfig ? providerConfig.chatUrl : `${upstreamBase}/chat/completions`;
@@ -2668,7 +2754,7 @@ What would you like to explore or do right now?
           const curConfig = (currentProvider && PROVIDERS[currentProvider]) || providerConfig;
           const curEndpoint = curConfig ? curConfig.chatUrl : `${upstreamBase}/chat/completions`;
           const curModel = currentModel || sourceModel;
-          const curBody = sanitizePayloadForModel(currentProvider || targetProvider, curModel, body, { isFreeTierUsingServerKey });
+          const curBody = sanitizePayloadForModel(currentProvider || targetProvider, curModel, groundedBody, { isFreeTierUsingServerKey });
 
           return await fetchImpl(
             curEndpoint,
@@ -2725,6 +2811,10 @@ What would you like to explore or do right now?
             await accountStore.recordApiKeyTokens(user.activeKeyId, completionJson.usage.total_tokens);
           }
 
+          if (liveSources.length > 0) {
+            completionJson.sources = liveSources;
+          }
+
           res.status(upstream.status);
           res.setHeader('Content-Type', 'application/json');
           return res.json(completionJson);
@@ -2740,6 +2830,11 @@ What would you like to explore or do right now?
       res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('X-Accel-Buffering', 'no');
+
+      if (liveSources.length > 0) {
+        res.write(`data: ${JSON.stringify({ status: `Verified ${liveSources.length} live web & news sources` })}\n\n`);
+        res.write(`data: ${JSON.stringify({ sources: liveSources })}\n\n`);
+      }
 
       await pipeline(Readable.fromWeb(upstream.body), res);
     } catch {

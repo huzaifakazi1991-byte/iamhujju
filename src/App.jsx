@@ -1257,6 +1257,22 @@ function App() {
           throw new Error('FreeLLMAPI returned an invalid streaming event.');
         }
 
+        // Real-time live search status step events
+        if (data.status) {
+          setMessages(previous => {
+            const next = [...previous];
+            const lastIdx = next.length - 1;
+            if (next[lastIdx]) {
+              next[lastIdx] = {
+                ...next[lastIdx],
+                searchStatus: data.status
+              };
+            }
+            return next;
+          });
+          return;
+        }
+
         // Capture real-time web browsing sources
         if (Array.isArray(data.sources)) {
           setMessages(previous => {
@@ -1265,7 +1281,8 @@ function App() {
             if (next[lastIdx]) {
               next[lastIdx] = {
                 ...next[lastIdx],
-                sources: data.sources
+                sources: data.sources,
+                searchStatus: undefined
               };
             }
             return next;
@@ -1292,8 +1309,10 @@ function App() {
           setMessages(previous => {
             const next = [...previous];
             next[next.length - 1] = {
+              ...next[next.length - 1],
               role: 'assistant',
-              content: fullReply
+              content: fullReply,
+              searchStatus: undefined
             };
             return next;
           });
@@ -2324,7 +2343,18 @@ function App() {
                       <div className="markdown-content">
                         {message.content
                           ? <MarkdownMessage content={message.content} />
-                          : loading ? 'Thinking...' : ''}
+                          : loading ? (
+                              <div className="thinking-indicator">
+                                {message.searchStatus ? (
+                                  <span className="live-search-status-chip">
+                                    <span className="live-search-spin">🌐</span>
+                                    <span>{message.searchStatus}</span>
+                                  </span>
+                                ) : (
+                                  'Thinking...'
+                                )}
+                              </div>
+                            ) : ''}
                       </div>
                     )}
 
@@ -2509,6 +2539,18 @@ function App() {
                 <span className="mode-tab-title">Autonomous Agent</span>
                 <span className="mode-pill-tag tag-agent">Tools & Plan</span>
               </button>
+              <button
+                type="button"
+                className={`mode-tab-btn ${browseEnabled ? 'active' : ''}`}
+                onClick={() => setBrowseEnabled(prev => !prev)}
+                title={browseEnabled ? 'Live Web Search: Active (Click to toggle)' : 'Enable Live Web Search & News Grounding'}
+              >
+                <span className="mode-tab-icon">🌐</span>
+                <span className="mode-tab-title">Live Web & News</span>
+                <span className={`mode-pill-tag ${browseEnabled ? 'tag-free' : 'tag-pro'}`}>
+                  {browseEnabled ? 'ON' : 'AUTO'}
+                </span>
+              </button>
             </div>
 
             {/* Mode-Specific Sub-Controls */}
@@ -2612,7 +2654,7 @@ function App() {
                 type="button"
                 className={`composer-action-btn browse-toggle-btn ${browseEnabled ? 'browse-active' : ''}`}
                 onClick={() => setBrowseEnabled(prev => !prev)}
-                title={browseEnabled ? 'Web Browsing ON (Click to disable)' : 'Enable Web Browsing (Real-time live search)'}
+                title={browseEnabled ? 'Live Web Search: Force ON' : 'Live Web Search: Auto-Grounding Active'}
                 aria-pressed={browseEnabled}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2620,7 +2662,7 @@ function App() {
                   <line x1="2" y1="12" x2="22" y2="12" />
                   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
-                <span className="browse-toggle-text">Browse</span>
+                <span className="browse-toggle-text">Search: {browseEnabled ? 'ON' : 'Auto'}</span>
                 {browseEnabled && <span className="browse-active-dot" />}
               </button>
 
