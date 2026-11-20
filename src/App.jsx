@@ -210,6 +210,8 @@ function App() {
   const [videoDuration, setVideoDuration] = useState(5);
   const [videoAspectRatio, setVideoAspectRatio] = useState('16:9');
   const [videoModel, setVideoModel] = useState('kling-video-v1');
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const plusMenuRef = useRef(null);
 
   function downloadMediaFile(url, filename) {
     const a = document.createElement('a');
@@ -370,6 +372,27 @@ function App() {
       };
     }
   }, [currentView]);
+
+  // Click-outside and Escape dismiss for the Composer Plus Menu
+  useEffect(() => {
+    if (!plusMenuOpen) return undefined;
+    function handleClickOutside(event) {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target)) {
+        setPlusMenuOpen(false);
+      }
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setPlusMenuOpen(false);
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [plusMenuOpen]);
 
   const loadModels = useCallback(async signal => {
     setModelsLoading(true);
@@ -2502,169 +2525,290 @@ function App() {
               </div>
             )}
 
-            {/* Multimodal & Autonomous Workspace Mode Switcher */}
-            <div className="workspace-mode-selector">
-              <button
-                type="button"
-                className={`mode-tab-btn ${workspaceMode === 'chat' ? 'active' : ''}`}
-                onClick={() => setWorkspaceMode('chat')}
-              >
-                <span className="mode-tab-icon">💬</span>
-                <span className="mode-tab-title">Chat & Reasoning</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-tab-btn ${workspaceMode === 'image' ? 'active' : ''}`}
-                onClick={() => setWorkspaceMode('image')}
-              >
-                <span className="mode-tab-icon">🎨</span>
-                <span className="mode-tab-title">Image Studio</span>
-                <span className="mode-pill-tag tag-free">Flux / SDXL</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-tab-btn ${workspaceMode === 'video' ? 'active' : ''}`}
-                onClick={() => setWorkspaceMode('video')}
-              >
-                <span className="mode-tab-icon">🎬</span>
-                <span className="mode-tab-title">Video Studio</span>
-                <span className="mode-pill-tag tag-pro">Kling / Wan</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-tab-btn ${workspaceMode === 'agent' ? 'active' : ''}`}
-                onClick={() => setWorkspaceMode('agent')}
-              >
-                <span className="mode-tab-icon">⚡</span>
-                <span className="mode-tab-title">Autonomous Agent</span>
-                <span className="mode-pill-tag tag-agent">Tools & Plan</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-tab-btn ${browseEnabled ? 'active' : ''}`}
-                onClick={() => setBrowseEnabled(prev => !prev)}
-                title={browseEnabled ? 'Live Web Search: Active (Click to toggle)' : 'Enable Live Web Search & News Grounding'}
-              >
-                <span className="mode-tab-icon">🌐</span>
-                <span className="mode-tab-title">Live Web & News</span>
-                <span className={`mode-pill-tag ${browseEnabled ? 'tag-free' : 'tag-pro'}`}>
-                  {browseEnabled ? 'ON' : 'AUTO'}
-                </span>
-              </button>
-            </div>
+            {/* Active Mode & Tool Chips (Compact dismissible bar above input) */}
+            {(workspaceMode !== 'chat' || browseEnabled) && (
+              <div className="composer-active-mode-bar">
+                {workspaceMode === 'image' && (
+                  <div className="active-mode-chip-group">
+                    <span className="active-mode-chip chip-image">
+                      <span className="chip-icon">🎨</span>
+                      <span className="chip-label">Image Studio</span>
+                      <span className="chip-sub">Flux / SDXL</span>
+                      <button
+                        type="button"
+                        className="chip-close-btn"
+                        onClick={() => setWorkspaceMode('chat')}
+                        title="Switch back to Chat & Reasoning"
+                        aria-label="Close Image Studio"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                    <div className="active-mode-quick-settings">
+                      <div className="subbar-group">
+                        <span className="subbar-label">Ratio:</span>
+                        {['1:1', '16:9', '9:16', '4:3'].map(ar => (
+                          <button
+                            key={ar}
+                            type="button"
+                            className={`subbar-pill ${imageAspectRatio === ar ? 'active' : ''}`}
+                            onClick={() => setImageAspectRatio(ar)}
+                          >
+                            {ar}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="subbar-group">
+                        <select
+                          className="subbar-select"
+                          value={imageModel}
+                          onChange={e => setImageModel(e.target.value)}
+                        >
+                          <option value="flux-schnell">Flux.1 Schnell (Fast & Free)</option>
+                          <option value="sdxl">Stable Diffusion XL</option>
+                          <option value="flux-dev">Flux.1 Dev</option>
+                          <option value="stable-diffusion-3.5-large">SD 3.5 Large</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-            {/* Mode-Specific Sub-Controls */}
-            {workspaceMode === 'image' && (
-              <div className="mode-subbar image-subbar">
-                <div className="subbar-group">
-                  <span className="subbar-label">Ratio:</span>
-                  {['1:1', '16:9', '9:16', '4:3'].map(ar => (
-                    <button
-                      key={ar}
-                      type="button"
-                      className={`subbar-pill ${imageAspectRatio === ar ? 'active' : ''}`}
-                      onClick={() => setImageAspectRatio(ar)}
-                    >
-                      {ar}
-                    </button>
-                  ))}
-                </div>
-                <div className="subbar-group">
-                  <span className="subbar-label">Model:</span>
-                  <select
-                    className="subbar-select"
-                    value={imageModel}
-                    onChange={e => setImageModel(e.target.value)}
-                  >
-                    <option value="flux-schnell">Flux.1 Schnell (Fast & Free)</option>
-                    <option value="sdxl">Stable Diffusion XL (Photorealistic)</option>
-                    <option value="flux-dev">Flux.1 Dev (Maximum Detail)</option>
-                    <option value="stable-diffusion-3.5-large">SD 3.5 Large</option>
-                  </select>
-                </div>
-              </div>
-            )}
+                {workspaceMode === 'video' && (
+                  <div className="active-mode-chip-group">
+                    <span className="active-mode-chip chip-video">
+                      <span className="chip-icon">🎬</span>
+                      <span className="chip-label">Video Studio</span>
+                      <span className="chip-sub">Veo 2 / Kling</span>
+                      <button
+                        type="button"
+                        className="chip-close-btn"
+                        onClick={() => setWorkspaceMode('chat')}
+                        title="Switch back to Chat & Reasoning"
+                        aria-label="Close Video Studio"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                    <div className="active-mode-quick-settings">
+                      <div className="subbar-group">
+                        <span className="subbar-label">Duration:</span>
+                        {[5, 10].map(dur => (
+                          <button
+                            key={dur}
+                            type="button"
+                            className={`subbar-pill ${videoDuration === dur ? 'active' : ''}`}
+                            onClick={() => setVideoDuration(dur)}
+                          >
+                            {dur}s
+                          </button>
+                        ))}
+                      </div>
+                      <div className="subbar-group">
+                        <span className="subbar-label">Ratio:</span>
+                        {['16:9', '9:16'].map(ar => (
+                          <button
+                            key={ar}
+                            type="button"
+                            className={`subbar-pill ${videoAspectRatio === ar ? 'active' : ''}`}
+                            onClick={() => setVideoAspectRatio(ar)}
+                          >
+                            {ar}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="subbar-group">
+                        <select
+                          className="subbar-select"
+                          value={videoModel}
+                          onChange={e => setVideoModel(e.target.value)}
+                        >
+                          <option value="kling-video-v1">Kling Video V1</option>
+                          <option value="wan-2.1-video">Wan 2.1 Video</option>
+                          <option value="luma-dream-machine">Luma Dream Machine</option>
+                          <option value="runway-gen3">Runway Gen-3 Alpha</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-            {workspaceMode === 'video' && (
-              <div className="mode-subbar video-subbar">
-                <div className="subbar-group">
-                  <span className="subbar-label">Duration:</span>
-                  {[5, 10].map(dur => (
-                    <button
-                      key={dur}
-                      type="button"
-                      className={`subbar-pill ${videoDuration === dur ? 'active' : ''}`}
-                      onClick={() => setVideoDuration(dur)}
-                    >
-                      {dur}s
-                    </button>
-                  ))}
-                </div>
-                <div className="subbar-group">
-                  <span className="subbar-label">Ratio:</span>
-                  {['16:9', '9:16'].map(ar => (
-                    <button
-                      key={ar}
-                      type="button"
-                      className={`subbar-pill ${videoAspectRatio === ar ? 'active' : ''}`}
-                      onClick={() => setVideoAspectRatio(ar)}
-                    >
-                      {ar}
-                    </button>
-                  ))}
-                </div>
-                <div className="subbar-group">
-                  <span className="subbar-label">Model:</span>
-                  <select
-                    className="subbar-select"
-                    value={videoModel}
-                    onChange={e => setVideoModel(e.target.value)}
-                  >
-                    <option value="kling-video-v1">Kling Video V1 (Cinematic)</option>
-                    <option value="wan-2.1-video">Wan 2.1 Video (Smooth Motion)</option>
-                    <option value="luma-dream-machine">Luma Dream Machine</option>
-                    <option value="runway-gen3">Runway Gen-3 Alpha</option>
-                  </select>
-                </div>
-              </div>
-            )}
+                {workspaceMode === 'agent' && (
+                  <div className="active-mode-chip-group">
+                    <span className="active-mode-chip chip-agent">
+                      <span className="chip-icon">⚡</span>
+                      <span className="chip-label">Autonomous Agent</span>
+                      <span className="chip-sub">Tools & CoT</span>
+                      <button
+                        type="button"
+                        className="chip-close-btn"
+                        onClick={() => setWorkspaceMode('chat')}
+                        title="Switch back to Chat & Reasoning"
+                        aria-label="Close Autonomous Agent"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                    <span className="subbar-feature-badge">✓ 4-Phase CoT Execution Plan</span>
+                  </div>
+                )}
 
-            {workspaceMode === 'agent' && (
-              <div className="mode-subbar agent-subbar">
-                <span className="subbar-feature-badge">✓ 4-Phase CoT Execution Plan</span>
-                <span className="subbar-feature-badge">✓ OpenAI Tools & Function Calling</span>
-                <span className="subbar-feature-badge">✓ Architecture & Code Synthesis</span>
+                {browseEnabled && (
+                  <span className="active-mode-chip chip-browse">
+                    <span className="chip-icon">🌐</span>
+                    <span className="chip-label">Live Web Search</span>
+                    <span className="chip-sub">ON</span>
+                    <button
+                      type="button"
+                      className="chip-close-btn"
+                      onClick={() => setBrowseEnabled(false)}
+                      title="Turn off forced Web Search"
+                      aria-label="Disable Web Search"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
               </div>
             )}
 
             <div className="composer-input-row">
-              <button
-                type="button"
-                className="composer-action-btn attach-action-btn"
-                onClick={() => fileInputRef.current?.click()}
-                title="Upload document, photo, or video"
-                aria-label="Upload document, photo, or video"
-              >
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
+              {/* Single Modern Plus Button with Floating Features Popover */}
+              <div className="composer-plus-wrapper" ref={plusMenuRef}>
+                <button
+                  type="button"
+                  className={`composer-plus-btn ${plusMenuOpen ? 'is-open' : ''}`}
+                  onClick={() => setPlusMenuOpen(prev => !prev)}
+                  title="Features & tools (Modes, Attachments, Web Search)"
+                  aria-label="Features and tools"
+                  aria-expanded={plusMenuOpen}
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
 
-              <button
-                type="button"
-                className={`composer-action-btn browse-toggle-btn ${browseEnabled ? 'browse-active' : ''}`}
-                onClick={() => setBrowseEnabled(prev => !prev)}
-                title={browseEnabled ? 'Live Web Search: Force ON' : 'Live Web Search: Auto-Grounding Active'}
-                aria-pressed={browseEnabled}
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="2" y1="12" x2="22" y2="12" />
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                </svg>
-                <span className="browse-toggle-text">Search: {browseEnabled ? 'ON' : 'Auto'}</span>
-                {browseEnabled && <span className="browse-active-dot" />}
-              </button>
+                {plusMenuOpen && (
+                  <div className="composer-plus-menu" role="menu" aria-label="Composer features and workspace tools">
+                    <div className="plus-menu-section-label">WORKSPACE MODE</div>
+                    <button
+                      type="button"
+                      className={`plus-menu-item ${workspaceMode === 'chat' ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setWorkspaceMode('chat');
+                        setPlusMenuOpen(false);
+                      }}
+                    >
+                      <span className="plus-menu-item-icon">💬</span>
+                      <div className="plus-menu-item-text">
+                        <div className="plus-menu-item-title">
+                          <span>Chat & Reasoning</span>
+                          {workspaceMode === 'chat' && <span className="plus-menu-check">✓</span>}
+                        </div>
+                        <span className="plus-menu-item-desc">Multi-turn conversation & deep reasoning</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`plus-menu-item ${workspaceMode === 'image' ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setWorkspaceMode('image');
+                        setPlusMenuOpen(false);
+                      }}
+                    >
+                      <span className="plus-menu-item-icon">🎨</span>
+                      <div className="plus-menu-item-text">
+                        <div className="plus-menu-item-title">
+                          <span>Image Studio</span>
+                          <span className="plus-menu-badge badge-free">Flux / SDXL</span>
+                          {workspaceMode === 'image' && <span className="plus-menu-check">✓</span>}
+                        </div>
+                        <span className="plus-menu-item-desc">Generate AI images from text prompts</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`plus-menu-item ${workspaceMode === 'video' ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setWorkspaceMode('video');
+                        setPlusMenuOpen(false);
+                      }}
+                    >
+                      <span className="plus-menu-item-icon">🎬</span>
+                      <div className="plus-menu-item-text">
+                        <div className="plus-menu-item-title">
+                          <span>Video Studio</span>
+                          <span className="plus-menu-badge badge-pro">Veo 2 / Kling</span>
+                          {workspaceMode === 'video' && <span className="plus-menu-check">✓</span>}
+                        </div>
+                        <span className="plus-menu-item-desc">Generate AI video & motion clips</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`plus-menu-item ${workspaceMode === 'agent' ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setWorkspaceMode('agent');
+                        setPlusMenuOpen(false);
+                      }}
+                    >
+                      <span className="plus-menu-item-icon">⚡</span>
+                      <div className="plus-menu-item-text">
+                        <div className="plus-menu-item-title">
+                          <span>Autonomous Agent</span>
+                          <span className="plus-menu-badge badge-agent">Tools & Plan</span>
+                          {workspaceMode === 'agent' && <span className="plus-menu-check">✓</span>}
+                        </div>
+                        <span className="plus-menu-item-desc">Multi-step autonomous execution</span>
+                      </div>
+                    </button>
+
+                    <div className="plus-menu-divider" />
+
+                    <div className="plus-menu-section-label">TOOLS & ATTACHMENTS</div>
+                    <button
+                      type="button"
+                      className="plus-menu-item"
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                        setPlusMenuOpen(false);
+                      }}
+                    >
+                      <span className="plus-menu-item-icon">📎</span>
+                      <div className="plus-menu-item-text">
+                        <div className="plus-menu-item-title">
+                          <span>Upload File / Media</span>
+                        </div>
+                        <span className="plus-menu-item-desc">Attach photos, documents, code, or video</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`plus-menu-item ${browseEnabled ? 'is-active-tool' : ''}`}
+                      onClick={() => {
+                        setBrowseEnabled(prev => !prev);
+                        setPlusMenuOpen(false);
+                      }}
+                    >
+                      <span className="plus-menu-item-icon">🌐</span>
+                      <div className="plus-menu-item-text">
+                        <div className="plus-menu-item-title">
+                          <span>Live Web Search</span>
+                          <span className={`plus-menu-toggle-state ${browseEnabled ? 'state-on' : 'state-auto'}`}>
+                            {browseEnabled ? 'ON' : 'AUTO'}
+                          </span>
+                        </div>
+                        <span className="plus-menu-item-desc">Real-time web search and citation grounding</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <textarea
                 value={input}
