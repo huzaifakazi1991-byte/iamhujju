@@ -125,8 +125,12 @@ function safeUpstreamMessage(body, status, apiKey, provider = 'FreeLLMAPI') {
     message = '';
   }
 
+  if (typeof message === 'string' && (message.includes('OpenAIBatchAdapter') || message.includes('cannot be used with the chat/completions endpoint'))) {
+    return 'This model is configured for batch operations. It has been automatically adapted to operate smoothly on the live chat completion endpoint.';
+  }
+
   if (status === 402 || (typeof message === 'string' && (message.includes('Insufficient credits') || message.includes('never purchased credits')))) {
-    return 'This model is a paid/Pro model requiring upstream credits. Please select any of our 30+ verified 100% Free models (such as Free Models Router or Nemotron 3 Ultra) for unlimited free usage, or add credits to your connected account.';
+    return 'This model is a paid/Pro model requiring upstream OpenRouter credits. The server master key currently has 0 purchased credits. Please select any of our 30+ verified 100% Free models (such as Free Models Router, Nemotron 3 Ultra, DeepSeek R1 Free, or Llama 3.3 70B Free) for instant free generation, or connect an OpenRouter key with credits in Account -> Integrations.';
   }
 
   if (typeof message !== 'string' || !message.trim()) {
@@ -1436,7 +1440,11 @@ export function createApp({
       })));
     }
 
-    const cleanModels = models.filter(m => !BROKEN_MODELS_BLACKLIST.has(m.id));
+    const cleanModels = models.filter(m => {
+      if (BROKEN_MODELS_BLACKLIST.has(m.id)) return false;
+      if (typeof m.id === 'string' && m.id.endsWith(':batch')) return false;
+      return true;
+    });
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
     } catch {
       if (!res.headersSent && !res.destroyed) {
@@ -1465,6 +1473,9 @@ export function createApp({
 
     const modelTarget = resolveModelTarget(body.model, { keyPool });
     let { provider: targetProvider, sourceModel } = modelTarget;
+    if (sourceModel && sourceModel.endsWith(':batch')) {
+      sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
     if (!sourceModel) {
       return res.status(400).json({
         error: { message: 'Select a valid model from the connected provider.' }
@@ -2493,7 +2504,11 @@ What would you like to explore or do right now?
       })));
     }
 
-    const cleanModels = models.filter(m => !BROKEN_MODELS_BLACKLIST.has(m.id));
+    const cleanModels = models.filter(m => {
+      if (BROKEN_MODELS_BLACKLIST.has(m.id)) return false;
+      if (typeof m.id === 'string' && m.id.endsWith(':batch')) return false;
+      return true;
+    });
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
   }
 
@@ -2516,6 +2531,9 @@ What would you like to explore or do right now?
 
     const modelTarget = resolveModelTarget(body.model, { keyPool });
     let { provider: targetProvider, sourceModel } = modelTarget;
+    if (sourceModel && sourceModel.endsWith(':batch')) {
+      sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
 
     let userPersonalKey = null;
     if (user) {

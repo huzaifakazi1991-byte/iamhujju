@@ -172,7 +172,11 @@ export const PROVIDER_FALLBACK_MODELS = {
 
 // Compute 2-3 fallback models across providers for seamless zero-downtime retry
 export function computeFallbackChain(provider, modelId) {
-  const norm = (modelId || '').toLowerCase();
+  let cleanId = modelId || '';
+  if (typeof cleanId === 'string' && cleanId.endsWith(':batch')) {
+    cleanId = cleanId.slice(0, -':batch'.length);
+  }
+  const norm = cleanId.toLowerCase();
   const chain = [];
 
   // 1. Llama 3.3 / Llama family
@@ -188,11 +192,12 @@ export function computeFallbackChain(provider, modelId) {
     if (provider !== 'electronhub') chain.push({ provider: 'electronhub', model: 'deepseek-r1' });
     if (provider !== 'freemodel') chain.push({ provider: 'freemodel', model: 'deepseek-v3' });
   }
-  // 3. GPT-4o / GPT-4o Mini
-  else if (norm.includes('gpt-4o') || norm.includes('openai')) {
+  // 3. GPT-4o / GPT-4o Mini / OpenAI / Astra models
+  else if (norm.includes('gpt') || norm.includes('openai') || norm.includes('astra')) {
+    chain.push({ provider: 'openrouter', model: 'openrouter/free' });
+    chain.push({ provider: 'openrouter', model: 'nvidia/nemotron-3-ultra:free' });
+    if (provider !== 'groq') chain.push({ provider: 'groq', model: 'llama-3.3-70b-versatile' });
     if (provider !== 'electronhub') chain.push({ provider: 'electronhub', model: 'gpt-4o-mini' });
-    if (provider !== 'freemodel') chain.push({ provider: 'freemodel', model: 'gpt-4o' });
-    if (provider !== 'openrouter') chain.push({ provider: 'openrouter', model: 'openai/gpt-4o-mini' });
   }
   // 4. Gemini models
   else if (norm.includes('gemini')) {
@@ -229,7 +234,11 @@ export function resolveModelTarget(modelName, { keyPool = null } = {}) {
     };
   }
 
-  const trimmed = modelName.trim();
+  let trimmed = modelName.trim();
+  const isBatch = trimmed.endsWith(':batch');
+  if (isBatch) {
+    trimmed = trimmed.slice(0, -':batch'.length);
+  }
   const norm = trimmed.toLowerCase();
 
   // 1. Universal aliases: auto, default, free
@@ -258,10 +267,14 @@ export function resolveModelTarget(modelName, { keyPool = null } = {}) {
 
   // 2. OpenRouter explicit prefix: openrouter:model_id
   if (trimmed.startsWith('openrouter:')) {
-    const sourceModel = trimmed.slice('openrouter:'.length);
+    let sourceModel = trimmed.slice('openrouter:'.length);
+    if (sourceModel.endsWith(':batch')) {
+      sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
     return {
       provider: 'openrouter',
       sourceModel,
+      isBatchAdapter: isBatch,
       fallbackChain: computeFallbackChain('openrouter', sourceModel)
     };
   }
@@ -365,10 +378,15 @@ export function resolveModelTarget(modelName, { keyPool = null } = {}) {
 
   // 5. Any model ID containing '/' is treated as an OpenRouter-hosted model
   if (trimmed.includes('/')) {
+    let sourceModel = trimmed;
+    if (sourceModel.endsWith(':batch')) {
+      sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
     return {
       provider: 'openrouter',
-      sourceModel: trimmed,
-      fallbackChain: computeFallbackChain('openrouter', trimmed)
+      sourceModel,
+      isBatchAdapter: isBatch,
+      fallbackChain: computeFallbackChain('openrouter', sourceModel)
     };
   }
 
@@ -385,8 +403,12 @@ export function resolveModelTarget(modelName, { keyPool = null } = {}) {
 
 // Parameter Sanitization & Protocol Adapter Layer
 export function sanitizePayloadForModel(provider, modelId, body, options = {}) {
-  const norm = (modelId || '').toLowerCase();
-  const sanitized = { ...body, model: modelId };
+  let cleanModelId = modelId || '';
+  if (typeof cleanModelId === 'string' && cleanModelId.endsWith(':batch')) {
+    cleanModelId = cleanModelId.slice(0, -':batch'.length);
+  }
+  const norm = cleanModelId.toLowerCase();
+  const sanitized = { ...body, model: cleanModelId };
 
   // 1. System Role Translation for Reasoning Models that reject 'system' prompt
   const isReasoningModel = norm.includes('r1') ||

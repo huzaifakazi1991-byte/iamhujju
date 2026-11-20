@@ -1125,14 +1125,14 @@ function App() {
 
     const markdown = messages
       .map(message => {
-        const speaker = message.role === 'user' ? 'You' : 'iamhujju';
+        const speaker = message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers';
         return `## ${speaker}\n\n${message.content}`;
       })
       .join('\n\n---\n\n');
 
     const plainText = messages
       .map(message => {
-        const speaker = message.role === 'user' ? 'You' : 'iamhujju';
+        const speaker = message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers';
         return `${speaker}\n\n${message.content}`;
       })
       .join('\n\n------------------------------\n\n');
@@ -1155,7 +1155,7 @@ function App() {
         })[character]);
 
       const printableContent = messages.map(message => {
-        const speaker = message.role === 'user' ? 'You' : 'iamhujju';
+        const speaker = message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers';
 
         return `
           <section class="message">
@@ -1171,7 +1171,7 @@ function App() {
         <html>
           <head>
             <meta charset="UTF-8">
-            <title>iamhujju Workspace Conversation</title>
+            <title>Ratnagiri_Enterprenuers Workspace Conversation</title>
             <style>
               body {
                 font-family: Arial, sans-serif;
@@ -1221,7 +1221,7 @@ function App() {
             <div class="toolbar">
               <button onclick="window.print()">Print / Save as PDF</button>
             </div>
-            <h1>iamhujju Workspace Conversation</h1>
+            <h1>Ratnagiri_Enterprenuers Workspace Conversation</h1>
             ${printableContent}
           </body>
         </html>
@@ -1232,7 +1232,7 @@ function App() {
     const isText = format === 'txt';
     const content = isText
       ? plainText
-      : `# iamhujju Workspace Conversation\n\n${markdown}`;
+      : `# Ratnagiri_Enterprenuers Workspace Conversation\n\n${markdown}`;
 
     const blob = new Blob(
       [content],
@@ -1313,7 +1313,7 @@ function App() {
     return {
       name: found.name || found.id,
       isFree: isModelFree(found),
-      tag: isModelFree(found) ? '100% Free' : 'Pro (BYOK)'
+      tag: isModelFree(found) ? '100% Free' : 'Pro (Requires Credits)'
     };
   }, [chatModelOptions, selectedModel, isModelFree]);
 
@@ -1516,11 +1516,11 @@ function App() {
           className="brand brand-btn"
           type="button"
           onClick={() => navigateToView('home')}
-          title="Return to iamhujju Explore"
-          aria-label="Return to iamhujju Explore"
+          title="Return to Ratnagiri_Enterprenuers Explore"
+          aria-label="Return to Ratnagiri_Enterprenuers Explore"
         >
           <div className="brand-icon">
-            <img src="/mascot.jpg" alt="iamhujju mascot" className="brand-mascot-img" />
+            <img src="/mascot.jpg" alt="Ratnagiri_Enterprenuers mascot" className="brand-mascot-img" />
           </div>
           <div>
             <h2>Ratnagiri_Enterprenuers</h2>
@@ -1560,7 +1560,7 @@ function App() {
             <span className={connected ? 'status-dot online' : 'status-dot'} />
             {connected ? 'API Connected' : 'API Disconnected'}
           </div>
-          <span className="version">iamhujju AI Workspace · v2.0</span>
+          <span className="version">Ratnagiri_Enterprenuers AI Workspace · v2.0</span>
         </div>
       </aside>
 
@@ -1572,9 +1572,9 @@ function App() {
                 className="topbar-brand-title"
                 type="button"
                 onClick={() => navigateToView('home')}
-                title="Return to iamhujju Explore"
+                title="Return to Ratnagiri_Enterprenuers Explore"
               >
-                iamhujju
+                Ratnagiri_Enterprenuers
               </button>
               <span className="top-subtitle">Your Personal AI Workspace</span>
             </div>
@@ -1743,7 +1743,7 @@ function App() {
                   <div className="message-content">
 
                     <strong>
-                      {message.role === 'user' ? 'You' : 'iamhujju'}
+                      {message.role === 'user' ? 'You' : 'Ratnagiri_Enterprenuers'}
                     </strong>
                     {/* Attached Photos, Videos, and Documents */}
                     {message.attachments && message.attachments.length > 0 && (
@@ -1868,7 +1868,26 @@ function App() {
         {storageError && (
           <div className="storage-warning" role="alert">{storageError}</div>
         )}
-        {error && <div className="error-message" role="alert">{error}</div>}
+        {error && (
+          <div className="error-message enhanced-error-banner" role="alert">
+            <div className="error-text-content">
+              <span className="error-icon">⚠️</span>
+              <span>{error}</span>
+            </div>
+            {(error.toLowerCase().includes('credit') || error.toLowerCase().includes('paid') || error.toLowerCase().includes('pro model') || error.toLowerCase().includes('402')) && (
+              <button
+                type="button"
+                className="error-action-btn switch-to-free-btn"
+                onClick={() => {
+                  setSelectedModel(getAutoFreeModelId());
+                  setError('');
+                }}
+              >
+                ⚡ Switch to 100% Free Model & Continue
+              </button>
+            )}
+          </div>
+        )}
 
         <footer className="composer-area">
           {browseEnabled && (
