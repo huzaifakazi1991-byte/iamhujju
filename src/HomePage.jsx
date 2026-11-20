@@ -1163,13 +1163,9 @@ function HomePage({
                 <div className="any-mascot-inner-container">
                   <img
                     src="/iamhujju-mascot.jpg"
-                    alt="iamhujju mascot - Your AI Companion"
+                    alt="iamhujju mascot"
                     className="any-mascot-visual"
                   />
-                  <div className="any-mascot-badge">
-                    <span className="any-mascot-pulse" />
-                    <span>AI Companion Online</span>
-                  </div>
                 </div>
               </div>
             </div>
