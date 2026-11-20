@@ -226,7 +226,7 @@ export default function ModelSwitcherModal({
                     {isFree ? (
                       <span className="badge-free">100% Free</span>
                     ) : (
-                      <span className="badge-pro">Pro Model</span>
+                      <span className="badge-pro">Pro (BYOK)</span>
                     )}
                   </div>
 

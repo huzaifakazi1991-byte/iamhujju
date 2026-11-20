@@ -1,0 +1,322 @@
+[
+  {
+    "id": "openrouter:inclusionai/ling-3.2-flash:free",
+    "name": "inclusionAI: Ling 3.2 Flash (free)",
+    "provider": "openrouter",
+    "status": "FAILED",
+    "httpStatus": 429,
+    "error": "Provider returned error"
+  },
+  {
+    "id": "openrouter:baidu/ernie-5.5-flash-preview:free",
+    "name": "Baidu: ERNIE-5.5-Flash-Preview (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 3059,
+    "sampleOutput": "We need to respond to user: \"Say \"Antigravity works!\" in 2 words.\" Need final exactly two words? The"
+  },
+  {
+    "id": "openrouter:liquid/lfm-3-1.7b:free",
+    "name": "LiquidAI: LFM3-1.7B (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 22667,
+    "sampleOutput": "We need to say \"Antigravity works!\" in 2 words. The phrase is three words: \"Antigravity\" (one word) "
+  },
+  {
+    "id": "openrouter:particle-ai/particle-1:free",
+    "name": "Particle AI: Particle-1 (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 1504,
+    "sampleOutput": "We need answer in 2 words saying \"Antigravity works!\" Need compressed to two words. Need preserve me"
+  },
+  {
+    "id": "openrouter:recursive/flint-v1.0:free",
+    "name": "Recursive: Flint (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 1831,
+    "sampleOutput": "1.  The user asks to say \"Antigravity works!\" in 2 words. 2.  The phrase \"Antigravity works!\" is 3 w"
+  },
+  {
+    "id": "openrouter:nvidia/nemotron-3.5-super-vl:free",
+    "name": "NVIDIA: Nemotron 3.5 Super VL (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 1005,
+    "sampleOutput": "The user wants me to say \"Antigravity works!\" in 2 words.  \"Antigravity works!\" is 2 words already ("
+  },
+  {
+    "id": "openrouter:dots-studio/dots-3-note-preview:free",
+    "name": "Dots Studio: Dots3-Note Preview (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 3225,
+    "sampleOutput": "First, the user says: \"Say 'Antigravity works!' in 2 words.\" So, I need to respond with exactly two "
+  },
+  {
+    "id": "openrouter:nvidia/nemotron-3.5-lightning:free",
+    "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 894,
+    "sampleOutput": "Here's a thinking process:  1.  **Analyze User Input:**    - User says: \"Say 'Antigravity works!' in"
+  },
+  {
+    "id": "openrouter:nvidia/nemotron-3-ultra-550b-a55b:free",
+    "name": "NVIDIA: Nemotron 3 Ultra (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 2339,
+    "sampleOutput": "Antigravity works!"
+  },
+  {
+    "id": "openrouter:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "name": "NVIDIA: Nemotron 3 Nano Omni (free)",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 1258,
+    "sampleOutput": "User asks: \"Say 'Antigravity works!' in 2 words.\" So they want a phrase that is two words, presumabl"
+  },
+  {
+    "id": "openrouter:google/gemma-4-26b-a4b-it:free",
+    "name": "Google: Gemma 4 26B A4B  (free)",
+    "provider": "openrouter",
+    "status": "FAILED",
+    "httpStatus": 429,
+    "error": "Provider returned error"
+  },
+  {
+    "id": "openrouter:google/gemma-4-31b-it:free",
+    "name": "Google: Gemma 4 31B (free)",
+    "provider": "openrouter",
+    "status": "FAILED",
+    "httpStatus": 429,
+    "error": "Provider returned error"
+  },
+  {
+    "id": "openrouter:google/lyria-3-pro-preview",
+    "name": "Google: Lyria 3 Pro Preview",
+    "provider": "openrouter",
+    "status": "FAILED",
+    "httpStatus": 402,
+    "error": "Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits"
+  },
+  {
+    "id": "openrouter:google/lyria-3-clip-preview",
+    "name": "Google: Lyria 3 Clip Preview",
+    "provider": "openrouter",
+    "status": "FAILED",
+    "httpStatus": 402,
+    "error": "Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits"
+  },
+  {
+    "id": "openrouter:openrouter/auto",
+    "name": "Auto Router",
+    "provider": "openrouter",
+    "status": "FAILED",
+    "httpStatus": 402,
+    "error": "Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits"
+  },
+  {
+    "id": "openrouter:openrouter/free",
+    "name": "Free Models Router",
+    "provider": "openrouter",
+    "status": "WORKING",
+    "latencyMs": 1407,
+    "sampleOutput": "The user wants me to say \"Antigravity works!\" in 2 words. The phrase has 2 words already if we count"
+  },
+  {
+    "id": "electronhub:gpt-oss-20b:free",
+    "name": "OpenAI: GPT OSS 20B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1594,
+    "sampleOutput": "The user wants the phrase \"Antigravity works!\" said in exactly 2 words.  Original phrase: \"Antigravi"
+  },
+  {
+    "id": "electronhub:gpt-oss-120b:free",
+    "name": "OpenAI: GPT OSS 120B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 12743,
+    "sampleOutput": "The user asks: \"Say 'Antigravity works!' in 2 words.\"  We need to produce a 2-word phrase that conve"
+  },
+  {
+    "id": "electronhub:gemma-4-26b-a4b-it:free",
+    "name": "Google: Gemma 4 26B A4B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1700,
+    "sampleOutput": "Here's a thinking process:  1.  **Analyze User Input:**    - User says: \"Say 'Antigravity works!' in"
+  },
+  {
+    "id": "electronhub:gemma-4-31b-it:free",
+    "name": "Google: Gemma 4 31B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 2995,
+    "sampleOutput": "We need answer user: \"Say \"Antigravity works!\" in 2 words.\" Need likely output exactly two words? Th"
+  },
+  {
+    "id": "electronhub:gemma-4-uncensored:free",
+    "name": "Google: Gemma 4 Uncensored (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1691,
+    "sampleOutput": "The user asks: \"Say 'Antigravity works!' in 2 words.\"  We need to produce a 2-word phrase that conve"
+  },
+  {
+    "id": "electronhub:nemotron-3.5-lightning:free",
+    "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1757,
+    "sampleOutput": "The user asks: \"Say 'Antigravity works!' in 2 words.\"  We need to produce a 2-word phrase that conve"
+  },
+  {
+    "id": "electronhub:deepseek-v3.2:free",
+    "name": "DeepSeek: DeepSeek V3.2 (free)",
+    "provider": "electronhub",
+    "status": "FAILED",
+    "httpStatus": 403,
+    "error": "To prevent abuse and high traffic on free models, phone verification is required. Visit https://app.electronhub.ai → Settings → Security → Identity Verification to verify your account."
+  },
+  {
+    "id": "electronhub:deepseek-v4.1-flash:free",
+    "name": "DeepSeek: DeepSeek V4.1 Flash (free)",
+    "provider": "electronhub",
+    "status": "FAILED",
+    "httpStatus": 403,
+    "error": "To prevent abuse and high traffic on free models, phone verification is required. Visit https://app.electronhub.ai → Settings → Security → Identity Verification to verify your account."
+  },
+  {
+    "id": "electronhub:ministral-3-8b-instruct:free",
+    "name": "Mistral: Ministral 3 8B Instruct (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 3247,
+    "sampleOutput": "First, the user says: \"Say 'Antigravity works!' in 2 words.\" So, I need to respond with exactly two "
+  },
+  {
+    "id": "electronhub:mistral-small-3.2-24b-instruct:free",
+    "name": "Mistral: Mistral Small 3.2 24B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1806,
+    "sampleOutput": "We need answer. User asks: Say \"Antigravity works!\" in 2 words. Need likely just two words. Could be"
+  },
+  {
+    "id": "electronhub:minimax-m2.7:free",
+    "name": "MiniMax: MiniMax M2.7 (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1524,
+    "sampleOutput": "Here's a thinking process:  1.  **Analyze User Input:**    - User says: \"Say 'Antigravity works!' in"
+  },
+  {
+    "id": "electronhub:qwen3-coder-30-a3b-instruct:free",
+    "name": "Alibaba: Qwen3 Coder 30B A3B Instruct (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1944,
+    "sampleOutput": "Antigravity works!"
+  },
+  {
+    "id": "electronhub:qwen3.6-27b:free",
+    "name": "Alibaba: Qwen3.6 27B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 2004,
+    "sampleOutput": "The user asks: \"Say 'Antigravity works!' in 2 words.\"  We need to produce a 2-word phrase that conve"
+  },
+  {
+    "id": "electronhub:qwen3.6-35b-a3b:free",
+    "name": "Alibaba: Qwen3.6 35B A3B (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1596,
+    "sampleOutput": "The user wants me to say \"Antigravity works!\" in exactly 2 words.  \"Antigravity works!\" is two words"
+  },
+  {
+    "id": "electronhub:qwen3.8-27b:free",
+    "name": "Alibaba: Qwen3.8 27B (Free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1809,
+    "sampleOutput": "We need to respond to user: \"Say \"Antigravity works!\" in 2 words.\" Need final answer 2 words. Must l"
+  },
+  {
+    "id": "electronhub:aion-3.0-mini:free",
+    "name": "AionLabs: Aion-3.0-Mini (Free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 4946,
+    "sampleOutput": "Antigravity works!"
+  },
+  {
+    "id": "electronhub:aion-3.0:free",
+    "name": "AionLabs: Aion-3.0 (Free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 8911,
+    "sampleOutput": "First, the user says: \"Say 'Antigravity works!' in 2 words.\" I need to respond with exactly two word"
+  },
+  {
+    "id": "electronhub:glm-4.6:free",
+    "name": "ZhipuAI: GLM 4.6 (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1705,
+    "sampleOutput": "We need answer. Need say \"Antigravity works!\" in 2 words. Need compress to two words while conveying"
+  },
+  {
+    "id": "electronhub:glm-4.7:free",
+    "name": "ZhipuAI: GLM 4.7 (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1680,
+    "sampleOutput": "User asks: \"Say 'Antigravity works!' in 2 words.\" So they want a phrase that is two words, presumabl"
+  },
+  {
+    "id": "electronhub:glm-4.7-flash:free",
+    "name": "ZhipuAI: GLM 4.7 Flash (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 3494,
+    "sampleOutput": "Antigravity works!"
+  },
+  {
+    "id": "electronhub:glm-5:free",
+    "name": "ZhipuAI: GLM 5 (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 1767,
+    "sampleOutput": "The user wants a four-word tagline for a sci-fi movie about antigravity. Must be four words. Should "
+  },
+  {
+    "id": "electronhub:glm-5.1:free",
+    "name": "ZhipuAI: GLM 5.1 (free)",
+    "provider": "electronhub",
+    "status": "FAILED",
+    "httpStatus": 403,
+    "error": "To prevent abuse and high traffic on free models, phone verification is required. Visit https://app.electronhub.ai → Settings → Security → Identity Verification to verify your account."
+  },
+  {
+    "id": "electronhub:glm-5.2:free",
+    "name": "ZhipuAI: GLM 5.2 (free)",
+    "provider": "electronhub",
+    "status": "WORKING",
+    "latencyMs": 2201,
+    "sampleOutput": "Antigravity works!"
+  },
+  {
+    "id": "electronhub:glm-5.3-flash:free",
+    "name": "ZhipuAI: GLM 5.3 Flash (free)",
+    "provider": "electronhub",
+    "status": "FAILED",
+    "httpStatus": 403,
+    "error": "To prevent abuse and high traffic on free models, phone verification is required. Visit https://app.electronhub.ai → Settings → Security → Identity Verification to verify your account."
+  }
+]

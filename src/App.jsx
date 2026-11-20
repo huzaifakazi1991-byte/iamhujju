@@ -556,28 +556,56 @@ function App() {
     const model = typeof modelOrId === 'string'
       ? models.find(m => m.id === modelOrId)
       : modelOrId;
-    if (model) {
-      const isFromConnectedProvider = currentUser?.connectedProviders?.some(p => model.id?.startsWith(`${p}:`));
-      if (isFromConnectedProvider) return true;
-      return Boolean(
-        model.isFree ||
-        model.tier === 'free' ||
-        model.id?.includes(':free') ||
-        model.id === 'openrouter:openrouter/free' ||
-        model.id === 'openrouter:openrouter/auto' ||
-        model.id === 'auto'
-      );
+    const id = typeof modelOrId === 'string' ? modelOrId : (model?.id || '');
+
+    // Exclude paid, variable-cost, audio, and broken models
+    if (
+      id === 'openrouter:openrouter/auto' ||
+      id === 'openrouter/auto' ||
+      id.includes('lyria') ||
+      id.includes('inclusionai/ling') ||
+      (id.includes('gemma-4-26b-a4b-it:free') && id.startsWith('openrouter')) ||
+      (id.includes('gemma-4-31b-it:free') && id.startsWith('openrouter')) ||
+      id === 'electronhub:deepseek-v3.2:free' ||
+      id === 'electronhub:deepseek-v4.1-flash:free' ||
+      id === 'electronhub:glm-5.1:free' ||
+      id === 'electronhub:glm-5.3-flash:free'
+    ) {
+      return false;
     }
-    const id = String(modelOrId);
-    const isFromConnectedProvider = currentUser?.connectedProviders?.some(p => id.startsWith(`${p}:`));
-    if (isFromConnectedProvider) return true;
-    return id.endsWith(':free') || id === 'openrouter:openrouter/free' || id === 'openrouter/free' || id === 'auto';
-  }, [models, currentUser]);
+
+    // Verified free routers
+    if (
+      id === 'openrouter:openrouter/free' ||
+      id === 'openrouter/free' ||
+      id === 'free-router' ||
+      id === 'auto'
+    ) {
+      return true;
+    }
+
+    // Models explicitly ending in :free
+    if (id.endsWith(':free')) {
+      return true;
+    }
+
+    if (model) {
+      if (model.isFree === true || model.tier === 'free') {
+        return true;
+      }
+      if (model.pricing && model.pricing.prompt === '0' && model.pricing.completion === '0') {
+        return true;
+      }
+    }
+
+    return false;
+  }, [models]);
 
   const getAutoFreeModelId = useCallback(() => {
     return (
       models.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free')?.id ||
-      models.find(m => m.id === 'openrouter:openrouter/auto' || m.id === 'openrouter/auto')?.id ||
+      models.find(m => m.id === 'free-router')?.id ||
+      models.find(m => m.id === 'auto')?.id ||
       models.find(isModelFree)?.id ||
       'openrouter:openrouter/free'
     );
@@ -1232,33 +1260,33 @@ function App() {
   const quickModels = useMemo(() => {
     const presets = [
       {
-        id: 'auto',
+        id: 'auto-free',
         label: '⚡ Auto Free Router',
-        match: m => m.id.includes('free') && (m.id.includes('openrouter') || m.id.includes('auto')),
-        fallbackId: chatModelOptions[0]?.id || 'openrouter:openrouter/free'
+        match: m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free' || m.id === 'free-router' || m.id === 'auto',
+        fallbackId: 'openrouter:openrouter/free'
       },
       {
-        id: 'deepseek-r1',
-        label: '🧠 DeepSeek R1',
-        match: m => m.id.toLowerCase().includes('deepseek-r1') || m.id.toLowerCase().includes('r1:free') || m.name?.toLowerCase().includes('r1'),
+        id: 'nemotron-ultra',
+        label: '🧠 Nemotron 3 Ultra (Free)',
+        match: m => m.id.includes('nemotron-3-ultra') || m.id.includes('nemotron-3-nano'),
         fallbackId: null
       },
       {
-        id: 'gemini-flash',
-        label: '⚡ Gemini 2.5 Flash',
-        match: m => m.id.toLowerCase().includes('gemini') && m.id.toLowerCase().includes('flash'),
-        fallbackId: null
-      },
-      {
-        id: 'llama-3.3',
-        label: '🦙 Llama 3.3 70B',
-        match: m => m.id.toLowerCase().includes('llama-3.3') || m.id.toLowerCase().includes('70b'),
+        id: 'gemma-4',
+        label: '⚡ Gemma 4 31B (Free)',
+        match: m => m.id === 'electronhub:gemma-4-31b-it:free' || (m.id.includes('gemma-4') && m.id.includes(':free') && !m.id.startsWith('openrouter')),
         fallbackId: null
       },
       {
         id: 'qwen-coder',
-        label: '💻 Qwen 2.5 Coder',
-        match: m => m.id.toLowerCase().includes('qwen') && (m.id.toLowerCase().includes('coder') || m.id.toLowerCase().includes('code')),
+        label: '💻 Qwen 3 Coder (Free)',
+        match: m => m.id.includes('qwen3-coder') || (m.id.includes('qwen') && m.id.includes('coder') && isModelFree(m)),
+        fallbackId: null
+      },
+      {
+        id: 'gpt-oss',
+        label: '🚀 GPT OSS 120B (Free)',
+        match: m => m.id.includes('gpt-oss-120b') || m.id.includes('gpt-oss-20b'),
         fallbackId: null
       }
     ];
@@ -1271,7 +1299,7 @@ function App() {
         available: Boolean(found || item.fallbackId)
       };
     }).filter(item => item.available);
-  }, [chatModelOptions]);
+  }, [chatModelOptions, isModelFree]);
 
   // Current active model display metadata
   const currentModelInfo = useMemo(() => {
@@ -1285,7 +1313,7 @@ function App() {
     return {
       name: found.name || found.id,
       isFree: isModelFree(found),
-      tag: isModelFree(found) ? '100% Free' : 'Pro Model'
+      tag: isModelFree(found) ? '100% Free' : 'Pro (BYOK)'
     };
   }, [chatModelOptions, selectedModel, isModelFree]);
 

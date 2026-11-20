@@ -25,6 +25,18 @@ import {
 
 dotenv.config();
 
+const BROKEN_MODELS_BLACKLIST = new Set([
+  'openrouter:google/lyria-3-pro-preview',
+  'openrouter:google/lyria-3-clip-preview',
+  'openrouter:inclusionai/ling-3.2-flash:free',
+  'openrouter:google/gemma-4-26b-a4b-it:free',
+  'openrouter:google/gemma-4-31b-it:free',
+  'electronhub:deepseek-v3.2:free',
+  'electronhub:deepseek-v4.1-flash:free',
+  'electronhub:glm-5.1:free',
+  'electronhub:glm-5.3-flash:free'
+]);
+
 const DEFAULT_API_BASE = 'http://127.0.0.1:31415/v1';
 const DEFAULT_OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const DEFAULT_TIMEOUT_MS = 180000;
@@ -111,6 +123,10 @@ function safeUpstreamMessage(body, status, apiKey, provider = 'FreeLLMAPI') {
       || data?.message;
   } catch {
     message = '';
+  }
+
+  if (status === 402 || (typeof message === 'string' && (message.includes('Insufficient credits') || message.includes('never purchased credits')))) {
+    return 'This model is a paid/Pro model requiring upstream credits. Please select any of our 30+ verified 100% Free models (such as Free Models Router or Nemotron 3 Ultra) for unlimited free usage, or add credits to your connected account.';
   }
 
   if (typeof message !== 'string' || !message.trim()) {
@@ -573,10 +589,17 @@ export function createApp({
 
   function openRouterModel(model) {
     const id = typeof model.id === 'string' ? model.id : '';
-    const isFree = id.endsWith(':free') ||
-      id === 'openrouter/free' ||
+    const isExcludedFromFree = id.includes('lyria') ||
       id === 'openrouter/auto' ||
-      (model.pricing?.prompt === '0' && model.pricing?.completion === '0');
+      id.includes('inclusionai/ling') ||
+      id.includes('gemma-4-26b-a4b-it:free') ||
+      id.includes('gemma-4-31b-it:free');
+
+    const isFree = !isExcludedFromFree && (
+      id.endsWith(':free') ||
+      id === 'openrouter/free' ||
+      (model.pricing?.prompt === '0' && model.pricing?.completion === '0')
+    );
 
     const idParts = id.split('/');
     const brandPrefix = (idParts[0] || '').toLowerCase();
@@ -697,7 +720,12 @@ export function createApp({
     else if (lower.includes('mistral') || lower.includes('mixtral') || lower.includes('codestral')) brand = 'Mistral';
     else if (lower.includes('qwen') || lower.includes('alibaba')) brand = 'Qwen';
 
-    const isFree = Boolean(
+    const isExcludedExternal = cleanId.includes('deepseek-v3.2') ||
+      cleanId.includes('deepseek-v4.1') ||
+      cleanId.includes('glm-5.1') ||
+      cleanId.includes('glm-5.3');
+
+    const isFree = !isExcludedExternal && Boolean(
       model.isFree ||
       cleanId.endsWith(':free') ||
       cleanId.includes('/free') ||
@@ -1408,7 +1436,8 @@ export function createApp({
       })));
     }
 
-    res.set('Cache-Control', 'no-store').json({ object: 'list', data: models });
+    const cleanModels = models.filter(m => !BROKEN_MODELS_BLACKLIST.has(m.id));
+    res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
     } catch {
       if (!res.headersSent && !res.destroyed) {
         res.status(502).json({
@@ -1503,7 +1532,7 @@ export function createApp({
     if (targetProvider === 'openrouter') {
       const isFreeModel = sourceModel.endsWith(':free') ||
         sourceModel === 'openrouter/free' ||
-        sourceModel === 'openrouter/auto';
+        false /* openrouter/auto is paid */;
 
       if (isFreeTierUsingServerKey && !isFreeModel) {
         return res.status(403).json({
@@ -2464,7 +2493,8 @@ What would you like to explore or do right now?
       })));
     }
 
-    res.set('Cache-Control', 'no-store').json({ object: 'list', data: models });
+    const cleanModels = models.filter(m => !BROKEN_MODELS_BLACKLIST.has(m.id));
+    res.set('Cache-Control', 'no-store').json({ object: 'list', data: cleanModels });
   }
 
   app.get(['/v1/models', '/v1/models/'], modelsRateLimiter, handleV1Models);
