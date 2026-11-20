@@ -121,17 +121,10 @@ export default function AccountMenu({
             type="button"
             onClick={() => {
               setOpen(false);
-              if (onOpenCheckout) {
-                onOpenCheckout({
-                  planId: 'pro',
-                  name: 'Pro Plan',
-                  amountInr: 8199,
-                  amountFormatted: '₹8,199 / mo',
-                  billingCycle: 'monthly',
-                  amountUsd: '$95.90'
-                });
-              } else if (onOpenPricing) {
+              if (onOpenPricing) {
                 onOpenPricing();
+              } else if (onOpenCheckout) {
+                onOpenCheckout('pro');
               }
             }}
           >

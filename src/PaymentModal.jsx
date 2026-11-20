@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './PaymentModal.css';
+import { resolvePlan } from './pricingConfig.js';
 
 async function loadRazorpayScript(retries = 2) {
   if (typeof window !== 'undefined' && window.Razorpay) {
@@ -40,15 +41,8 @@ export default function PaymentModal({
   const [utrNumber, setUtrNumber] = useState('');
   const [emailInput, setEmailInput] = useState(currentUser?.email || '');
 
-  // Default to Pro if no specific plan passed
-  const currentPlan = plan || {
-    planId: 'pro',
-    name: 'Pro Plan',
-    amountInr: 8199,
-    amountFormatted: '₹8,199 / mo',
-    billingCycle: 'monthly',
-    amountUsd: '$95.90'
-  };
+  // Resolve plan from single source of truth
+  const currentPlan = resolvePlan(plan || 'pro');
 
   const officialUpiId = '9975649957@mbk';
   const accountHolder = 'Huzaifa Kazi (iamhujju)';

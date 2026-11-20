@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import './DocsModal.css';
+import { resolvePlan } from './pricingConfig.js';
 
 function TabIcon({ name, size = 16 }) {
   if (name === 'check') {
@@ -433,14 +434,7 @@ iamhujju chat --stream`;
                       onClick={() => {
                         onClose();
                         if (onOpenCheckout) {
-                          onOpenCheckout({
-                            planId: 'payg',
-                            name: 'Pay-as-you-go',
-                            amountInr: 1699,
-                            amountFormatted: '₹1,699',
-                            billingCycle: 'once',
-                            amountUsd: 'From $20'
-                          });
+                          onOpenCheckout(resolvePlan('payg'));
                         } else if (currentUser) {
                           if (onOpenApiKeys) onOpenApiKeys();
                         } else {
@@ -518,14 +512,7 @@ iamhujju chat --stream`;
                       onClick={() => {
                         onClose();
                         if (onOpenCheckout) {
-                          onOpenCheckout({
-                            planId: 'developer',
-                            name: 'Developer Plan',
-                            amountInr: pricingBillingCycle === 'annual' ? 16308 : 1699,
-                            amountFormatted: pricingBillingCycle === 'annual' ? '₹16,308 (₹1,359/mo)' : '₹1,699 / mo',
-                            billingCycle: pricingBillingCycle,
-                            amountUsd: pricingBillingCycle === 'annual' ? '$15.90 / mo' : '$19.90 / mo'
-                          });
+                          onOpenCheckout(resolvePlan('developer', pricingBillingCycle));
                         } else if (currentUser) {
                           if (onOpenApiKeys) onOpenApiKeys();
                         } else {
@@ -608,14 +595,7 @@ iamhujju chat --stream`;
                       onClick={() => {
                         onClose();
                         if (onOpenCheckout) {
-                          onOpenCheckout({
-                            planId: 'pro',
-                            name: 'Pro Plan',
-                            amountInr: pricingBillingCycle === 'annual' ? 78708 : 8199,
-                            amountFormatted: pricingBillingCycle === 'annual' ? '₹78,708 (₹6,559/mo)' : '₹8,199 / mo',
-                            billingCycle: pricingBillingCycle,
-                            amountUsd: pricingBillingCycle === 'annual' ? '$76.70 / mo' : '$95.90 / mo'
-                          });
+                          onOpenCheckout(resolvePlan('pro', pricingBillingCycle));
                         } else if (currentUser) {
                           if (onOpenApiKeys) onOpenApiKeys();
                         } else {
@@ -690,14 +670,7 @@ iamhujju chat --stream`;
                       onClick={() => {
                         onClose();
                         if (onOpenCheckout) {
-                          onOpenCheckout({
-                            planId: 'enterprise',
-                            name: 'Enterprise Plan',
-                            amountInr: pricingBillingCycle === 'annual' ? 230388 : 23999,
-                            amountFormatted: pricingBillingCycle === 'annual' ? '₹230,388 (₹19,199/mo)' : '₹23,999 / mo',
-                            billingCycle: pricingBillingCycle,
-                            amountUsd: pricingBillingCycle === 'annual' ? '$223.90 / mo' : '$279.90 / mo'
-                          });
+                          onOpenCheckout(resolvePlan('enterprise', pricingBillingCycle));
                         } else if (onOpenContact) {
                           onOpenContact();
                         } else {

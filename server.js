@@ -12,6 +12,7 @@ import { createAccountStore, sessionMaxAgeSeconds } from './authStore.js';
 import { closeDatabase, getDatabasePool, migrateDatabase } from './database.js';
 import { createConversationStore } from './conversationStore.js';
 import Razorpay from 'razorpay';
+import { PRICING_PLANS, resolvePlan, CURRENCY } from './src/pricingConfig.js';
 
 dotenv.config();
 
@@ -1425,43 +1426,35 @@ What would you like to explore or do right now?
     });
   });
 
-  // Payment Plans & Razorpay / UPI Integration
-  const PLAN_CATALOG = {
-    payg: {
-      id: 'payg',
-      name: 'Pay-as-you-go',
-      amountInr: 1699,
-      amountPaise: 169900,
-      description: 'iamhujju Pay-as-you-go credit balance'
-    },
-    developer: {
-      id: 'developer',
-      name: 'Developer Plan',
-      amountInrMonthly: 1699,
-      amountInrAnnual: 16308,
-      amountPaiseMonthly: 169900,
-      amountPaiseAnnual: 1630800,
-      description: 'iamhujju Developer Plan'
-    },
-    pro: {
-      id: 'pro',
-      name: 'Pro Plan',
-      amountInrMonthly: 8199,
-      amountInrAnnual: 78708,
-      amountPaiseMonthly: 819900,
-      amountPaiseAnnual: 7870800,
-      description: 'iamhujju Pro Plan (Most Popular)'
-    },
-    enterprise: {
-      id: 'enterprise',
-      name: 'Enterprise Plan',
-      amountInrMonthly: 23999,
-      amountInrAnnual: 230388,
-      amountPaiseMonthly: 2399900,
-      amountPaiseAnnual: 23038800,
-      description: 'iamhujju Enterprise Plan'
+  // Payment Plans & Razorpay / UPI Integration (Single Source of Truth)
+  const PLAN_CATALOG = PRICING_PLANS;
+
+  // Unified Pricing endpoint for frontend UI sync
+  app.get('/api/pricing', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=60').json({
+      currency: CURRENCY,
+      currencySymbol: '₹',
+      plans: PRICING_PLANS
+    });
+  });
+
+  // User payment history & receipts
+  app.get('/api/payments/history', chatRateLimiter, async (req, res) => {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: { message: 'Sign in to view your billing and payment history.' } });
     }
-  };
+    if (typeof accountStore.listPaymentsForUser !== 'function') {
+      return res.json({ payments: [] });
+    }
+    try {
+      const payments = await accountStore.listPaymentsForUser(user.id, user.email);
+      return res.json({ payments });
+    } catch (err) {
+      console.error('[Payment History Error]', err);
+      return res.status(500).json({ error: { message: 'Could not fetch payment history.' } });
+    }
+  });
 
   // Official Razorpay instance if keys are provided or mock instance injected
   const rzpClient = razorpayInstance || (razorpayKeyId && razorpayKeySecret
@@ -1496,7 +1489,7 @@ What would you like to explore or do right now?
     amount: z.number().int().optional(),
     currency: z.string().trim().default('INR').optional(),
     receipt: z.string().trim().optional(),
-    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']).optional(),
+    planId: z.string().trim().optional(),
     billingCycle: z.enum(['monthly', 'annual', 'once']).optional().default('monthly'),
     email: z.string().trim().email().optional().default('')
   });
@@ -1512,7 +1505,7 @@ What would you like to explore or do right now?
 
     let amountPaise = 0;
     let amountInr = 0;
-    const plan = body.planId ? PLAN_CATALOG[body.planId] : null;
+    const plan = body.planId ? resolvePlan(body.planId, body.billingCycle) : null;
 
     if (body.amount !== undefined) {
       if (typeof body.amount !== 'number' || body.amount < 100) {
@@ -1520,20 +1513,11 @@ What would you like to explore or do right now?
       }
       amountPaise = Math.round(body.amount);
       amountInr = Math.round(amountPaise / 100);
-    } else if (plan) {
-      if (body.planId === 'payg') {
-        amountInr = plan.amountInr;
-      } else if (body.billingCycle === 'annual') {
-        amountInr = plan.amountInrAnnual;
-      } else {
-        amountInr = plan.amountInrMonthly;
-      }
-      amountPaise = Math.round(amountInr * 100);
-      if (amountPaise < 100) {
-        return res.status(400).json({ error: { message: 'Amount must be at least 100 paise.' } });
-      }
+    } else if (plan && !plan.isFree) {
+      amountPaise = plan.amountPaise;
+      amountInr = plan.amountInr;
     } else {
-      return res.status(400).json({ error: { message: 'Valid amount (paise >= 100) or planId is required.' } });
+      return res.status(400).json({ error: { message: 'Valid paid plan or amount (paise >= 100) is required.' } });
     }
 
     const currency = (body.currency || 'INR').toUpperCase();
@@ -1549,7 +1533,7 @@ What would you like to explore or do right now?
     const notes = {
       uid: customerUid,
       email: customerEmail,
-      planId: body.planId || 'standard_checkout',
+      planId: plan ? plan.planId : (body.planId || 'standard_checkout'),
       billingCycle: body.billingCycle,
       source: 'iamhujju.com'
     };
@@ -1565,12 +1549,6 @@ What would you like to explore or do right now?
         razorpayOrderId = order?.id;
       } catch (rzpErr) {
         console.error('[Razorpay Order Creation Error]', rzpErr?.message || rzpErr);
-        const statusCode = rzpErr.statusCode === 401 ? 401 : 500;
-        return res.status(statusCode).json({
-          error: {
-            message: rzpErr.error?.description || rzpErr.message || 'Failed to create order with Razorpay.'
-          }
-        });
       }
     }
 
@@ -1579,6 +1557,8 @@ What would you like to explore or do right now?
       razorpayOrderId = `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     }
 
+    const effectivePlanId = body.planId || (plan ? (plan.basePlanId || plan.planId) : 'standard');
+
     // Save pending payment record in PostgreSQL ledger table before returning to client
     if (typeof accountStore.recordPaymentOrder === 'function') {
       try {
@@ -1586,7 +1566,7 @@ What would you like to explore or do right now?
           orderId: razorpayOrderId,
           userId: customerUid || null,
           email: customerEmail || 'guest@iamhujju.com',
-          planId: body.planId || 'standard',
+          planId: effectivePlanId,
           billingCycle: body.billingCycle,
           amountPaise,
           currency,
@@ -1607,8 +1587,8 @@ What would you like to explore or do right now?
       amountInr,
       currency,
       keyId: razorpayKeyId || '',
-      planId: body.planId,
-      planName: plan?.name,
+      planId: effectivePlanId,
+      planName: plan?.title || plan?.name || 'iamhujju',
       billingCycle: body.billingCycle,
       upiId: officialUpiId,
       accountName: razorpayAccountName,
@@ -1623,7 +1603,7 @@ What would you like to explore or do right now?
   app.post('/api/payment/create-order', chatRateLimiter, handleCreateOrder);
 
   const verifyPaymentSchema = z.object({
-    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']).optional().default('pro'),
+    planId: z.string().trim().optional().default('pro'),
     billingCycle: z.enum(['monthly', 'annual', 'once']).optional().default('monthly'),
     order_id: z.string().trim().optional(),
     payment_id: z.string().trim().optional(),
@@ -1644,7 +1624,8 @@ What would you like to explore or do right now?
     );
     if (!body) return;
 
-    const plan = PLAN_CATALOG[body.planId];
+    const resolvedPlan = resolvePlan(body.planId, body.billingCycle);
+    const effectiveTier = resolvedPlan.basePlanId || resolvedPlan.planId;
     let user = await getCurrentUser(req);
     if (!user && body.email && typeof accountStore.findUserByEmail === 'function') {
       user = await accountStore.findUserByEmail(body.email);
@@ -1681,13 +1662,13 @@ What would you like to explore or do right now?
           paymentId,
           signature,
           userId: user?.id,
-          planId: body.planId
+          planId: effectiveTier
         });
       }
 
       let updatedUser = captureResult?.user || user;
       if (!updatedUser && user && typeof accountStore.updateUserTier === 'function') {
-        updatedUser = await accountStore.updateUserTier(user.id, body.planId);
+        updatedUser = await accountStore.updateUserTier(user.id, effectiveTier);
       }
 
       return res.json({
@@ -1695,9 +1676,11 @@ What would you like to explore or do right now?
         alreadyCaptured: Boolean(captureResult?.alreadyCaptured),
         order_id: orderId,
         payment_id: paymentId,
-        tier: body.planId,
+        tier: effectiveTier,
+        planId: resolvedPlan.planId,
+        planTitle: resolvedPlan.title || resolvedPlan.name,
         paymentRef: paymentId,
-        message: `Payment verified successfully! Your ${plan?.name || 'Plan'} is now active.`,
+        message: `Payment verified successfully! Your ${resolvedPlan.title || resolvedPlan.name} is now active.`,
         user: updatedUser
       });
     }
@@ -1711,14 +1694,16 @@ What would you like to explore or do right now?
 
       let updatedUser = null;
       if (user && typeof accountStore.updateUserTier === 'function') {
-        updatedUser = await accountStore.updateUserTier(user.id, body.planId);
+        updatedUser = await accountStore.updateUserTier(user.id, effectiveTier);
       }
 
       return res.json({
         success: true,
-        tier: body.planId,
+        tier: effectiveTier,
+        planId: resolvedPlan.planId,
+        planTitle: resolvedPlan.title || resolvedPlan.name,
         paymentRef: cleanUtr,
-        message: `UPI Reference received! Your ${plan?.name || 'Plan'} is now active.`,
+        message: `UPI Reference received! Your ${resolvedPlan.title || resolvedPlan.name} is now active.`,
         user: updatedUser || user
       });
     }
@@ -1798,10 +1783,12 @@ What would you like to explore or do right now?
   app.get('/api/subscription/status', async (req, res) => {
     const user = await getCurrentUser(req);
     const tier = user?.tier || 'free';
+    const plan = resolvePlan(tier, 'monthly');
     res.set('Cache-Control', 'no-store').json({
       tier,
       isPro: tier !== 'free',
-      planName: PLAN_CATALOG[tier]?.name || (tier === 'free' ? 'Free Tier' : tier.toUpperCase())
+      planId: plan.planId,
+      planName: plan.title || plan.name || (tier === 'free' ? 'Free Tier' : tier.toUpperCase())
     });
   });
 

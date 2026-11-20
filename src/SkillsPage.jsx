@@ -112,7 +112,8 @@ export default function SkillsPage({
   onLogout,
   onOpenApiKeys,
   onOpenIntegrations,
-  onOpenSavedChats
+  onOpenSavedChats,
+  onOpenPricing
 }) {
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -265,6 +266,7 @@ export default function SkillsPage({
                 onLogout={onLogout}
                 onOpenApiKeys={onOpenApiKeys}
                 onOpenIntegrations={onOpenIntegrations}
+                onOpenPricing={onOpenPricing}
               />
             ) : (
               <button

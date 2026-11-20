@@ -35,6 +35,7 @@ export default function IntegrationsPage({
   onOpenModels,
   onOpenChat,
   onOpenApiKeys,
+  onOpenPricing,
   onModelsChanged
 }) {
   const [integration, setIntegration] = useState(null);
@@ -169,6 +170,7 @@ export default function IntegrationsPage({
           modelCount={modelCount}
           onLogout={onLogout}
           onOpenApiKeys={onOpenApiKeys}
+          onOpenPricing={onOpenPricing}
           onOpenIntegrations={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         />
       </header>
@@ -184,6 +186,12 @@ export default function IntegrationsPage({
             <span aria-hidden="true">+</span>
             Integrations
           </button>
+          {onOpenPricing && (
+            <button type="button" onClick={onOpenPricing}>
+              <span aria-hidden="true">💳</span>
+              Subscription & Plans
+            </button>
+          )}
           <p>Only verified, working connectors are listed.</p>
         </aside>
 

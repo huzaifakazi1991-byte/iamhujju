@@ -5,6 +5,7 @@ import ContactModal from './ContactModal.jsx';
 import AboutModal from './AboutModal.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
 import PaymentModal from './PaymentModal.jsx';
+import { resolvePlan } from './pricingConfig.js';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
 import './HomePage.css';
 
@@ -349,7 +350,9 @@ function HomePage({
   onOpenChat,
   onOpenModels,
   onOpenSkills,
-  onOpenSavedChats
+  onOpenSavedChats,
+  onOpenPricing,
+  onOpenCheckout: propOnOpenCheckout
 }) {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('chat');
@@ -369,14 +372,11 @@ function HomePage({
   const [checkoutPlan, setCheckoutPlan] = useState(null);
 
   function handleOpenCheckout(plan) {
-    setCheckoutPlan(plan || {
-      planId: 'pro',
-      name: 'Pro Plan',
-      amountInr: 8199,
-      amountFormatted: '₹8,199 / mo',
-      billingCycle: 'monthly',
-      amountUsd: '$95.90'
-    });
+    if (typeof propOnOpenCheckout === 'function') {
+      propOnOpenCheckout(resolvePlan(plan || 'pro'));
+      return;
+    }
+    setCheckoutPlan(resolvePlan(plan || 'pro'));
     setPaymentModalOpen(true);
   }
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -779,8 +779,12 @@ function HomePage({
               type="button"
               onClick={() => {
                 setActiveDropdown(null);
-                setDocsTab('pricing');
-                setDocsOpen(true);
+                if (onOpenPricing) {
+                  onOpenPricing();
+                } else {
+                  setDocsTab('pricing');
+                  setDocsOpen(true);
+                }
               }}
             >
               Pricing
@@ -952,10 +956,10 @@ function HomePage({
                 onOpenApiKeys={onOpenApiKeys}
                 onOpenIntegrations={onOpenIntegrations}
                 onOpenCheckout={handleOpenCheckout}
-                onOpenPricing={() => {
+                onOpenPricing={onOpenPricing || (() => {
                   setDocsTab('pricing');
                   setDocsOpen(true);
-                }}
+                })}
               />
             ) : null}
 
@@ -1012,7 +1016,11 @@ function HomePage({
 
             <div className="mobile-drawer-section">
               <span className="mobile-drawer-label">Navigation</span>
-              <button type="button" onClick={() => { setMobileMenuOpen(false); setDocsTab('pricing'); setDocsOpen(true); }}>
+              <button type="button" onClick={() => {
+                setMobileMenuOpen(false);
+                if (onOpenPricing) onOpenPricing();
+                else { setDocsTab('pricing'); setDocsOpen(true); }
+              }}>
                 Pricing
               </button>
               <button type="button" onClick={() => { setMobileMenuOpen(false); setDocsTab('quickstart'); setDocsOpen(true); }}>
@@ -1967,12 +1975,23 @@ function HomePage({
                 <div
                   className="any-cta-glass-card"
                   onClick={() => {
-                    setDocsTab('pricing');
-                    setDocsOpen(true);
+                    if (onOpenPricing) onOpenPricing();
+                    else {
+                      setDocsTab('pricing');
+                      setDocsOpen(true);
+                    }
                   }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter') { setDocsTab('pricing'); setDocsOpen(true); } }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      if (onOpenPricing) onOpenPricing();
+                      else {
+                        setDocsTab('pricing');
+                        setDocsOpen(true);
+                      }
+                    }
+                  }}
                 >
                   <span className="cta-card-pill">PRICING ON YOUR TERMS</span>
                   <h3>Pick the plan that fits your scale</h3>
@@ -2070,7 +2089,10 @@ function HomePage({
             </div>
             <div className="footer-col">
               <h4>Platform</h4>
-              <button type="button" onClick={() => { setDocsTab('pricing'); setDocsOpen(true); }}>Pricing & Plans</button>
+              <button type="button" onClick={() => {
+                if (onOpenPricing) onOpenPricing();
+                else { setDocsTab('pricing'); setDocsOpen(true); }
+              }}>Pricing & Plans</button>
               <button type="button" onClick={() => setAboutOpen(true)}>About iamhujju</button>
               <button type="button" onClick={refreshModels}>Gateway Status</button>
               <button type="button" onClick={onOpenApiKeys}>API Keys</button>

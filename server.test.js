@@ -1107,6 +1107,72 @@ test('Razorpay payment verification validates HMAC SHA-256 signature, activates 
   assert.equal(duplicateData.alreadyCaptured, true);
 });
 
+test('GET /api/pricing returns unified catalog and GET /api/payments/history returns user ledger records', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('pricing-user@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = 'iamhujju_session=' + session.token;
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: 'rzp_test_key123',
+    razorpayKeySecret: 'rzp_test_secret_abc',
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // 1. GET /api/pricing
+  const pricingRes = await fetch(baseUrl + '/api/pricing');
+  assert.equal(pricingRes.status, 200);
+  const pricingData = await pricingRes.json();
+  assert.equal(pricingData.currency, 'INR');
+  assert.equal(pricingData.currencySymbol, '₹');
+  assert.ok(pricingData.plans.pro_monthly);
+  assert.equal(pricingData.plans.pro_monthly.amountInr, 8199);
+  assert.equal(pricingData.plans.pro_monthly.amountPaise, 819900);
+  assert.equal(pricingData.plans.developer_monthly.amountInr, 1699);
+
+  // 2. GET /api/payments/history unauthenticated -> 401
+  const unauthHistoryRes = await fetch(baseUrl + '/api/payments/history');
+  assert.equal(unauthHistoryRes.status, 401);
+
+  // 3. Record a payment order and capture it
+  const orderId = 'order_hist_test_101';
+  await accountStore.recordPaymentOrder({
+    orderId,
+    userId: user.id,
+    email: user.email,
+    planId: 'pro',
+    billingCycle: 'monthly',
+    amountPaise: 819900,
+    currency: 'INR',
+    receipt: 'rcpt_hist_101',
+    status: 'created'
+  });
+  await accountStore.markPaymentCaptured({
+    orderId,
+    paymentId: 'pay_hist_test_202',
+    signature: 'mock_sig',
+    userId: user.id,
+    planId: 'pro'
+  });
+
+  // 4. GET /api/payments/history authenticated -> returns payment record
+  const historyRes = await fetch(baseUrl + '/api/payments/history', {
+    headers: { Cookie: cookie }
+  });
+  assert.equal(historyRes.status, 200);
+  const historyData = await historyRes.json();
+  assert.ok(Array.isArray(historyData.payments));
+  assert.equal(historyData.payments.length, 1);
+  assert.equal(historyData.payments[0].orderId, orderId);
+  assert.equal(historyData.payments[0].paymentId, 'pay_hist_test_202');
+  assert.equal(historyData.payments[0].amountInr, 8199);
+  assert.equal(historyData.payments[0].amountPaise, 819900);
+  assert.equal(historyData.payments[0].status, 'captured');
+});
+
 test('Razorpay payment verification rejects forged/tampered signature and records failed_verification', async (t) => {
   const { accountStore } = await createTestStores(t);
   const user = await accountStore.register('tamper-buyer@example.com', 'secure-password-1234');

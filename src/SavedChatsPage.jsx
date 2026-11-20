@@ -28,6 +28,7 @@ export default function SavedChatsPage({
   onOpenSkills,
   onOpenApiKeys,
   onOpenIntegrations,
+  onOpenPricing,
   onLogout
 }) {
   const [query, setQuery] = useState('');
@@ -67,6 +68,7 @@ export default function SavedChatsPage({
             onLogout={onLogout}
             onOpenApiKeys={onOpenApiKeys}
             onOpenIntegrations={onOpenIntegrations}
+            onOpenPricing={onOpenPricing}
           />
         )}
       </header>

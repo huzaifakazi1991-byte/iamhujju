@@ -524,6 +524,7 @@ export default function ApiKeysPage({
   onOpenModels,
   onOpenChat,
   onOpenIntegrations,
+  onOpenPricing,
   onModelsChanged,
 }) {
   const [keys, setKeys] = useState([]);
@@ -715,6 +716,7 @@ export default function ApiKeysPage({
           onLogout={onLogout}
           onOpenApiKeys={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           onOpenIntegrations={onOpenIntegrations}
+          onOpenPricing={onOpenPricing}
         />
       </header>
 
@@ -736,6 +738,15 @@ export default function ApiKeysPage({
             </svg>
             <span>Integrations</span>
           </button>
+          {onOpenPricing && (
+            <button type="button" onClick={onOpenPricing}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+              <span>Subscription & Plans</span>
+            </button>
+          )}
           <p className="ak-sidebar-note">
             Gateway credentials are cryptographically hashed and managed per account.
           </p>

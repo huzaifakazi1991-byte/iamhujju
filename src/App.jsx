@@ -10,6 +10,7 @@ import IntegrationsPage from './IntegrationsPage.jsx';
 import SavedChatsPage from './SavedChatsPage.jsx';
 import ModelsPage from './ModelsPage.jsx';
 import SkillsPage from './SkillsPage.jsx';
+import PricingPage from './PricingPage.jsx';
 import AccountMenu from './AccountMenu.jsx';
 import { sanitizeMarkdown } from './safeMarkdown.js';
 import {
@@ -238,7 +239,43 @@ function App() {
   function navigateToView(view) {
     window.scrollTo(0, 0);
     setCurrentView(view);
+    if (typeof window !== 'undefined' && window.history) {
+      const path = view === 'home' ? '/' : `/${view}`;
+      if (window.location.pathname !== path) {
+        window.history.pushState({ view }, '', path);
+      }
+    }
   }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.replace(/^\//, '');
+      if (path === 'pricing') {
+        setCurrentView('pricing');
+      } else if (path === 'models') {
+        setCurrentView('models');
+      } else if (path === 'skills') {
+        setCurrentView('skills');
+      } else if (path === 'api-keys') {
+        setCurrentView('api-keys');
+      } else if (path === 'integrations') {
+        setCurrentView('integrations');
+      } else if (path === 'saved-chats') {
+        setCurrentView('saved-chats');
+      }
+
+      function handlePopState(e) {
+        if (e.state?.view) {
+          setCurrentView(e.state.view);
+        } else {
+          const currentPath = window.location.pathname.replace(/^\//, '') || 'home';
+          setCurrentView(currentPath);
+        }
+      }
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, []);
 
   const loadModels = useCallback(async signal => {
     setModelsLoading(true);
@@ -515,6 +552,15 @@ function App() {
     setRequestedModelId(null);
     loadChatsForUser(user.id);
     loadModels();
+
+    try {
+      const intended = sessionStorage.getItem('iamhujju_intended_plan');
+      if (intended) {
+        navigateToView('pricing');
+        return;
+      }
+    } catch {}
+
     const isFree = !user || user.tier === 'free';
     if (modelId && (!isFree || isModelFree(modelId))) {
       openChatFromHome(modelId);
@@ -523,6 +569,10 @@ function App() {
       setSelectedModel(autoFree);
       openChatFromHome(autoFree);
     }
+  }
+
+  function openPricing() {
+    navigateToView('pricing');
   }
 
   async function handleLogout() {
@@ -1000,6 +1050,8 @@ function App() {
         onOpenModels={openModels}
         onOpenSkills={openSkills}
         onOpenSavedChats={openSavedChats}
+        onOpenPricing={openPricing}
+        onOpenCheckout={openPricing}
       />
     );
   }
@@ -1024,6 +1076,7 @@ function App() {
         onOpenIntegrations={openIntegrations}
         onRefreshModels={() => loadModels()}
         onOpenSkills={openSkills}
+        onOpenPricing={openPricing}
       />
     );
   }
@@ -1044,6 +1097,7 @@ function App() {
         onOpenApiKeys={openApiKeys}
         onOpenIntegrations={openIntegrations}
         onOpenSavedChats={openSavedChats}
+        onOpenPricing={openPricing}
       />
     );
   }
@@ -1074,6 +1128,7 @@ function App() {
         onOpenSkills={openSkills}
         onOpenApiKeys={openApiKeys}
         onOpenIntegrations={openIntegrations}
+        onOpenPricing={openPricing}
         onLogout={handleLogout}
       />
     );
@@ -1090,6 +1145,7 @@ function App() {
         onOpenModels={openModels}
         onOpenChat={() => openChatFromHome(selectedModel)}
         onOpenIntegrations={openIntegrations}
+        onOpenPricing={openPricing}
         onModelsChanged={() => loadModels()}
       />
     );
@@ -1106,7 +1162,25 @@ function App() {
         onOpenModels={openModels}
         onOpenChat={() => openChatFromHome(selectedModel)}
         onOpenApiKeys={openApiKeys}
+        onOpenPricing={openPricing}
         onModelsChanged={() => loadModels()}
+      />
+    );
+  }
+
+  if (currentView === 'pricing') {
+    return (
+      <PricingPage
+        user={currentUser}
+        connected={connected}
+        modelCount={models.length}
+        onLogout={handleLogout}
+        onOpenHome={() => navigateToView('home')}
+        onOpenModels={openModels}
+        onOpenChat={() => openChatFromHome(selectedModel)}
+        onOpenApiKeys={openApiKeys}
+        onOpenIntegrations={openIntegrations}
+        onAuthenticated={handleAuthenticated}
       />
     );
   }
@@ -1250,8 +1324,8 @@ function App() {
                 onLogout={handleLogout}
                 onOpenApiKeys={openApiKeys}
                 onOpenIntegrations={openIntegrations}
-                onOpenPricing={() => setCurrentView('home')}
-                onOpenCheckout={() => setCurrentView('home')}
+                onOpenPricing={openPricing}
+                onOpenCheckout={openPricing}
               />
             )}
           </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './LiveSupportWidget.css';
+import { resolvePlan } from './pricingConfig.js';
 
 function FormattedMessage({ content, onActionClick }) {
   const actionRegex = /\[\[action:([a-zA-Z0-9_\-:]+)\|([^\]]+)\]\]/g;
@@ -358,41 +359,7 @@ Ask me any question or tell me where you'd like to navigate!
         break;
       case 'checkout':
         if (onOpenCheckout) {
-          const plans = {
-            pro: {
-              planId: 'pro',
-              name: 'Pro Plan',
-              amountInr: 8199,
-              amountFormatted: '₹8,199 / mo',
-              billingCycle: 'monthly',
-              amountUsd: '$95.90'
-            },
-            developer: {
-              planId: 'developer',
-              name: 'Developer Plan',
-              amountInr: 1699,
-              amountFormatted: '₹1,699 / mo',
-              billingCycle: 'monthly',
-              amountUsd: '$19.90'
-            },
-            payg: {
-              planId: 'payg',
-              name: 'Pay-as-you-go',
-              amountInr: 1699,
-              amountFormatted: '₹1,699',
-              billingCycle: 'once',
-              amountUsd: 'From $20'
-            },
-            enterprise: {
-              planId: 'enterprise',
-              name: 'Enterprise Plan',
-              amountInr: 23999,
-              amountFormatted: '₹23,999 / mo',
-              billingCycle: 'monthly',
-              amountUsd: '$279.90'
-            }
-          };
-          onOpenCheckout(plans[param] || plans.pro);
+          onOpenCheckout(resolvePlan(param || 'pro'));
         } else if (onOpenDocs) {
           onOpenDocs('pricing');
         }

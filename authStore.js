@@ -666,6 +666,31 @@ export function createAccountStore({
         [status, paymentId || null, failureReason, orderId]
       );
       return result.rows[0] || null;
+    },
+
+    async listPaymentsForUser(userId, email = null) {
+      if (!userId && !email) return [];
+      const result = await db.query(
+        `SELECT id, order_id, payment_id, plan_id, billing_cycle, amount_paise, currency, status, receipt, created_at
+         FROM payments
+         WHERE (user_id = $1 OR ($2::text IS NOT NULL AND email = $2))
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [userId || null, email || null]
+      );
+      return result.rows.map(row => ({
+        id: row.id,
+        orderId: row.order_id,
+        paymentId: row.payment_id,
+        planId: row.plan_id,
+        billingCycle: row.billing_cycle,
+        amountPaise: row.amount_paise,
+        amountInr: Math.round(row.amount_paise / 100),
+        currency: row.currency,
+        status: row.status,
+        receipt: row.receipt,
+        createdAt: row.created_at
+      }));
     }
   };
 }

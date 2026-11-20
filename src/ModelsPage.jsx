@@ -298,6 +298,7 @@ export default function ModelsPage({
   onOpenSavedChats,
   onOpenApiKeys,
   onOpenIntegrations,
+  onOpenPricing,
   onRefreshModels
 }) {
   const [query, setQuery] = useState(initialQuery);
@@ -445,6 +446,7 @@ export default function ModelsPage({
               onLogout={onLogout}
               onOpenApiKeys={onOpenApiKeys}
               onOpenIntegrations={onOpenIntegrations}
+              onOpenPricing={onOpenPricing}
             />
           ) : (
             <button
