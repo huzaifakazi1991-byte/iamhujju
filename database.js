@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -63,6 +63,17 @@ const SCHEMA_SQL = `
     migration_key TEXT PRIMARY KEY,
     source_fingerprint CHAR(64) NOT NULL,
     completed_at TIMESTAMPTZ NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS system_integrations (
+    id TEXT PRIMARY KEY,
+    version SMALLINT NOT NULL DEFAULT 1,
+    iv TEXT NOT NULL,
+    auth_tag TEXT NOT NULL,
+    ciphertext TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_tested_at TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}'::jsonb
   );
 `;
 function normalizedDatabaseUrl(value) {
@@ -295,6 +306,25 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       await client.query(
         'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
         [8]
+      );
+    }
+
+    if (currentVersion < 9) {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS system_integrations (
+          id TEXT PRIMARY KEY,
+          version SMALLINT NOT NULL DEFAULT 1,
+          iv TEXT NOT NULL,
+          auth_tag TEXT NOT NULL,
+          ciphertext TEXT NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_tested_at TIMESTAMPTZ,
+          metadata JSONB DEFAULT '{}'::jsonb
+        );
+      `);
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [9]
       );
     }
 

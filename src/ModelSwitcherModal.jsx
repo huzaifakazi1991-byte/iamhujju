@@ -9,7 +9,8 @@ export default function ModelSwitcherModal({
   onSelectModel,
   isModelFree = () => true,
   isFreeTierUser = false,
-  onOpenIntegrations
+  onOpenIntegrations,
+  onOpenPricing
 }) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -218,7 +219,12 @@ export default function ModelSwitcherModal({
                 className={`model-card-3d ${isSelected ? 'is-selected' : ''} ${!isFree && isFreeTierUser ? 'is-pro-locked' : ''}`}
                 onClick={() => {
                   if (!isFree && isFreeTierUser) {
-                    if (onOpenIntegrations) onOpenIntegrations();
+                    if (model.provider === 'gemini' || model.isPaidOnly || !onOpenIntegrations) {
+                      if (onOpenPricing) onOpenPricing();
+                      else if (onOpenIntegrations) onOpenIntegrations();
+                    } else {
+                      if (onOpenIntegrations) onOpenIntegrations();
+                    }
                     onClose();
                   } else {
                     onSelectModel(model.id);
@@ -244,7 +250,7 @@ export default function ModelSwitcherModal({
                     {isFree ? (
                       <span className="badge-free">100% Free</span>
                     ) : (
-                      <span className="badge-pro">Pro (BYOK)</span>
+                      <span className="badge-pro">{model.provider === 'gemini' || model.isPaidOnly ? 'PRO (Paid Plan)' : 'Pro (BYOK)'}</span>
                     )}
                   </div>
 

@@ -27,6 +27,18 @@ import {
   generateImageResult
 } from './services/aiGateway.js';
 import { browseWeb, shouldTriggerLiveSearch } from './services/webSearch.js';
+import {
+  getGoogleAIStudioKey,
+  maskApiKey,
+  verifyPaidGeminiAccess,
+  validateAndSyncGeminiModels,
+  getGeminiModelCatalog,
+  streamGeminiChat,
+  generateGeminiImage,
+  createGeminiVideoTask,
+  pollGeminiVideoTask,
+  DEFAULT_GEMINI_MODELS
+} from './services/googleGeminiAdapter.js';
 
 dotenv.config();
 
@@ -867,6 +879,119 @@ export function createApp({
     }
   });
 
+  // Admin Google AI Studio Integration Status
+  app.get('/api/admin/integrations/google-ai-studio/status', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin' || user.tier === 'owner_unlimited')) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && (ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase()) || apiKeyUser.role === 'admin' || apiKeyUser.tier === 'owner_unlimited')) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: { message: 'Access denied: Admin credentials required for Google AI Studio management.' }
+      });
+    }
+
+    try {
+      const status = await accountStore.getSystemIntegrationStatus('google-ai-studio');
+      const activeKey = await getGoogleAIStudioKey(accountStore);
+      const configured = Boolean(activeKey);
+      const maskedKey = maskApiKey(activeKey);
+      const models = await getGeminiModelCatalog(activeKey, fetchImpl);
+
+      return res.json({
+        configured,
+        maskedKey,
+        lastTestedAt: status.lastTestedAt || (configured ? new Date().toISOString() : null),
+        activeModelsCount: models.length,
+        models
+      });
+    } catch (err) {
+      return res.status(500).json({ error: { message: `Failed to fetch Google AI Studio status: ${err.message}` } });
+    }
+  });
+
+  // Admin Google AI Studio Integration Management (Save, Test, Delete)
+  app.post('/api/admin/integrations/google-ai-studio', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin' || user.tier === 'owner_unlimited')) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && (ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase()) || apiKeyUser.role === 'admin' || apiKeyUser.tier === 'owner_unlimited')) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: { message: 'Access denied: Admin credentials required for Google AI Studio management.' }
+      });
+    }
+
+    const { apiKey: newKey, action = 'save' } = req.body || {};
+
+    try {
+      if (action === 'delete') {
+        await accountStore.deleteSystemIntegration('google-ai-studio');
+        return res.json({
+          success: true,
+          configured: false,
+          maskedKey: null,
+          activeModelsCount: 0,
+          message: 'Google AI Studio key removed securely from system vault.'
+        });
+      }
+
+      // Save or Test action
+      const keyToTest = newKey || (await getGoogleAIStudioKey(accountStore));
+      if (!keyToTest) {
+        return res.status(400).json({
+          error: { message: 'A Google AI Studio API key (AIzaSy...) is required.' }
+        });
+      }
+
+      // Validate key against Google official endpoint
+      const discoveredModels = await validateAndSyncGeminiModels(keyToTest, fetchImpl);
+      const masked = maskApiKey(keyToTest);
+      const testedAt = new Date().toISOString();
+
+      if (newKey) {
+        await accountStore.setSystemIntegration('google-ai-studio', newKey.trim(), {
+          maskedKey: masked,
+          activeModelsCount: discoveredModels.length,
+          lastTestedAt: testedAt
+        });
+      }
+
+      return res.json({
+        success: true,
+        configured: true,
+        maskedKey: masked,
+        activeModelsCount: discoveredModels.length,
+        lastTestedAt: testedAt,
+        message: `Google AI Studio key verified successfully. ${discoveredModels.length} models synced and online.`
+      });
+    } catch (err) {
+      return res.status(400).json({
+        error: { message: err.message || 'Failed to verify Google AI Studio API key.' }
+      });
+    }
+  });
+
   app.post('/api/auth/signup', authRateLimiter, async (req, res) => {
     const body = validatedBody(
       signupSchema,
@@ -1469,6 +1594,13 @@ export function createApp({
         models.push(...mapped);
       }
 
+      // Google AI Studio Models (Gemini Native)
+      const geminiApiKey = await getGoogleAIStudioKey(accountStore);
+      if (geminiApiKey) {
+        const geminiModels = await getGeminiModelCatalog(geminiApiKey, fetchImpl);
+        models.push(...geminiModels);
+      }
+
       if (models.length === 0) {
         if (res.destroyed) return;
         return res.status(503).json({
@@ -1526,6 +1658,40 @@ export function createApp({
     if (!user) {
       return res.status(401).json({
         error: { message: 'Sign in to send messages.' }
+      });
+    }
+
+    const isGeminiModel = (typeof body.model === 'string' && (body.model.startsWith('gemini:') || body.model.startsWith('google-ai-studio:'))) ||
+      body.model?.toLowerCase().includes('gemini-') && !body.model?.startsWith('openrouter') && !body.model?.startsWith('electronhub');
+
+    if (isGeminiModel) {
+      if (!verifyPaidGeminiAccess(user)) {
+        return res.status(403).json({
+          error: {
+            message: 'Upgrade to a paid plan to unlock Google Gemini Pro, Image, Video & Autonomous Agent models.',
+            code: 'paid_plan_required'
+          }
+        });
+      }
+
+      const geminiKey = await getGoogleAIStudioKey(accountStore);
+      if (!geminiKey) {
+        return res.status(503).json({
+          error: {
+            message: 'Google AI Studio integration is not configured. Please contact the administrator.',
+            code: 'gemini_not_configured'
+          }
+        });
+      }
+
+      return streamGeminiChat({
+        model: body.model,
+        messages: body.messages,
+        browse: Boolean(body.browse || body.webSearch),
+        webSearch: Boolean(body.browse || body.webSearch),
+        apiKey: geminiKey,
+        fetchImpl,
+        res
       });
     }
 
@@ -2588,6 +2754,21 @@ What would you like to explore or do right now?
       models.push(...pModels.map(m => formatExternalModel(m, p)));
     }
 
+    // Google AI Studio Models (Gemini Native)
+    const geminiV1Key = await getGoogleAIStudioKey(accountStore);
+    if (geminiV1Key) {
+      const geminiV1Models = await getGeminiModelCatalog(geminiV1Key, fetchImpl);
+      models.push(...geminiV1Models.map(m => ({
+        id: m.id,
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: m.owned_by,
+        permission: [],
+        root: m.id,
+        parent: null
+      })));
+    }
+
     if (models.length === 0) {
       const defaultCatalog = [
         { id: 'openrouter:openrouter/free', name: 'OpenRouter Free (Auto)', owned_by: 'OpenRouter' },
@@ -2636,6 +2817,40 @@ What would you like to explore or do right now?
     let { provider: targetProvider, sourceModel } = modelTarget;
     if (sourceModel && sourceModel.endsWith(':batch')) {
       sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
+
+    const isGeminiModel = (typeof body.model === 'string' && (body.model.startsWith('gemini:') || body.model.startsWith('google-ai-studio:'))) ||
+      body.model?.toLowerCase().includes('gemini-') && !body.model?.startsWith('openrouter') && !body.model?.startsWith('electronhub');
+
+    if (isGeminiModel) {
+      if (!verifyPaidGeminiAccess(user)) {
+        return res.status(403).json({
+          error: {
+            message: 'Upgrade to a paid plan to unlock Google Gemini Pro, Image, Video & Autonomous Agent models.',
+            code: 'paid_plan_required'
+          }
+        });
+      }
+
+      const geminiKey = await getGoogleAIStudioKey(accountStore);
+      if (!geminiKey) {
+        return res.status(503).json({
+          error: {
+            message: 'Google AI Studio integration is not configured. Please contact the administrator.',
+            code: 'gemini_not_configured'
+          }
+        });
+      }
+
+      return streamGeminiChat({
+        model: body.model,
+        messages: body.messages,
+        browse: Boolean(body.browse || body.webSearch),
+        webSearch: Boolean(body.browse || body.webSearch),
+        apiKey: geminiKey,
+        fetchImpl,
+        res
+      });
     }
 
     let userPersonalKey = null;
@@ -2886,6 +3101,39 @@ What would you like to explore or do right now?
       return res.status(400).json({ error: { message: 'A prompt is required for image generation.' } });
     }
 
+    const isGeminiImage = model?.startsWith('gemini:') ||
+      model?.toLowerCase().includes('imagen') ||
+      (model?.toLowerCase().includes('google') && !model?.startsWith('openrouter'));
+
+    if (isGeminiImage) {
+      if (!verifyPaidGeminiAccess(user)) {
+        return res.status(403).json({
+          error: {
+            message: 'Upgrade to a paid plan to unlock Google Gemini Pro, Image, Video & Autonomous Agent models.',
+            code: 'paid_plan_required'
+          }
+        });
+      }
+      const geminiKey = await getGoogleAIStudioKey(accountStore);
+      if (!geminiKey) {
+        return res.status(503).json({
+          error: {
+            message: 'Google AI Studio integration is not configured. Please contact the administrator.',
+            code: 'gemini_not_configured'
+          }
+        });
+      }
+      const result = await generateGeminiImage({
+        prompt: prompt.trim(),
+        model,
+        aspectRatio: aspect_ratio,
+        n,
+        apiKey: geminiKey,
+        fetchImpl
+      });
+      return res.json(result);
+    }
+
     try {
       const activeEhKey = (user && await getProviderKeyForUser(user.id, 'electronhub')) || serverElectronHubKey || (keyPool?.hasKeys('electronhub') ? keyPool.pools.get('electronhub')?.[0]?.key : null);
       const activeOrKey = (user && await getProviderKeyForUser(user.id, 'openrouter')) || serverOpenRouterKey || (keyPool?.hasKeys('openrouter') ? keyPool.pools.get('openrouter')?.[0]?.key : null);
@@ -2928,6 +3176,47 @@ What would you like to explore or do right now?
       return res.status(400).json({ error: { message: 'A prompt is required for video generation.' } });
     }
 
+    const isGeminiVideo = model?.startsWith('gemini:') ||
+      model?.toLowerCase().includes('veo') ||
+      (model?.toLowerCase().includes('google') && !model?.startsWith('openrouter'));
+
+    if (isGeminiVideo) {
+      if (!verifyPaidGeminiAccess(user)) {
+        return res.status(403).json({
+          error: {
+            message: 'Upgrade to a paid plan to unlock Google Gemini Pro, Image, Video & Autonomous Agent models.',
+            code: 'paid_plan_required'
+          }
+        });
+      }
+      const geminiKey = await getGoogleAIStudioKey(accountStore);
+      if (!geminiKey) {
+        return res.status(503).json({
+          error: {
+            message: 'Google AI Studio integration is not configured. Please contact the administrator.',
+            code: 'gemini_not_configured'
+          }
+        });
+      }
+      const task = await createGeminiVideoTask({
+        prompt: prompt.trim(),
+        model,
+        duration,
+        aspectRatio: aspect_ratio,
+        apiKey: geminiKey,
+        fetchImpl
+      });
+      return res.status(202).json({
+        id: task.id,
+        status: task.status,
+        progress: task.progress,
+        prompt: task.prompt,
+        model: task.model,
+        created: Math.floor(Date.now() / 1000),
+        poll_url: `/api/generate/video/${task.id}`
+      });
+    }
+
     try {
       const task = createVideoTaskRecord({
         prompt: prompt.trim(),
@@ -2960,6 +3249,11 @@ What would you like to explore or do right now?
     const taskId = req.params.taskId;
     if (!taskId) {
       return res.status(400).json({ error: { message: 'taskId parameter is required.' } });
+    }
+
+    if (typeof taskId === 'string' && taskId.startsWith('veo_')) {
+      const veoStatus = pollGeminiVideoTask(taskId);
+      if (veoStatus) return res.json(veoStatus);
     }
 
     const taskStatus = getVideoTaskStatus(taskId);

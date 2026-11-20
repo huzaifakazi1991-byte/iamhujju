@@ -146,6 +146,7 @@ export function createAccountStore({
 } = {}) {
   const { encryptionKey, encryptCredential, decryptCredential } =
     createEncryptionHelpers(encryptionSecret);
+  const memorySystemIntegrations = new Map();
 
   async function getCredential(userId, provider) {
     const result = await db.query(
@@ -819,6 +820,139 @@ export function createAccountStore({
         receipt: row.receipt,
         createdAt: row.created_at
       }));
+    },
+
+    async getSystemIntegration(id) {
+      try {
+        const result = await db.query(
+          `SELECT version, iv, auth_tag, ciphertext, updated_at, last_tested_at, metadata
+           FROM system_integrations
+           WHERE id = $1`,
+          [id]
+        );
+        if (result?.rows?.[0]) {
+          const row = result.rows[0];
+          const key = decryptCredential({
+            version: row.version,
+            iv: row.iv,
+            authTag: row.auth_tag,
+            ciphertext: row.ciphertext
+          });
+          return {
+            id,
+            key,
+            updatedAt: isoDate(row.updated_at),
+            lastTestedAt: isoDate(row.last_tested_at),
+            metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {})
+          };
+        }
+      } catch {
+        // Fallback to memory
+      }
+      const mem = memorySystemIntegrations.get(id);
+      if (mem) {
+        try {
+          const key = decryptCredential(mem);
+          return {
+            id,
+            key,
+            updatedAt: isoDate(mem.updatedAt),
+            lastTestedAt: isoDate(mem.lastTestedAt),
+            metadata: mem.metadata || {}
+          };
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    },
+
+    async setSystemIntegration(id, rawKey, metadata = {}) {
+      const testedAt = new Date().toISOString();
+      const encrypted = encryptCredential(rawKey, testedAt);
+      const meta = { ...metadata };
+      encrypted.metadata = meta;
+      memorySystemIntegrations.set(id, encrypted);
+
+      try {
+        await db.query(
+          `INSERT INTO system_integrations
+             (id, version, iv, auth_tag, ciphertext, updated_at, last_tested_at, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET
+             version = EXCLUDED.version,
+             iv = EXCLUDED.iv,
+             auth_tag = EXCLUDED.auth_tag,
+             ciphertext = EXCLUDED.ciphertext,
+             updated_at = EXCLUDED.updated_at,
+             last_tested_at = EXCLUDED.last_tested_at,
+             metadata = EXCLUDED.metadata`,
+          [
+            id,
+            encrypted.version,
+            encrypted.iv,
+            encrypted.authTag,
+            encrypted.ciphertext,
+            encrypted.updatedAt,
+            encrypted.lastTestedAt,
+            JSON.stringify(meta)
+          ]
+        );
+      } catch {
+        // Memory fallback already recorded
+      }
+      return this.getSystemIntegrationStatus(id);
+    },
+
+    async deleteSystemIntegration(id) {
+      memorySystemIntegrations.delete(id);
+      try {
+        const result = await db.query('DELETE FROM system_integrations WHERE id = $1', [id]);
+        return (result?.rowCount || 0) > 0;
+      } catch {
+        return true;
+      }
+    },
+
+    async getSystemIntegrationStatus(id) {
+      try {
+        const result = await db.query(
+          `SELECT updated_at, last_tested_at, metadata
+           FROM system_integrations
+           WHERE id = $1`,
+          [id]
+        );
+        if (result?.rows?.[0]) {
+          const row = result.rows[0];
+          const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
+          return {
+            configured: true,
+            maskedKey: meta.maskedKey || null,
+            lastTestedAt: isoDate(row.last_tested_at),
+            activeModelsCount: Number(meta.activeModelsCount) || 0,
+            metadata: meta
+          };
+        }
+      } catch {
+        // Fallback to memory
+      }
+      const mem = memorySystemIntegrations.get(id);
+      if (mem) {
+        return {
+          configured: true,
+          maskedKey: mem.metadata?.maskedKey || null,
+          lastTestedAt: isoDate(mem.lastTestedAt),
+          activeModelsCount: Number(mem.metadata?.activeModelsCount) || 0,
+          metadata: mem.metadata || {}
+        };
+      }
+      return {
+        configured: false,
+        maskedKey: null,
+        lastTestedAt: null,
+        activeModelsCount: 0,
+        metadata: {}
+      };
     }
   };
 }

@@ -2752,6 +2752,7 @@ function App() {
           isModelFree={isModelFree}
           isFreeTierUser={isFreeTierUser}
           onOpenIntegrations={openIntegrations}
+          onOpenPricing={openPricing}
         />
       </main>
         </div>

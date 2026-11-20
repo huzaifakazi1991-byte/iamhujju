@@ -116,6 +116,14 @@ export default function IntegrationsPage({
   onOpenPricing,
   onModelsChanged
 }) {
+  const isAdmin = Boolean(
+    user && (
+      (user.email || '').toLowerCase().trim() === 'huzaifakazi1991@gmail.com' ||
+      (user.role || '').toLowerCase().trim() === 'admin' ||
+      (user.tier || '').toLowerCase().trim() === 'owner_unlimited'
+    )
+  );
+
   const [integrations, setIntegrations] = useState({});
   const [apiKeys, setApiKeys] = useState({});
   const [termsAccepted, setTermsAccepted] = useState({});
@@ -125,6 +133,117 @@ export default function IntegrationsPage({
   const [busyProvider, setBusyProvider] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  // Admin-only Google AI Studio state
+  const [geminiStatus, setGeminiStatus] = useState({ configured: false, maskedKey: null, activeModelsCount: 0 });
+  const [geminiInputKey, setGeminiInputKey] = useState('');
+  const [geminiEditing, setGeminiEditing] = useState(false);
+  const [geminiBusy, setGeminiBusy] = useState(false);
+  const [geminiConfirmDelete, setGeminiConfirmDelete] = useState(false);
+
+  async function loadGeminiAdminStatus(signal) {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch('/api/admin/integrations/google-ai-studio/status', { signal, cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setGeminiStatus(data);
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Failed to load Google AI Studio status:', err);
+      }
+    }
+  }
+
+  async function saveGeminiKey(e) {
+    if (e) e.preventDefault();
+    if (geminiBusy) return;
+    const key = geminiInputKey.trim();
+    if (!key) {
+      setError('Please enter a valid Google AI Studio API Key (AIzaSy...).');
+      return;
+    }
+    setGeminiBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/admin/integrations/google-ai-studio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', apiKey: key })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save Google AI Studio key');
+      setGeminiStatus({
+        configured: true,
+        maskedKey: data.maskedKey,
+        lastTestedAt: data.lastTestedAt,
+        activeModelsCount: data.activeModelsCount || 4
+      });
+      setGeminiInputKey('');
+      setGeminiEditing(false);
+      setNotice(`✅ Google AI Studio API Key encrypted & saved! ${data.activeModelsCount || 4} models synced.`);
+      if (onModelsChanged) onModelsChanged();
+    } catch (err) {
+      setError(err.message || 'Error saving Google AI Studio key');
+    } finally {
+      setGeminiBusy(false);
+    }
+  }
+
+  async function testAndSyncGemini() {
+    if (geminiBusy) return;
+    setGeminiBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/admin/integrations/google-ai-studio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'test' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to test Google AI Studio key');
+      setGeminiStatus(prev => ({
+        ...prev,
+        configured: true,
+        maskedKey: data.maskedKey || prev.maskedKey,
+        lastTestedAt: data.lastTestedAt,
+        activeModelsCount: data.activeModelsCount
+      }));
+      setNotice(`⚡ Google AI Studio synced successfully! ${data.activeModelsCount} models active.`);
+      if (onModelsChanged) onModelsChanged();
+    } catch (err) {
+      setError(err.message || 'Error syncing Google AI Studio');
+    } finally {
+      setGeminiBusy(false);
+    }
+  }
+
+  async function deleteGeminiKey() {
+    if (geminiBusy) return;
+    setGeminiBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/admin/integrations/google-ai-studio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disconnect' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove Google AI Studio key');
+      setGeminiStatus({ configured: false, maskedKey: null, activeModelsCount: 0 });
+      setGeminiConfirmDelete(false);
+      setNotice('Google AI Studio integration disconnected.');
+      if (onModelsChanged) onModelsChanged();
+    } catch (err) {
+      setError(err.message || 'Error disconnecting Google AI Studio');
+    } finally {
+      setGeminiBusy(false);
+    }
+  }
 
   async function loadAllIntegrations(signal) {
     try {
@@ -155,8 +274,11 @@ export default function IntegrationsPage({
   useEffect(() => {
     const controller = new AbortController();
     loadAllIntegrations(controller.signal);
+    if (isAdmin) {
+      loadGeminiAdminStatus(controller.signal);
+    }
     return () => controller.abort();
-  }, []);
+  }, [isAdmin]);
 
   function handleKeyChange(providerId, value) {
     setApiKeys(prev => ({ ...prev, [providerId]: value }));
@@ -393,6 +515,241 @@ export default function IntegrationsPage({
           {/* Providers Grid / Stack */}
           {!loading && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Admin-Only Google AI Studio Vault Card */}
+              {isAdmin && (
+                <div
+                  className={`ak-integration-card ${geminiStatus.configured ? 'is-active' : ''}`}
+                  id="admin-vault-google-ai-studio"
+                  style={{
+                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                    boxShadow: '0 0 24px rgba(56, 189, 248, 0.12)',
+                    background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(8, 12, 24, 0.98) 100%)'
+                  }}
+                >
+                  {/* Card Header */}
+                  <div className="ak-integration-header">
+                    <div
+                      className="ak-integration-logo-ring"
+                      style={{
+                        background: 'linear-gradient(135deg, #4285F4 0%, #9B72CF 50%, #D96570 100%)',
+                        color: '#ffffff'
+                      }}
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" />
+                      </svg>
+                    </div>
+
+                    <div className="ak-integration-title-group">
+                      <div className="ak-integration-title-row">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <h2>Google AI Studio (Gemini Native)</h2>
+                          <span
+                            className="ak-tag-badge"
+                            style={{
+                              background: 'rgba(56, 189, 248, 0.2)',
+                              color: '#38bdf8',
+                              borderColor: 'rgba(56, 189, 248, 0.4)'
+                            }}
+                          >
+                            🔒 ADMIN KEY VAULT
+                          </span>
+                          <span
+                            className="ak-tag-badge"
+                            style={{
+                              background: 'rgba(234, 179, 8, 0.15)',
+                              color: '#eab308',
+                              borderColor: 'rgba(234, 179, 8, 0.3)'
+                            }}
+                          >
+                            ⭐ PAID-TIER GATEWAY
+                          </span>
+                        </div>
+
+                        <div className="ak-integration-status-pill">
+                          <span
+                            className={`ak-status-dot ${geminiStatus.configured ? 'is-active' : ''}`}
+                            aria-hidden="true"
+                          />
+                          <span>{geminiStatus.configured ? 'Configured & Encrypted' : 'Not Configured'}</span>
+                        </div>
+                      </div>
+
+                      <p className="ak-integration-desc">
+                        System-wide enterprise connection for Google Gemini 2.5 Flash, Gemini 2.5 Pro, Imagen 3, and Veo 2.
+                        Protected by AES-256-GCM encryption at rest. Regular users never see or receive this key.
+                        Access is gated server-side to verified Paid / Pro subscribers.
+                      </p>
+
+                      <div className="ak-integration-links">
+                        <a
+                          href="https://aistudio.google.com/app/apikey"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ak-integration-link"
+                        >
+                          <span>Get Google AI Studio Key</span>
+                          <svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                          </svg>
+                        </a>
+                        <a
+                          href="https://ai.google.dev/gemini-api/docs"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ak-integration-link"
+                        >
+                          <span>Official Gemini API Docs</span>
+                          <svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="ak-integration-body">
+                    {geminiStatus.configured && !geminiEditing ? (
+                      <div className="ak-integration-active-box">
+                        <div className="ak-integration-meta-grid">
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">VAULT STATUS</span>
+                            <span className="ak-meta-val ak-text-mono" style={{ color: '#38bdf8' }}>
+                              AES-256-GCM Encrypted
+                            </span>
+                          </div>
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">MASKED KEY</span>
+                            <span className="ak-meta-val ak-text-mono">
+                              {geminiStatus.maskedKey || 'AIzaSy••••••••••••••••'}
+                            </span>
+                          </div>
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">LAST TESTED & SYNCED</span>
+                            <span className="ak-meta-val">{testedLabel(geminiStatus.lastTestedAt)}</span>
+                          </div>
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">ACTIVE GEMINI MODELS</span>
+                            <span className="ak-meta-val" style={{ color: '#10b981' }}>
+                              {geminiStatus.activeModelsCount || 4} Models (Multimodal & Agent)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="ak-integration-actions">
+                          <button
+                            type="button"
+                            className="ak-btn-test"
+                            onClick={testAndSyncGemini}
+                            disabled={geminiBusy}
+                          >
+                            {geminiBusy ? (
+                              <>
+                                <span className="ak-spinner" aria-hidden="true" />
+                                <span>Syncing…</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="23 4 23 10 17 10" />
+                                  <polyline points="1 20 1 14 7 14" />
+                                  <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                                </svg>
+                                <span>Sync & Test Models</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="ak-btn-edit"
+                            onClick={() => {
+                              setGeminiEditing(true);
+                              setGeminiInputKey('');
+                            }}
+                            disabled={geminiBusy}
+                          >
+                            Update API Key
+                          </button>
+
+                          {!geminiConfirmDelete ? (
+                            <button
+                              type="button"
+                              className="ak-btn-disconnect"
+                              onClick={() => setGeminiConfirmDelete(true)}
+                              disabled={geminiBusy}
+                            >
+                              Disconnect
+                            </button>
+                          ) : (
+                            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                className="ak-btn-disconnect is-danger"
+                                onClick={deleteGeminiKey}
+                                disabled={geminiBusy}
+                                style={{ background: '#ef4444', borderColor: '#ef4444', color: '#fff' }}
+                              >
+                                Confirm Disconnect
+                              </button>
+                              <button
+                                type="button"
+                                className="ak-btn-secondary"
+                                onClick={() => setGeminiConfirmDelete(false)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <form onSubmit={saveGeminiKey} className="ak-integration-form">
+                        <div className="ak-input-group">
+                          <label htmlFor="admin-gemini-key">
+                            <span>Google AI Studio API Key</span>
+                            <span className="ak-label-hint">Secret AIzaSy… key from Google AI Studio</span>
+                          </label>
+                          <div className="ak-input-row">
+                            <input
+                              id="admin-gemini-key"
+                              type="password"
+                              autoComplete="off"
+                              placeholder="AIzaSy..."
+                              value={geminiInputKey}
+                              onChange={(e) => setGeminiInputKey(e.target.value)}
+                              className="ak-text-mono"
+                              disabled={geminiBusy}
+                            />
+                            <button
+                              type="submit"
+                              className="ak-btn-primary"
+                              disabled={geminiBusy || !geminiInputKey.trim()}
+                            >
+                              {geminiBusy ? 'Validating & Encrypting…' : (geminiStatus.configured ? 'Update Key' : 'Save & Sync Models')}
+                            </button>
+                            {geminiEditing && (
+                              <button
+                                type="button"
+                                className="ak-btn-secondary"
+                                onClick={() => {
+                                  setGeminiEditing(false);
+                                  setGeminiInputKey('');
+                                }}
+                                disabled={geminiBusy}
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {PROVIDERS_CONFIG.map((provider) => {
                 const info = integrations[provider.id] || { configured: false };
                 const isConfigured = Boolean(info.configured);
