@@ -926,6 +926,104 @@ test('Razorpay order creation records pending order in database ledger with exac
   assert.equal(paymentRecord.email, 'razorpay-buyer@example.com');
 });
 
+test('Razorpay Standard Checkout endpoints POST /api/create-order and POST /api/verify-payment', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('standard-checkout@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = 'iamhujju_session=' + session.token;
+
+  const mockRazorpay = {
+    orders: {
+      create: async (params) => ({
+        id: 'order_std_test_99999',
+        amount: params.amount,
+        currency: params.currency,
+        receipt: params.receipt,
+        notes: params.notes
+      })
+    }
+  };
+
+  const keyId = 'rzp_test_U2FpOqKo9wLlAI';
+  const keySecret = 'jXSUEbMLTvm9pFX1FeTLHX7S';
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: keyId,
+    razorpayKeySecret: keySecret,
+    razorpayInstance: mockRazorpay,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // 1. Validate minimum amount enforcement (< 100 paise must return 400)
+  const tooLowRes = await fetch(baseUrl + '/api/create-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ amount: 50, currency: 'INR' })
+  });
+  assert.equal(tooLowRes.status, 400);
+  const tooLowData = await tooLowRes.json();
+  assert.ok(tooLowData.error?.message?.includes('100'));
+
+  // 2. Successful order creation at POST /api/create-order
+  const createRes = await fetch(baseUrl + '/api/create-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      amount: 50000, // 500 INR in paise
+      currency: 'INR',
+      receipt: 'rcpt_std_test_001'
+    })
+  });
+  assert.equal(createRes.status, 200);
+  const createData = await createRes.json();
+  assert.equal(createData.order_id, 'order_std_test_99999');
+  assert.equal(createData.amount, 50000);
+  assert.equal(createData.currency, 'INR');
+
+  // 3. Verify payment: Missing fields must return 400
+  const missingRes = await fetch(baseUrl + '/api/verify-payment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ order_id: 'order_std_test_99999' })
+  });
+  assert.equal(missingRes.status, 400);
+
+  // 4. Verify payment: Signature mismatch must return 400 and NOT mark as paid
+  const mismatchRes = await fetch(baseUrl + '/api/verify-payment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      order_id: 'order_std_test_99999',
+      payment_id: 'pay_std_test_11111',
+      signature: 'invalid_mismatch_signature_1234567890abcdef'
+    })
+  });
+  assert.equal(mismatchRes.status, 400);
+
+  // 5. Verify payment: Cryptographically valid signature returns success
+  const validSignature = createHmac('sha256', keySecret)
+    .update('order_std_test_99999|pay_std_test_11111')
+    .digest('hex');
+
+  const validRes = await fetch(baseUrl + '/api/verify-payment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      order_id: 'order_std_test_99999',
+      payment_id: 'pay_std_test_11111',
+      signature: validSignature
+    })
+  });
+  assert.equal(validRes.status, 200);
+  const validData = await validRes.json();
+  assert.equal(validData.success, true);
+  assert.equal(validData.order_id, 'order_std_test_99999');
+  assert.equal(validData.payment_id, 'pay_std_test_11111');
+});
+
 test('Razorpay payment verification validates HMAC SHA-256 signature, activates user tier, and enforces idempotency', async (t) => {
   const { accountStore } = await createTestStores(t);
   const user = await accountStore.register('verified-buyer@example.com', 'secure-password-1234');

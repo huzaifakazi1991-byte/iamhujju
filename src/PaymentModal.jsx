@@ -90,19 +90,20 @@ export default function PaymentModal({
     }
 
     try {
-      // 1. Create order on backend (preferring canonical /api/payments/razorpay/create-order)
-      let orderRes = await fetch('/api/payments/razorpay/create-order', {
+      // 1. Create order on backend (calling POST /api/create-order)
+      let orderRes = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: currentPlan.planId,
           billingCycle: currentPlan.billingCycle || 'monthly',
+          amount: typeof currentPlan.amountInr === 'number' ? Math.round(currentPlan.amountInr * 100) : undefined,
           email: customerEmail
         })
       });
 
       if (!orderRes.ok && orderRes.status === 404) {
-        orderRes = await fetch('/api/payment/create-order', {
+        orderRes = await fetch('/api/payments/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -120,17 +121,18 @@ export default function PaymentModal({
 
       const orderData = await orderRes.json();
       const isScriptLoaded = await loadRazorpayScript(2);
+      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
 
       // If Razorpay SDK is ready and live Key ID is returned, launch native checkout
-      if (isScriptLoaded && window.Razorpay && orderData.keyId) {
+      if (isScriptLoaded && window.Razorpay && activeKeyId) {
         const options = {
-          key: orderData.keyId,
+          key: activeKeyId,
           amount: orderData.amount,
-          currency: 'INR',
+          currency: orderData.currency || 'INR',
           name: 'iamhujju',
           description: `${currentPlan.name} Subscription`,
           image: '/mascot.jpg',
-          order_id: orderData.orderId,
+          order_id: orderData.order_id || orderData.orderId,
           prefill: {
             name: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
             email: customerEmail,
@@ -142,21 +144,24 @@ export default function PaymentModal({
           handler: async function (response) {
             setLoading(true);
             try {
-              let verifyRes = await fetch('/api/payments/razorpay/verify', {
+              let verifyRes = await fetch('/api/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  planId: currentPlan.planId,
-                  billingCycle: currentPlan.billingCycle || 'monthly',
+                  order_id: response.razorpay_order_id,
+                  payment_id: response.razorpay_payment_id,
+                  signature: response.razorpay_signature,
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
+                  planId: currentPlan.planId,
+                  billingCycle: currentPlan.billingCycle || 'monthly',
                   email: customerEmail
                 })
               });
 
               if (!verifyRes.ok && verifyRes.status === 404) {
-                verifyRes = await fetch('/api/payment/verify', {
+                verifyRes = await fetch('/api/payments/razorpay/verify', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -229,7 +234,7 @@ export default function PaymentModal({
     setError('');
 
     try {
-      let res = await fetch('/api/payments/razorpay/verify', {
+      let res = await fetch('/api/verify-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,7 +246,7 @@ export default function PaymentModal({
       });
 
       if (!res.ok && res.status === 404) {
-        res = await fetch('/api/payment/verify', {
+        res = await fetch('/api/payments/razorpay/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

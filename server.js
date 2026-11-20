@@ -1493,7 +1493,10 @@ What would you like to explore or do right now?
   });
 
   const createOrderSchema = z.object({
-    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']),
+    amount: z.number().int().optional(),
+    currency: z.string().trim().default('INR').optional(),
+    receipt: z.string().trim().optional(),
+    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']).optional(),
     billingCycle: z.enum(['monthly', 'annual', 'once']).optional().default('monthly'),
     email: z.string().trim().email().optional().default('')
   });
@@ -1503,39 +1506,50 @@ What would you like to explore or do right now?
       createOrderSchema,
       req,
       res,
-      'Invalid plan or billing cycle specified.'
+      'Invalid order payload. Specify amount (paise >= 100) or valid planId.'
     );
     if (!body) return;
 
-    const plan = PLAN_CATALOG[body.planId];
-    if (!plan) {
-      return res.status(400).json({ error: { message: 'Unknown plan selected.' } });
-    }
-
-    // Strictly server-calculated integer in paise using Math.round
+    let amountPaise = 0;
     let amountInr = 0;
-    if (body.planId === 'payg') {
-      amountInr = plan.amountInr;
-    } else if (body.billingCycle === 'annual') {
-      amountInr = plan.amountInrAnnual;
-    } else {
-      amountInr = plan.amountInrMonthly;
-    }
-    const amountPaise = Math.round(amountInr * 100);
+    const plan = body.planId ? PLAN_CATALOG[body.planId] : null;
 
+    if (body.amount !== undefined) {
+      if (typeof body.amount !== 'number' || body.amount < 100) {
+        return res.status(400).json({ error: { message: 'Amount must be at least 100 paise.' } });
+      }
+      amountPaise = Math.round(body.amount);
+      amountInr = Math.round(amountPaise / 100);
+    } else if (plan) {
+      if (body.planId === 'payg') {
+        amountInr = plan.amountInr;
+      } else if (body.billingCycle === 'annual') {
+        amountInr = plan.amountInrAnnual;
+      } else {
+        amountInr = plan.amountInrMonthly;
+      }
+      amountPaise = Math.round(amountInr * 100);
+      if (amountPaise < 100) {
+        return res.status(400).json({ error: { message: 'Amount must be at least 100 paise.' } });
+      }
+    } else {
+      return res.status(400).json({ error: { message: 'Valid amount (paise >= 100) or planId is required.' } });
+    }
+
+    const currency = (body.currency || 'INR').toUpperCase();
     const currentUser = await getCurrentUser(req);
     const customerEmail = currentUser?.email || body.email;
     const customerUid = currentUser?.id || '';
 
     // Deterministic unique receipt
     const receiptUid = customerUid ? customerUid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : 'guest';
-    const receipt = `rcpt_${receiptUid}_${Date.now()}`;
+    const receipt = body.receipt || `rcpt_${receiptUid}_${Date.now()}`;
 
     let razorpayOrderId = '';
     const notes = {
       uid: customerUid,
       email: customerEmail,
-      planId: body.planId,
+      planId: body.planId || 'standard_checkout',
       billingCycle: body.billingCycle,
       source: 'iamhujju.com'
     };
@@ -1544,13 +1558,19 @@ What would you like to explore or do right now?
       try {
         const order = await rzpClient.orders.create({
           amount: amountPaise,
-          currency: 'INR',
+          currency,
           receipt,
           notes
         });
         razorpayOrderId = order?.id;
       } catch (rzpErr) {
         console.error('[Razorpay Order Creation Error]', rzpErr?.message || rzpErr);
+        const statusCode = rzpErr.statusCode === 401 ? 401 : 500;
+        return res.status(statusCode).json({
+          error: {
+            message: rzpErr.error?.description || rzpErr.message || 'Failed to create order with Razorpay.'
+          }
+        });
       }
     }
 
@@ -1566,10 +1586,10 @@ What would you like to explore or do right now?
           orderId: razorpayOrderId,
           userId: customerUid || null,
           email: customerEmail || 'guest@iamhujju.com',
-          planId: body.planId,
+          planId: body.planId || 'standard',
           billingCycle: body.billingCycle,
           amountPaise,
-          currency: 'INR',
+          currency,
           receipt,
           metadata: { notes }
         });
@@ -1580,13 +1600,15 @@ What would you like to explore or do right now?
 
     return res.json({
       success: true,
+      order_id: razorpayOrderId,
       orderId: razorpayOrderId,
+      id: razorpayOrderId,
       amount: amountPaise,
       amountInr,
-      currency: 'INR',
+      currency,
       keyId: razorpayKeyId || '',
       planId: body.planId,
-      planName: plan.name,
+      planName: plan?.name,
       billingCycle: body.billingCycle,
       upiId: officialUpiId,
       accountName: razorpayAccountName,
@@ -1595,12 +1617,17 @@ What would you like to explore or do right now?
     });
   }
 
+  // Standard checkout routes and aliases
+  app.post('/api/create-order', chatRateLimiter, handleCreateOrder);
   app.post('/api/payments/razorpay/create-order', chatRateLimiter, handleCreateOrder);
   app.post('/api/payment/create-order', chatRateLimiter, handleCreateOrder);
 
   const verifyPaymentSchema = z.object({
-    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']),
+    planId: z.enum(['payg', 'developer', 'pro', 'enterprise']).optional().default('pro'),
     billingCycle: z.enum(['monthly', 'annual', 'once']).optional().default('monthly'),
+    order_id: z.string().trim().optional(),
+    payment_id: z.string().trim().optional(),
+    signature: z.string().trim().optional(),
     razorpay_order_id: z.string().trim().optional(),
     razorpay_payment_id: z.string().trim().optional(),
     razorpay_signature: z.string().trim().optional(),
@@ -1623,22 +1650,26 @@ What would you like to explore or do right now?
       user = await accountStore.findUserByEmail(body.email);
     }
 
+    const orderId = body.razorpay_order_id || body.order_id;
+    const paymentId = body.razorpay_payment_id || body.payment_id;
+    const signature = body.razorpay_signature || body.signature;
+
     // 1. Razorpay signature verification
-    if (body.razorpay_order_id && body.razorpay_payment_id && body.razorpay_signature) {
+    if (orderId && paymentId && signature) {
       if (razorpayKeySecret) {
-        const payload = `${body.razorpay_order_id}|${body.razorpay_payment_id}`;
-        const isValid = verifyHmacSha256(payload, body.razorpay_signature, razorpayKeySecret);
+        const payload = `${orderId}|${paymentId}`;
+        const isValid = verifyHmacSha256(payload, signature, razorpayKeySecret);
 
         if (!isValid) {
           if (typeof accountStore.markPaymentFailed === 'function') {
             await accountStore.markPaymentFailed({
-              orderId: body.razorpay_order_id,
-              paymentId: body.razorpay_payment_id,
+              orderId,
+              paymentId,
               failureReason: 'Invalid payment signature (HMAC SHA-256 mismatch)',
               status: 'failed_verification'
             }).catch(() => {});
           }
-          return res.status(400).json({ error: { message: 'Invalid payment signature. Verification failed.' } });
+          return res.status(400).json({ success: false, error: { message: 'Invalid payment signature. Verification failed.' } });
         }
       }
 
@@ -1646,9 +1677,9 @@ What would you like to explore or do right now?
       let captureResult = null;
       if (typeof accountStore.markPaymentCaptured === 'function') {
         captureResult = await accountStore.markPaymentCaptured({
-          orderId: body.razorpay_order_id,
-          paymentId: body.razorpay_payment_id,
-          signature: body.razorpay_signature,
+          orderId,
+          paymentId,
+          signature,
           userId: user?.id,
           planId: body.planId
         });
@@ -1662,8 +1693,10 @@ What would you like to explore or do right now?
       return res.json({
         success: true,
         alreadyCaptured: Boolean(captureResult?.alreadyCaptured),
+        order_id: orderId,
+        payment_id: paymentId,
         tier: body.planId,
-        paymentRef: body.razorpay_payment_id,
+        paymentRef: paymentId,
         message: `Payment verified successfully! Your ${plan?.name || 'Plan'} is now active.`,
         user: updatedUser
       });
@@ -1690,9 +1723,11 @@ What would you like to explore or do right now?
       });
     }
 
-    return res.status(400).json({ error: { message: 'Payment reference or signature is required.' } });
+    return res.status(400).json({ error: { message: 'Payment reference or signature is required. Provide order_id, payment_id, and signature.' } });
   }
 
+  // Standard checkout verify routes and aliases
+  app.post('/api/verify-payment', chatRateLimiter, handleVerifyPayment);
   app.post('/api/payments/razorpay/verify', chatRateLimiter, handleVerifyPayment);
   app.post('/api/payment/verify', chatRateLimiter, handleVerifyPayment);
 
