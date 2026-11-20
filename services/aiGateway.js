@@ -675,17 +675,29 @@ export function sanitizePayloadForModel(provider, modelId, body, options = {}) {
     }
   }
 
-  // Multimodal safety: flatten content for legacy or text-only upstream providers
-  if (provider === 'freellmapi' && Array.isArray(sanitized.messages)) {
+  // Multimodal safety: for text-only models/providers that reject image_url arrays,
+  // flatten content safely into text to prevent 400 Bad Request crashes
+  const isVisionCapableModel = norm.includes('vision') ||
+    norm.includes('-vl') ||
+    norm.includes('gemini') ||
+    norm.includes('gpt-4o') ||
+    norm.includes('claude-3') ||
+    norm.includes('pixtral') ||
+    norm.includes('llama-3.2-11b') ||
+    norm.includes('llama-3.2-90b') ||
+    norm.includes('qwen-vl');
+
+  if ((provider === 'freellmapi' || !isVisionCapableModel) && Array.isArray(sanitized.messages)) {
     sanitized.messages = sanitized.messages.map(m => {
       if (Array.isArray(m.content)) {
+        const textParts = m.content.map(p => {
+          if (p.type === 'text') return p.text || '';
+          if (p.type === 'image_url') return '[Attached Image / Photo for Visual Analysis]';
+          return '';
+        }).filter(Boolean);
         return {
           ...m,
-          content: m.content.map(p => {
-            if (p.type === 'text') return p.text;
-            if (p.type === 'image_url') return '[Attached Image]';
-            return '';
-          }).filter(Boolean).join('\n')
+          content: textParts.join('\n\n') || '[Attached Content]'
         };
       }
       return m;

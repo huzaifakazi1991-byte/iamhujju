@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const { PORT = '3000' } = env;
-  const razorpayKeyId = env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_test_U2RfhaS1IyP8oo';
+  const razorpayKeyId = env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_test_U2SqMDjvKttD4X';
   const development = mode === 'development';
   const securityHeaders = {
     'Content-Security-Policy': [

@@ -977,20 +977,37 @@ textarea:focus-visible {
     -webkit-backdrop-filter: blur(16px) !important;
     box-shadow: 0 -10px 28px rgba(3, 7, 18, 0.85) !important;
   }
-  .composer {
+  .composer,
+  .composer.composer-stacked {
     width: 100% !important;
-    padding: 8px 10px !important;
+    padding: 10px 12px 8px 12px !important;
+    gap: 6px !important;
+    border-radius: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .composer-textarea-container {
+    width: 100% !important;
+  }
+  .composer-textarea-full,
+  .composer textarea {
+    font-size: 16px !important; /* iOS Safari zoom prevention */
+    min-height: 48px !important;
+    max-height: 180px !important;
+    padding: 4px 2px !important;
+    line-height: 1.4 !important;
+    width: 100% !important;
+  }
+  .composer-toolbar-row {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     gap: 8px !important;
-    border-radius: 14px !important;
   }
   .composer-input-row {
     gap: 6px !important;
-  }
-  .composer textarea {
-    font-size: 16px !important; /* iOS Safari zoom prevention */
-    min-height: 38px !important;
-    padding: 8px 4px !important;
-    line-height: 1.4 !important;
   }
   .composer-action-btn,
   .composer-plus-btn {
@@ -1122,26 +1139,50 @@ textarea:focus-visible {
   box-shadow: 0 0 6px #10b981;
 }
 
-/* Composer Attachment Tray */
+/* Composer Container - Stacked Vertical Architecture */
+.composer.composer-stacked {
+  width: min(880px, 100%);
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 6px !important;
+  padding: 12px 16px 10px 18px !important;
+  background: rgba(13, 20, 36, 0.92) !important;
+  border: 1px solid rgba(56, 189, 248, 0.28) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(56, 189, 248, 0.12) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+.composer.composer-stacked:focus-within {
+  border-color: #00f2fe !important;
+  box-shadow: 0 0 30px rgba(0, 242, 254, 0.35), 0 16px 50px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* 1. Top Attachment Preview Tray (Horizontal scrollable strictly above textarea) */
 .composer-attachments-tray {
   width: 100%;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  overflow-x: auto;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
   margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  scrollbar-width: thin;
 }
 
 .composer-att-chip {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px 4px 6px;
+  padding: 4px 8px 4px 6px;
   background: rgba(30, 41, 59, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 10px;
-  max-width: 260px;
+  flex-shrink: 0;
+  max-width: 240px;
   animation: fadeIn 0.15s ease;
 }
 
@@ -1197,19 +1238,106 @@ textarea:focus-visible {
 }
 
 .att-remove-btn {
-  background: transparent;
-  border: 0;
-  color: #94a3b8;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  line-height: 1;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #cbd5e1 !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
 }
 
 .att-remove-btn:hover {
-  color: #f43f5e;
-  background: rgba(244, 63, 94, 0.15);
+  background: rgba(239, 68, 68, 0.7) !important;
+  color: #ffffff !important;
+}
+
+/* 2. Full-Width Unobstructed Prompt Textarea */
+.composer-textarea-container {
+  width: 100%;
+}
+
+.composer-textarea-full {
+  width: 100% !important;
+  display: block !important;
+  background: transparent !important;
+  color: #f8fafc !important;
+  border: none !important;
+  outline: none !important;
+  font-size: 16px !important; /* Prevents mobile iOS zoom */
+  line-height: 1.5 !important;
+  min-height: 52px !important;
+  max-height: 200px !important;
+  resize: none !important;
+  padding: 4px 2px !important;
+  font-family: inherit !important;
+}
+
+.composer-textarea-full::placeholder {
+  color: #64748b !important;
+}
+
+/* 3. Sleek Bottom Action Toolbar */
+.composer-toolbar-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.composer-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.composer-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-mode-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-mode-badge.badge-video {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.toolbar-mode-badge.badge-agent {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.toolbar-mode-badge.badge-browse {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.25);
 }
 
 /* Chat Message Attachments (Photos, Videos, Documents) */

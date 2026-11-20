@@ -145,8 +145,8 @@ test('4. Guaranteed Post-Payment Auto-Activation: activates subscription, unlock
   const session = await accountStore.createSession(user.id);
   const cookie = `iamhujju_session=${session.token}`;
 
-  const keyId = 'rzp_test_U2RfhaS1IyP8oo';
-  const keySecret = 'kbl9571Cpdew8dC4EkI6hCaf';
+  const keyId = 'rzp_test_U2SqMDjvKttD4X';
+  const keySecret = 'v0fUbejyGxsXf6OzhaFwBwJI';
 
   const app = createApp({
     accountStore,

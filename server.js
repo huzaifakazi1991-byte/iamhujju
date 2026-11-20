@@ -44,6 +44,15 @@ import {
   HUZAIFA_OMNI_MODEL_METADATA,
   executeHuzaifaOmniChat
 } from './services/huzaifaOmniRouter.js';
+import { extractPdfTextSafely } from './services/pdfExtractor.js';
+
+// Global Process Crash Prevention Guards
+process.on('uncaughtException', (err) => {
+  console.error('[Safety Guard: uncaughtException]', err?.stack || err?.message || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Safety Guard: unhandledRejection]', reason?.stack || reason?.message || reason);
+});
 
 dotenv.config();
 
@@ -359,8 +368,8 @@ export function createApp({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
   conversationStore = createConversationStore(),
-  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2RfhaS1IyP8oo',
-  razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET || 'kbl9571Cpdew8dC4EkI6hCaf',
+  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2SqMDjvKttD4X',
+  razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET || 'v0fUbejyGxsXf6OzhaFwBwJI',
   razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || '',
   officialUpiId = process.env.OFFICIAL_UPI_ID || '',
   razorpayAccountName = process.env.RAZORPAY_ACCOUNT_NAME || 'iamhujju',
@@ -524,6 +533,7 @@ export function createApp({
       req.rawBody = buf;
     }
   }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   async function getCurrentUser(req) {
     const token = getSessionToken(req);
@@ -1669,6 +1679,30 @@ export function createApp({
       });
     }
 
+    // Safe server-side PDF document text extraction
+    if (Array.isArray(body.messages)) {
+      for (const msg of body.messages) {
+        if (Array.isArray(msg.attachments)) {
+          for (const att of msg.attachments) {
+            if (att.category === 'document' && att.name?.toLowerCase().endsWith('.pdf') && !att.textPreview && att.data) {
+              const extracted = await extractPdfTextSafely(att.data);
+              if (extracted) {
+                att.textPreview = extracted;
+                const pdfNotice = `\n\n--- EXTRACTED PDF CONTENT: ${att.name} ---\n${extracted}\n--- END OF PDF ---`;
+                if (typeof msg.content === 'string') {
+                  msg.content += pdfNotice;
+                } else if (Array.isArray(msg.content)) {
+                  const textPart = msg.content.find(p => p.type === 'text');
+                  if (textPart) textPart.text += pdfNotice;
+                  else msg.content.push({ type: 'text', text: pdfNotice });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     const isHuzaifaOmni = body.model === HUZAIFA_OMNI_MODEL_ID ||
       body.model === 'huzaifa-kazi' ||
       body.model === 'omni' ||
@@ -1726,6 +1760,26 @@ export function createApp({
     let { provider: targetProvider, sourceModel } = modelTarget;
     if (sourceModel && sourceModel.endsWith(':batch')) {
       sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
+
+    // Multimodal Vision Auto-Routing: if image is present but model is text-only, route to vision model
+    const hasImagePayload = Array.isArray(body.messages) && body.messages.some(m =>
+      Array.isArray(m.content) && m.content.some(p => p.type === 'image_url')
+    );
+    const isVisionModel = (sourceModel || '').toLowerCase().includes('vision') ||
+      (sourceModel || '').toLowerCase().includes('-vl') ||
+      (sourceModel || '').toLowerCase().includes('gemini') ||
+      (sourceModel || '').toLowerCase().includes('gpt-4o') ||
+      (sourceModel || '').toLowerCase().includes('claude-3') ||
+      (sourceModel || '').toLowerCase().includes('pixtral') ||
+      (sourceModel || '').toLowerCase().includes('llama-3.2-11b') ||
+      (sourceModel || '').toLowerCase().includes('llama-3.2-90b');
+
+    if (hasImagePayload && !isVisionModel) {
+      if (keyPool?.hasKeys('openrouter')) {
+        targetProvider = 'openrouter';
+        sourceModel = 'google/gemini-2.5-flash:free';
+      }
     }
     if (!sourceModel) {
       return res.status(400).json({
@@ -2362,7 +2416,7 @@ What would you like to explore or do right now?
       amount: amountPaise,
       amountInr,
       currency,
-      keyId: razorpayKeyId || 'rzp_test_U2RfhaS1IyP8oo',
+      keyId: razorpayKeyId || 'rzp_test_U2SqMDjvKttD4X',
       planId: effectivePlanId,
       planName: plan?.title || plan?.name || 'iamhujju',
       billingCycle: body.billingCycle,
@@ -2843,6 +2897,30 @@ What would you like to explore or do right now?
     );
     if (!body) return;
 
+    // Safe server-side PDF document text extraction
+    if (Array.isArray(body.messages)) {
+      for (const msg of body.messages) {
+        if (Array.isArray(msg.attachments)) {
+          for (const att of msg.attachments) {
+            if (att.category === 'document' && att.name?.toLowerCase().endsWith('.pdf') && !att.textPreview && att.data) {
+              const extracted = await extractPdfTextSafely(att.data);
+              if (extracted) {
+                att.textPreview = extracted;
+                const pdfNotice = `\n\n--- EXTRACTED PDF CONTENT: ${att.name} ---\n${extracted}\n--- END OF PDF ---`;
+                if (typeof msg.content === 'string') {
+                  msg.content += pdfNotice;
+                } else if (Array.isArray(msg.content)) {
+                  const textPart = msg.content.find(p => p.type === 'text');
+                  if (textPart) textPart.text += pdfNotice;
+                  else msg.content.push({ type: 'text', text: pdfNotice });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     const isHuzaifaOmni = body.model === HUZAIFA_OMNI_MODEL_ID ||
       body.model === 'huzaifa-kazi' ||
       body.model === 'omni' ||
@@ -2866,6 +2944,26 @@ What would you like to explore or do right now?
     let { provider: targetProvider, sourceModel } = modelTarget;
     if (sourceModel && sourceModel.endsWith(':batch')) {
       sourceModel = sourceModel.slice(0, -':batch'.length);
+    }
+
+    // Multimodal Vision Auto-Routing: if image is present but model is text-only, route to vision model
+    const hasImagePayload = Array.isArray(body.messages) && body.messages.some(m =>
+      Array.isArray(m.content) && m.content.some(p => p.type === 'image_url')
+    );
+    const isVisionModel = (sourceModel || '').toLowerCase().includes('vision') ||
+      (sourceModel || '').toLowerCase().includes('-vl') ||
+      (sourceModel || '').toLowerCase().includes('gemini') ||
+      (sourceModel || '').toLowerCase().includes('gpt-4o') ||
+      (sourceModel || '').toLowerCase().includes('claude-3') ||
+      (sourceModel || '').toLowerCase().includes('pixtral') ||
+      (sourceModel || '').toLowerCase().includes('llama-3.2-11b') ||
+      (sourceModel || '').toLowerCase().includes('llama-3.2-90b');
+
+    if (hasImagePayload && !isVisionModel) {
+      if (keyPool?.hasKeys('openrouter')) {
+        targetProvider = 'openrouter';
+        sourceModel = 'google/gemini-2.5-flash:free';
+      }
     }
 
     const isGeminiModel = (typeof body.model === 'string' && (body.model.startsWith('gemini:') || body.model.startsWith('google-ai-studio:'))) ||

@@ -14,6 +14,7 @@ import PricingPage from './PricingPage.jsx';
 import AccountMenu from './AccountMenu.jsx';
 import LiveSupportWidget from './LiveSupportWidget.jsx';
 import ModelSwitcherModal from './ModelSwitcherModal.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
 import { sanitizeMarkdown } from './safeMarkdown.js';
 import {
   clearChatState,
@@ -105,6 +106,62 @@ function readFileAsDataUrl(file) {
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(new Error(`Failed to read file ${file.name}`));
     reader.readAsDataURL(file);
+  });
+}
+
+function compressImageFile(file, maxDimension = 1600, quality = 0.85) {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.Image) {
+      readFileAsDataUrl(file).then(resolve).catch(() => resolve(null));
+      return;
+    }
+    // If SVG, GIF, or already very small (< 200KB), no re-compression needed
+    if (file.type === 'image/svg+xml' || file.type === 'image/gif' || file.size < 200 * 1024) {
+      readFileAsDataUrl(file).then(resolve).catch(() => resolve(null));
+      return;
+    }
+
+    try {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        try {
+          URL.revokeObjectURL(objectUrl);
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            readFileAsDataUrl(file).then(resolve).catch(() => resolve(null));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        } catch {
+          readFileAsDataUrl(file).then(resolve).catch(() => resolve(null));
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        readFileAsDataUrl(file).then(resolve).catch(() => resolve(null));
+      };
+      img.src = objectUrl;
+    } catch {
+      readFileAsDataUrl(file).then(resolve).catch(() => resolve(null));
+    }
   });
 }
 
@@ -878,49 +935,71 @@ function App() {
       const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const isImage = file.type.startsWith('image/');
       const isVideo = file.type.startsWith('video/');
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-      if (isImage) {
-        const data = await readFileAsDataUrl(file);
-        newAttachments.push({
-          id,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          category: 'photo',
-          data,
-          previewUrl: data
-        });
-      } else if (isVideo) {
-        const data = await readFileAsDataUrl(file);
-        newAttachments.push({
-          id,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          category: 'video',
-          data,
-          previewUrl: URL.createObjectURL(file)
-        });
-      } else {
-        // Document
-        let textPreview = '';
-        if (
-          file.type.includes('text') ||
-          file.name.match(/\.(txt|md|json|csv|py|js|ts|html|css|yaml|yml|xml|log|sh)$/i)
-        ) {
-          textPreview = await readFileAsText(file);
+      try {
+        if (isImage) {
+          const data = await compressImageFile(file);
+          if (data) {
+            newAttachments.push({
+              id,
+              name: file.name,
+              type: 'image/jpeg',
+              size: Math.round(data.length * 0.75),
+              category: 'photo',
+              data,
+              previewUrl: data
+            });
+          }
+        } else if (isVideo) {
+          const data = await readFileAsDataUrl(file);
+          const previewUrl = URL.createObjectURL(file);
+          newAttachments.push({
+            id,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            category: 'video',
+            data,
+            previewUrl
+          });
+        } else if (isPdf) {
+          const data = await readFileAsDataUrl(file);
+          newAttachments.push({
+            id,
+            name: file.name,
+            type: 'application/pdf',
+            size: file.size,
+            category: 'document',
+            data,
+            textPreview: '',
+            previewUrl: null
+          });
         } else {
-          textPreview = `[Document file: ${file.name} (${formatFileSize(file.size)})]`;
+          // Document / Code / Text
+          let textPreview = '';
+          if (
+            file.type.includes('text') ||
+            file.name.match(/\.(txt|md|json|csv|py|js|ts|html|css|yaml|yml|xml|log|sh|sql|env)$/i)
+          ) {
+            const rawText = await readFileAsText(file);
+            textPreview = (rawText || '').slice(0, 50000);
+          } else {
+            textPreview = `[Document file: ${file.name} (${formatFileSize(file.size)})]`;
+          }
+          newAttachments.push({
+            id,
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            size: file.size,
+            category: 'document',
+            textPreview,
+            previewUrl: null
+          });
         }
-        newAttachments.push({
-          id,
-          name: file.name,
-          type: file.type || 'application/octet-stream',
-          size: file.size,
-          category: 'document',
-          textPreview,
-          previewUrl: null
-        });
+      } catch (fileErr) {
+        console.warn(`[File Read Error on ${file.name}]`, fileErr?.message || fileErr);
+        setError(`Could not read file "${file.name}".`);
       }
     }
     if (newAttachments.length > 0) {
@@ -929,7 +1008,15 @@ function App() {
   }
 
   function removeAttachment(id) {
-    setAttachments(prev => prev.filter(a => a.id !== id));
+    setAttachments(prev => {
+      const target = prev.find(a => a.id === id);
+      if (target?.previewUrl && typeof target.previewUrl === 'string' && target.previewUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(target.previewUrl);
+        } catch {}
+      }
+      return prev.filter(a => a.id !== id);
+    });
   }
 
   function toggleSources(index) {
@@ -1226,6 +1313,11 @@ function App() {
     if (!regenerate && !overrideMessages) {
       setInput('');
       setAttachments([]);
+      currentAttachments.forEach(a => {
+        if (a.previewUrl && typeof a.previewUrl === 'string' && a.previewUrl.startsWith('blob:')) {
+          try { URL.revokeObjectURL(a.previewUrl); } catch {}
+        }
+      });
     }
 
     setLoading(true);
@@ -2107,6 +2199,7 @@ function App() {
           </div>
         </div>
 
+        <ErrorBoundary>
         <section className="chat-area">
           {messages.length === 0 ? (
             <div className="welcome">
@@ -2478,6 +2571,7 @@ function App() {
             </div>
           )}
         </section>
+        </ErrorBoundary>
 
         {storageError && (
           <div className="storage-warning" role="alert">{storageError}</div>
@@ -2511,7 +2605,8 @@ function App() {
             </div>
           )}
 
-          <form className="composer" onSubmit={sendMessage}>
+          <form className="composer composer-stacked" onSubmit={sendMessage}>
+            {/* Top Attachment Preview Tray (strictly above <textarea>) */}
             {attachments.length > 0 && (
               <div className="composer-attachments-tray">
                 {attachments.map(att => (
@@ -2523,7 +2618,7 @@ function App() {
                       <div className="att-type-icon">🎬</div>
                     )}
                     {att.category === 'document' && (
-                      <div className="att-type-icon">📄</div>
+                      <div className="att-type-icon">{att.name?.toLowerCase().endsWith('.pdf') ? '📕' : '📄'}</div>
                     )}
                     <div className="att-meta">
                       <span className="att-filename" title={att.name}>{att.name}</span>
@@ -2690,153 +2785,22 @@ function App() {
               </div>
             )}
 
-            <div className="composer-input-row">
-              {/* Single Modern Plus Button with Floating Features Popover */}
-              <div className="composer-plus-wrapper" ref={plusMenuRef}>
-                <button
-                  type="button"
-                  className={`composer-plus-btn ${plusMenuOpen ? 'is-open' : ''}`}
-                  onClick={() => setPlusMenuOpen(prev => !prev)}
-                  title="Features & tools (Modes, Attachments, Web Search)"
-                  aria-label="Features and tools"
-                  aria-expanded={plusMenuOpen}
-                >
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-
-                {plusMenuOpen && (
-                  <div className="composer-plus-menu" role="menu" aria-label="Composer features and workspace tools">
-                    <div className="plus-menu-section-label">WORKSPACE MODE</div>
-                    <button
-                      type="button"
-                      className={`plus-menu-item ${workspaceMode === 'chat' ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        setWorkspaceMode('chat');
-                        setPlusMenuOpen(false);
-                      }}
-                    >
-                      <span className="plus-menu-item-icon">💬</span>
-                      <div className="plus-menu-item-text">
-                        <div className="plus-menu-item-title">
-                          <span>Chat & Reasoning</span>
-                          {workspaceMode === 'chat' && <span className="plus-menu-check">✓</span>}
-                        </div>
-                        <span className="plus-menu-item-desc">Multi-turn conversation & deep reasoning</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`plus-menu-item ${workspaceMode === 'image' ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        setWorkspaceMode('image');
-                        setPlusMenuOpen(false);
-                      }}
-                    >
-                      <span className="plus-menu-item-icon">🎨</span>
-                      <div className="plus-menu-item-text">
-                        <div className="plus-menu-item-title">
-                          <span>Image Studio</span>
-                          <span className="plus-menu-badge badge-free">Flux / SDXL</span>
-                          {workspaceMode === 'image' && <span className="plus-menu-check">✓</span>}
-                        </div>
-                        <span className="plus-menu-item-desc">Generate AI images from text prompts</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`plus-menu-item ${workspaceMode === 'video' ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        setWorkspaceMode('video');
-                        setPlusMenuOpen(false);
-                      }}
-                    >
-                      <span className="plus-menu-item-icon">🎬</span>
-                      <div className="plus-menu-item-text">
-                        <div className="plus-menu-item-title">
-                          <span>Video Studio</span>
-                          <span className="plus-menu-badge badge-pro">Veo 2 / Kling</span>
-                          {workspaceMode === 'video' && <span className="plus-menu-check">✓</span>}
-                        </div>
-                        <span className="plus-menu-item-desc">Generate AI video & motion clips</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`plus-menu-item ${workspaceMode === 'agent' ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        setWorkspaceMode('agent');
-                        setPlusMenuOpen(false);
-                      }}
-                    >
-                      <span className="plus-menu-item-icon">⚡</span>
-                      <div className="plus-menu-item-text">
-                        <div className="plus-menu-item-title">
-                          <span>Autonomous Agent</span>
-                          <span className="plus-menu-badge badge-agent">Tools & Plan</span>
-                          {workspaceMode === 'agent' && <span className="plus-menu-check">✓</span>}
-                        </div>
-                        <span className="plus-menu-item-desc">Multi-step autonomous execution</span>
-                      </div>
-                    </button>
-
-                    <div className="plus-menu-divider" />
-
-                    <div className="plus-menu-section-label">TOOLS & ATTACHMENTS</div>
-                    <button
-                      type="button"
-                      className="plus-menu-item"
-                      onClick={() => {
-                        fileInputRef.current?.click();
-                        setPlusMenuOpen(false);
-                      }}
-                    >
-                      <span className="plus-menu-item-icon">📎</span>
-                      <div className="plus-menu-item-text">
-                        <div className="plus-menu-item-title">
-                          <span>Upload File / Media</span>
-                        </div>
-                        <span className="plus-menu-item-desc">Attach photos, documents, code, or video</span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`plus-menu-item ${browseEnabled ? 'is-active-tool' : ''}`}
-                      onClick={() => {
-                        setBrowseEnabled(prev => !prev);
-                        setPlusMenuOpen(false);
-                      }}
-                    >
-                      <span className="plus-menu-item-icon">🌐</span>
-                      <div className="plus-menu-item-text">
-                        <div className="plus-menu-item-title">
-                          <span>Live Web Search</span>
-                          <span className={`plus-menu-toggle-state ${browseEnabled ? 'state-on' : 'state-auto'}`}>
-                            {browseEnabled ? 'ON' : 'AUTO'}
-                          </span>
-                        </div>
-                        <span className="plus-menu-item-desc">Real-time web search and citation grounding</span>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-
+            {/* Full-Width Unobstructed Prompt Textarea */}
+            <div className="composer-textarea-container">
               <textarea
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={e => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${Math.min(Math.max(e.target.scrollHeight, 52), 200)}px`;
+                }}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     e.currentTarget.form.requestSubmit();
                   }
                 }}
+                className="composer-textarea-full"
                 placeholder={
                   workspaceMode === 'image'
                     ? "Describe the image you want to create (e.g. 'Futuristic cybernetic metropolis, neon lights, 8k cinematic')..."
@@ -2851,27 +2815,182 @@ function App() {
                 aria-label="Message to the selected model"
                 rows="1"
               />
+            </div>
 
-              {loading ? (
-                <button
-                  className="send-button stop-button"
-                  type="button"
-                  onClick={stopGeneration}
-                  title="Stop generation"
-                  aria-label="Stop response generation"
-                >
-                  ■
-                </button>
-              ) : (
-                <button
-                  className="send-button"
-                  type="submit"
-                  disabled={(!input.trim() && attachments.length === 0) || !connected || (workspaceMode !== 'image' && workspaceMode !== 'video' && !selectedModel)}
-                  aria-label="Send message"
-                >
-                  ↑
-                </button>
-              )}
+            {/* Clean Bottom Action Bar */}
+            <div className="composer-toolbar-row">
+              <div className="composer-toolbar-left">
+                {/* Single Modern Plus Button with Floating Features Popover */}
+                <div className="composer-plus-wrapper" ref={plusMenuRef}>
+                  <button
+                    type="button"
+                    className={`composer-plus-btn ${plusMenuOpen ? 'is-open' : ''}`}
+                    onClick={() => setPlusMenuOpen(prev => !prev)}
+                    title="Features & tools (Modes, Attachments, Web Search)"
+                    aria-label="Features and tools"
+                    aria-expanded={plusMenuOpen}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+
+                  {plusMenuOpen && (
+                    <div className="composer-plus-menu" role="menu" aria-label="Composer features and workspace tools">
+                      <div className="plus-menu-section-label">WORKSPACE MODE</div>
+                      <button
+                        type="button"
+                        className={`plus-menu-item ${workspaceMode === 'chat' ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setWorkspaceMode('chat');
+                          setPlusMenuOpen(false);
+                        }}
+                      >
+                        <span className="plus-menu-item-icon">💬</span>
+                        <div className="plus-menu-item-text">
+                          <div className="plus-menu-item-title">
+                            <span>Chat & Reasoning</span>
+                            {workspaceMode === 'chat' && <span className="plus-menu-check">✓</span>}
+                          </div>
+                          <span className="plus-menu-item-desc">Multi-turn conversation & deep reasoning</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`plus-menu-item ${workspaceMode === 'image' ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setWorkspaceMode('image');
+                          setPlusMenuOpen(false);
+                        }}
+                      >
+                        <span className="plus-menu-item-icon">🎨</span>
+                        <div className="plus-menu-item-text">
+                          <div className="plus-menu-item-title">
+                            <span>Image Studio</span>
+                            <span className="plus-menu-badge badge-free">Flux / SDXL</span>
+                            {workspaceMode === 'image' && <span className="plus-menu-check">✓</span>}
+                          </div>
+                          <span className="plus-menu-item-desc">Generate AI images from text prompts</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`plus-menu-item ${workspaceMode === 'video' ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setWorkspaceMode('video');
+                          setPlusMenuOpen(false);
+                        }}
+                      >
+                        <span className="plus-menu-item-icon">🎬</span>
+                        <div className="plus-menu-item-text">
+                          <div className="plus-menu-item-title">
+                            <span>Video Studio</span>
+                            <span className="plus-menu-badge badge-pro">Veo 2 / Kling</span>
+                            {workspaceMode === 'video' && <span className="plus-menu-check">✓</span>}
+                          </div>
+                          <span className="plus-menu-item-desc">Generate AI video & motion clips</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`plus-menu-item ${workspaceMode === 'agent' ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setWorkspaceMode('agent');
+                          setPlusMenuOpen(false);
+                        }}
+                      >
+                        <span className="plus-menu-item-icon">⚡</span>
+                        <div className="plus-menu-item-text">
+                          <div className="plus-menu-item-title">
+                            <span>Autonomous Agent</span>
+                            <span className="plus-menu-badge badge-agent">Tools & Plan</span>
+                            {workspaceMode === 'agent' && <span className="plus-menu-check">✓</span>}
+                          </div>
+                          <span className="plus-menu-item-desc">Multi-step autonomous execution</span>
+                        </div>
+                      </button>
+
+                      <div className="plus-menu-divider" />
+
+                      <div className="plus-menu-section-label">TOOLS & ATTACHMENTS</div>
+                      <button
+                        type="button"
+                        className="plus-menu-item"
+                        onClick={() => {
+                          fileInputRef.current?.click();
+                          setPlusMenuOpen(false);
+                        }}
+                      >
+                        <span className="plus-menu-item-icon">📎</span>
+                        <div className="plus-menu-item-text">
+                          <div className="plus-menu-item-title">
+                            <span>Upload File / Media</span>
+                          </div>
+                          <span className="plus-menu-item-desc">Attach photos, documents, code, or video</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`plus-menu-item ${browseEnabled ? 'is-active-tool' : ''}`}
+                        onClick={() => {
+                          setBrowseEnabled(prev => !prev);
+                          setPlusMenuOpen(false);
+                        }}
+                      >
+                        <span className="plus-menu-item-icon">🌐</span>
+                        <div className="plus-menu-item-text">
+                          <div className="plus-menu-item-title">
+                            <span>Live Web Search</span>
+                            <span className={`plus-menu-toggle-state ${browseEnabled ? 'state-on' : 'state-auto'}`}>
+                              {browseEnabled ? 'ON' : 'AUTO'}
+                            </span>
+                          </div>
+                          <span className="plus-menu-item-desc">Real-time web search and citation grounding</span>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {workspaceMode !== 'chat' && (
+                  <span className={`toolbar-mode-badge badge-${workspaceMode}`}>
+                    {workspaceMode === 'image' ? '🎨 Image Studio' : workspaceMode === 'video' ? '🎬 Video Studio' : '⚡ Autonomous Agent'}
+                  </span>
+                )}
+                {browseEnabled && (
+                  <span className="toolbar-mode-badge badge-browse">
+                    🌐 Web Search ON
+                  </span>
+                )}
+              </div>
+
+              <div className="composer-toolbar-right">
+                {loading ? (
+                  <button
+                    className="send-button stop-button"
+                    type="button"
+                    onClick={stopGeneration}
+                    title="Stop generation"
+                    aria-label="Stop response generation"
+                  >
+                    ■
+                  </button>
+                ) : (
+                  <button
+                    className="send-button"
+                    type="submit"
+                    disabled={(!input.trim() && attachments.length === 0) || !connected || (workspaceMode !== 'image' && workspaceMode !== 'video' && !selectedModel)}
+                    aria-label="Send message"
+                  >
+                    ↑
+                  </button>
+                )}
+              </div>
             </div>
 
             <input

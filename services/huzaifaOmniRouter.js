@@ -186,8 +186,26 @@ Core Directives:
 /**
  * Determine Model Routing Candidate Pool for Huzaifa Kazi
  */
-export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKey = false } = {}) {
+export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKey = false, hasImage = false } = {}) {
   const canUseGeminiPro = isPaidUser && hasGeminiKey;
+
+  // Multimodal Vision Routing: if an image/photo is attached, prioritize vision-capable models
+  if (hasImage) {
+    if (hasGeminiKey) {
+      return [
+        { provider: 'gemini', model: 'gemini-2.5-flash' },
+        { provider: 'gemini', model: 'gemini-2.5-pro' },
+        { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' },
+        { provider: 'openrouter', model: 'meta-llama/llama-3.2-11b-vision-instruct:free' }
+      ];
+    }
+    return [
+      { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' },
+      { provider: 'openrouter', model: 'meta-llama/llama-3.2-11b-vision-instruct:free' },
+      { provider: 'gemini', model: 'gemini-2.5-flash' },
+      { provider: 'openrouter', model: 'openrouter/free' }
+    ];
+  }
 
   switch (intent.modality) {
     case 'code_reasoning':
@@ -505,14 +523,20 @@ export async function executeHuzaifaOmniChat({
     messages: updatedMessages
   };
 
+  // Detect attached images for multimodal vision routing
+  const hasImage = messages.some(m =>
+    (Array.isArray(m.content) && m.content.some(p => p.type === 'image_url')) ||
+    (Array.isArray(m.attachments) && m.attachments.some(a => a.category === 'photo'))
+  );
+
   // ==========================================
   // CASE 3: TEXT & REASONING WITH ZERO-FAILURE FAILOVER
   // ==========================================
-  const candidateModels = getOmniCandidateModels(intent, { isPaidUser, hasGeminiKey });
+  const candidateModels = getOmniCandidateModels(intent, { isPaidUser, hasGeminiKey, hasImage });
 
   for (const candidate of candidateModels) {
     // 3A. Google AI Studio native stream if candidate is gemini
-    if (candidate.provider === 'gemini' && isPaidUser && geminiApiKey) {
+    if (candidate.provider === 'gemini' && hasGeminiKey && (isPaidUser || hasImage)) {
       try {
         sendSSEStatus('Synthesizing expert response…');
         return await streamGeminiChat({
@@ -571,7 +595,7 @@ export async function executeHuzaifaOmniChat({
             })
           });
 
-          if (!response.ok && (response.status === 429 || response.status >= 500)) {
+          if (!response.ok) {
             const errBody = await response.text().catch(() => '');
             const err = new Error(`Provider HTTP ${response.status}: ${errBody}`);
             err.status = response.status;

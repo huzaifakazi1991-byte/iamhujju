@@ -110,7 +110,7 @@ export function useRazorpayCheckout({
 
       const orderData = await orderRes.json();
       const isScriptLoaded = await loadRazorpayScript(2);
-      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2RfhaS1IyP8oo';
+      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2SqMDjvKttD4X';
 
       if (orderData.fallbackToDirectUpi) {
         return { success: false, fallbackToDirectUpi: true, orderData };
