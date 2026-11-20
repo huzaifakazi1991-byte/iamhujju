@@ -19,6 +19,8 @@
 }
 
 .topbar-actions {
+  position: relative;
+  z-index: 1001;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -241,6 +243,8 @@ textarea:focus-visible {
 }
 
 .topbar {
+  position: relative;
+  z-index: 1000;
   min-height: 72px;
   border-bottom: 1px solid var(--border);
   display: flex;

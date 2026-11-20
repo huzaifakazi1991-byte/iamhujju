@@ -90,7 +90,9 @@ export default function AccountMenu({
       </button>
 
       {open && (
-        <div className="account-menu-panel" id="account-menu-panel">
+        <>
+          <div className="account-menu-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="account-menu-panel" id="account-menu-panel">
           <div className="account-menu-identity">
             <span className="account-menu-avatar account-menu-avatar-large" aria-hidden="true">
               {user.email.charAt(0).toUpperCase()}
@@ -195,6 +197,7 @@ export default function AccountMenu({
             {busy ? 'Signing out…' : 'Sign out'}
           </button>
         </div>
+        </>
       )}
     </div>
   );
