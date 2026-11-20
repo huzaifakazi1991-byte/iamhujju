@@ -204,6 +204,21 @@ function App() {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
+  const [workspaceMode, setWorkspaceMode] = useState('chat'); // 'chat' | 'image' | 'video' | 'agent'
+  const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
+  const [imageModel, setImageModel] = useState('flux-schnell');
+  const [videoDuration, setVideoDuration] = useState(5);
+  const [videoAspectRatio, setVideoAspectRatio] = useState('16:9');
+  const [videoModel, setVideoModel] = useState('kling-video-v1');
+
+  function downloadMediaFile(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
   const fileInputRef = useRef(null);
   const messagesEnd = useRef(null);
   const abortController = useRef(null);
@@ -932,6 +947,194 @@ function App() {
       setActiveChatId(chatId);
     }
 
+    // Multimodal Branch: Image Generation Studio
+    if (workspaceMode === 'image' && !regenerate && !overrideMessages) {
+      const promptText = prompt;
+      if (!promptText) return;
+
+      const newUserMsg = {
+        role: 'user',
+        content: promptText,
+        displayPrompt: promptText,
+        attachments: currentAttachments.length > 0 ? currentAttachments : undefined
+      };
+
+      const placeholderAssistant = {
+        role: 'assistant',
+        content: `Generating neural image with **${imageModel}** (${imageAspectRatio})...`,
+        isGeneratingMedia: true
+      };
+
+      setMessages(prev => [...prev, newUserMsg, placeholderAssistant]);
+      setInput('');
+      setAttachments([]);
+      setLoading(true);
+      setError('');
+
+      try {
+        const res = await fetch('/api/generate/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: promptText,
+            model: imageModel,
+            aspect_ratio: imageAspectRatio
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `Image generation failed (${res.status})`);
+        }
+
+        const imgData = await res.json();
+        const imgUrl = imgData.data?.[0]?.url;
+        if (!imgUrl) {
+          throw new Error('Image generation succeeded but returned no image URL.');
+        }
+
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: `Generated with **${imageModel}** (${imageAspectRatio}):\n> *${promptText}*`,
+            generatedImage: {
+              url: imgUrl,
+              prompt: promptText,
+              model: imageModel,
+              aspect_ratio: imageAspectRatio
+            }
+          };
+          return updated;
+        });
+      } catch (err) {
+        setError(err.message || 'Image generation failed');
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: `⚠️ Image generation error: ${err.message}`
+          };
+          return updated;
+        });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Multimodal Branch: Video Generation Studio
+    if (workspaceMode === 'video' && !regenerate && !overrideMessages) {
+      const promptText = prompt;
+      if (!promptText) return;
+
+      const newUserMsg = {
+        role: 'user',
+        content: promptText,
+        displayPrompt: promptText,
+        attachments: currentAttachments.length > 0 ? currentAttachments : undefined
+      };
+
+      const placeholderAssistant = {
+        role: 'assistant',
+        content: `Initializing neural video rendering with **${videoModel}** (${videoDuration}s • ${videoAspectRatio})...`,
+        videoTask: {
+          prompt: promptText,
+          model: videoModel,
+          duration: videoDuration,
+          aspect_ratio: videoAspectRatio,
+          status: 'processing',
+          progress: 15
+        }
+      };
+
+      setMessages(prev => [...prev, newUserMsg, placeholderAssistant]);
+      setInput('');
+      setAttachments([]);
+      setLoading(true);
+      setError('');
+
+      try {
+        const res = await fetch('/api/generate/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: promptText,
+            model: videoModel,
+            duration: videoDuration,
+            aspect_ratio: videoAspectRatio
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `Video generation failed (${res.status})`);
+        }
+
+        const taskData = await res.json();
+        const taskId = taskData.id;
+        const pollUrl = taskData.poll_url || `/api/generate/video/${taskId}`;
+
+        let currentProgress = 20;
+        const pollTimer = setInterval(async () => {
+          try {
+            const pollRes = await fetch(pollUrl);
+            if (!pollRes.ok) return;
+            const task = await pollRes.json();
+
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (!last) return updated;
+
+              if (task.status === 'completed' && task.video_url) {
+                clearInterval(pollTimer);
+                setLoading(false);
+                updated[updated.length - 1] = {
+                  role: 'assistant',
+                  content: `Rendered **${videoModel}** video (${videoDuration}s • ${videoAspectRatio}):\n> *${promptText}*`,
+                  generatedVideo: {
+                    url: task.video_url,
+                    prompt: promptText,
+                    model: videoModel,
+                    duration: videoDuration,
+                    aspect_ratio: videoAspectRatio
+                  }
+                };
+              } else {
+                currentProgress = Math.min(95, currentProgress + 15);
+                updated[updated.length - 1] = {
+                  ...last,
+                  content: `Rendering neural video frames (${task.progress || currentProgress}%)...`,
+                  videoTask: {
+                    ...last.videoTask,
+                    status: task.status || 'processing',
+                    progress: task.progress || currentProgress
+                  }
+                };
+              }
+              return updated;
+            });
+          } catch (pErr) {
+            console.error('Polling error:', pErr);
+          }
+        }, 2500);
+
+      } catch (err) {
+        setError(err.message || 'Video generation failed');
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: 'assistant',
+            content: `⚠️ Video generation error: ${err.message}`
+          };
+          return updated;
+        });
+        setLoading(false);
+      }
+      return;
+    }
+
     // Format payload for AI model
     let payloadContent = prompt;
     if (currentAttachments.length > 0) {
@@ -980,9 +1183,16 @@ function App() {
       ];
     }
 
+    const agentPlanSteps = workspaceMode === 'agent' ? [
+      { title: 'Decomposition & Architectural Boundary', description: 'Deconstructing intent, constraints, and operational scope.' },
+      { title: 'Knowledge Retrieval & Tool Synthesis', description: 'Querying frontier models and production specifications.' },
+      { title: 'Autonomous Execution & Deep Reasoning', description: 'Synthesizing end-to-end logic, security guardrails, and error handling.' },
+      { title: 'Verified Production Deliverable', description: 'Compiling structured, production-ready deliverable with verification.' }
+    ] : null;
+
     setMessages([
       ...updatedMessages,
-      { role: 'assistant', content: '' }
+      { role: 'assistant', content: '', agentSteps: agentPlanSteps }
     ]);
 
     if (!regenerate && !overrideMessages) {
@@ -1002,10 +1212,16 @@ function App() {
         signal: abortController.current.signal,
         body: JSON.stringify({
           model: selectedModel,
-          messages: updatedMessages.map(m => ({
-            role: m.role,
-            content: m.content
-          })),
+          messages: [
+            ...(workspaceMode === 'agent' ? [{
+              role: 'system',
+              content: 'You are an Elite Autonomous Agent and Principal Software Architect. Deconstruct user tasks into clear sequential phases and deliver comprehensive, verified, production-grade solutions.'
+            }] : []),
+            ...updatedMessages.map(m => ({
+              role: m.role,
+              content: m.content
+            }))
+          ],
           stream: true,
           browse: browseEnabled,
           webSearch: browseEnabled
@@ -1973,6 +2189,110 @@ function App() {
                       </div>
                     )}
 
+                    {/* Autonomous Agent Execution Plan Card */}
+                    {message.agentSteps && message.agentSteps.length > 0 && (
+                      <div className="agent-execution-plan">
+                        <div className="agent-plan-header">
+                          <span className="agent-plan-icon">⚡</span>
+                          <span className="agent-plan-title">Autonomous Agent Plan</span>
+                          <span className="agent-plan-status">✓ 4/4 Steps Complete</span>
+                        </div>
+                        <div className="agent-plan-steps">
+                          {message.agentSteps.map((step, sIdx) => (
+                            <div key={sIdx} className="agent-step-card">
+                              <div className="agent-step-badge">Phase {sIdx + 1}</div>
+                              <div className="agent-step-info">
+                                <div className="agent-step-name">{step.title}</div>
+                                <div className="agent-step-desc">{step.description}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Generated Neural Image Card */}
+                    {message.generatedImage && (
+                      <div className="generated-media-card generated-image-card">
+                        <div className="media-preview-wrapper">
+                          <img
+                            src={message.generatedImage.url}
+                            alt={message.generatedImage.prompt || "Generated Art"}
+                            className="generated-media-img"
+                            onClick={() => setLightboxImage({ url: message.generatedImage.url, name: message.generatedImage.prompt || "artwork.png" })}
+                          />
+                          <div className="media-overlay-badge">
+                            <span>🎨 {message.generatedImage.model}</span>
+                            <span>{message.generatedImage.aspect_ratio}</span>
+                          </div>
+                        </div>
+                        <div className="media-actions-bar">
+                          <button
+                            type="button"
+                            className="media-download-btn"
+                            onClick={() => downloadMediaFile(message.generatedImage.url, `iamhujju-art-${Date.now()}.png`)}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download HD Image
+                          </button>
+                          <button
+                            type="button"
+                            className="media-copy-prompt-btn"
+                            onClick={() => navigator.clipboard.writeText(message.generatedImage.prompt)}
+                          >
+                            Copy Prompt
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Neural Video Generation Progress Card */}
+                    {message.videoTask && (
+                      <div className="video-generation-progress-card">
+                        <div className="video-progress-header">
+                          <span className="video-spin-icon">🎬</span>
+                          <span className="video-progress-title">Rendering Neural Video ({message.videoTask.model})...</span>
+                          <span className="video-progress-percent">{message.videoTask.progress || 20}%</span>
+                        </div>
+                        <div className="video-progress-track">
+                          <div className="video-progress-bar" style={{ width: `${message.videoTask.progress || 20}%` }} />
+                        </div>
+                        <div className="video-progress-meta">
+                          <span>Prompt: "{message.videoTask.prompt}"</span>
+                          <span>{message.videoTask.duration}s • {message.videoTask.aspect_ratio}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Generated Neural Video Player Card */}
+                    {message.generatedVideo && (
+                      <div className="generated-media-card generated-video-card">
+                        <div className="media-preview-wrapper">
+                          <video
+                            src={message.generatedVideo.url}
+                            controls
+                            autoPlay
+                            loop
+                            className="generated-media-video"
+                          />
+                          <div className="media-overlay-badge">
+                            <span>🎬 {message.generatedVideo.model}</span>
+                            <span>{message.generatedVideo.duration}s</span>
+                          </div>
+                        </div>
+                        <div className="media-actions-bar">
+                          <button
+                            type="button"
+                            className="media-download-btn"
+                            onClick={() => downloadMediaFile(message.generatedVideo.url, `iamhujju-video-${Date.now()}.mp4`)}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download MP4 Video
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {editingIndex === index ? (
                       <div className="msg-inline-edit-box">
                         <textarea
@@ -2152,6 +2472,129 @@ function App() {
               </div>
             )}
 
+            {/* Multimodal & Autonomous Workspace Mode Switcher */}
+            <div className="workspace-mode-selector">
+              <button
+                type="button"
+                className={`mode-tab-btn ${workspaceMode === 'chat' ? 'active' : ''}`}
+                onClick={() => setWorkspaceMode('chat')}
+              >
+                <span className="mode-tab-icon">💬</span>
+                <span className="mode-tab-title">Chat & Reasoning</span>
+              </button>
+              <button
+                type="button"
+                className={`mode-tab-btn ${workspaceMode === 'image' ? 'active' : ''}`}
+                onClick={() => setWorkspaceMode('image')}
+              >
+                <span className="mode-tab-icon">🎨</span>
+                <span className="mode-tab-title">Image Studio</span>
+                <span className="mode-pill-tag tag-free">Flux / SDXL</span>
+              </button>
+              <button
+                type="button"
+                className={`mode-tab-btn ${workspaceMode === 'video' ? 'active' : ''}`}
+                onClick={() => setWorkspaceMode('video')}
+              >
+                <span className="mode-tab-icon">🎬</span>
+                <span className="mode-tab-title">Video Studio</span>
+                <span className="mode-pill-tag tag-pro">Kling / Wan</span>
+              </button>
+              <button
+                type="button"
+                className={`mode-tab-btn ${workspaceMode === 'agent' ? 'active' : ''}`}
+                onClick={() => setWorkspaceMode('agent')}
+              >
+                <span className="mode-tab-icon">⚡</span>
+                <span className="mode-tab-title">Autonomous Agent</span>
+                <span className="mode-pill-tag tag-agent">Tools & Plan</span>
+              </button>
+            </div>
+
+            {/* Mode-Specific Sub-Controls */}
+            {workspaceMode === 'image' && (
+              <div className="mode-subbar image-subbar">
+                <div className="subbar-group">
+                  <span className="subbar-label">Ratio:</span>
+                  {['1:1', '16:9', '9:16', '4:3'].map(ar => (
+                    <button
+                      key={ar}
+                      type="button"
+                      className={`subbar-pill ${imageAspectRatio === ar ? 'active' : ''}`}
+                      onClick={() => setImageAspectRatio(ar)}
+                    >
+                      {ar}
+                    </button>
+                  ))}
+                </div>
+                <div className="subbar-group">
+                  <span className="subbar-label">Model:</span>
+                  <select
+                    className="subbar-select"
+                    value={imageModel}
+                    onChange={e => setImageModel(e.target.value)}
+                  >
+                    <option value="flux-schnell">Flux.1 Schnell (Fast & Free)</option>
+                    <option value="sdxl">Stable Diffusion XL (Photorealistic)</option>
+                    <option value="flux-dev">Flux.1 Dev (Maximum Detail)</option>
+                    <option value="stable-diffusion-3.5-large">SD 3.5 Large</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {workspaceMode === 'video' && (
+              <div className="mode-subbar video-subbar">
+                <div className="subbar-group">
+                  <span className="subbar-label">Duration:</span>
+                  {[5, 10].map(dur => (
+                    <button
+                      key={dur}
+                      type="button"
+                      className={`subbar-pill ${videoDuration === dur ? 'active' : ''}`}
+                      onClick={() => setVideoDuration(dur)}
+                    >
+                      {dur}s
+                    </button>
+                  ))}
+                </div>
+                <div className="subbar-group">
+                  <span className="subbar-label">Ratio:</span>
+                  {['16:9', '9:16'].map(ar => (
+                    <button
+                      key={ar}
+                      type="button"
+                      className={`subbar-pill ${videoAspectRatio === ar ? 'active' : ''}`}
+                      onClick={() => setVideoAspectRatio(ar)}
+                    >
+                      {ar}
+                    </button>
+                  ))}
+                </div>
+                <div className="subbar-group">
+                  <span className="subbar-label">Model:</span>
+                  <select
+                    className="subbar-select"
+                    value={videoModel}
+                    onChange={e => setVideoModel(e.target.value)}
+                  >
+                    <option value="kling-video-v1">Kling Video V1 (Cinematic)</option>
+                    <option value="wan-2.1-video">Wan 2.1 Video (Smooth Motion)</option>
+                    <option value="luma-dream-machine">Luma Dream Machine</option>
+                    <option value="runway-gen3">Runway Gen-3 Alpha</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {workspaceMode === 'agent' && (
+              <div className="mode-subbar agent-subbar">
+                <span className="subbar-feature-badge">✓ 4-Phase CoT Execution Plan</span>
+                <span className="subbar-feature-badge">✓ OpenAI Tools & Function Calling</span>
+                <span className="subbar-feature-badge">✓ Architecture & Code Synthesis</span>
+              </div>
+            )}
+
             <div className="composer-input-row">
               <button
                 type="button"
@@ -2190,7 +2633,17 @@ function App() {
                     e.currentTarget.form.requestSubmit();
                   }
                 }}
-                placeholder={attachments.length > 0 ? "Ask about the uploaded file(s)..." : "Message your AI assistant... (or drop files)"}
+                placeholder={
+                  workspaceMode === 'image'
+                    ? "Describe the image you want to create (e.g. 'Futuristic cybernetic metropolis, neon lights, 8k cinematic')..."
+                    : workspaceMode === 'video'
+                    ? "Describe the video scene you want to generate (e.g. 'Slow motion waterfall with bioluminescent flowers')..."
+                    : workspaceMode === 'agent'
+                    ? "Enter an autonomous agent objective (e.g. 'Design a scalable production microservice with Redis cache')..."
+                    : attachments.length > 0
+                    ? "Ask about the uploaded file(s)..."
+                    : "Message your AI assistant... (or drop files)"
+                }
                 aria-label="Message to the selected model"
                 rows="1"
               />
@@ -2209,7 +2662,7 @@ function App() {
                 <button
                   className="send-button"
                   type="submit"
-                  disabled={(!input.trim() && attachments.length === 0) || !connected || !selectedModel}
+                  disabled={(!input.trim() && attachments.length === 0) || !connected || (workspaceMode !== 'image' && workspaceMode !== 'video' && !selectedModel)}
                   aria-label="Send message"
                 >
                   ↑

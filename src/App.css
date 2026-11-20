@@ -2087,3 +2087,408 @@ textarea:focus-visible {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
 }
+
+
+/* ==========================================================================
+   Multimodal Workspace & Autonomous Agent UI Suite
+   ========================================================================== */
+
+.workspace-mode-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.workspace-mode-selector::-webkit-scrollbar {
+  display: none;
+}
+
+.mode-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.mode-tab-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-tab-btn.active {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.18);
+}
+
+.mode-tab-icon {
+  font-size: 14px;
+}
+
+.mode-pill-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.tag-free {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.tag-pro {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.tag-agent {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Sub-Controls Bar */
+.mode-subbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  animation: fadeInDown 0.2s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.subbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subbar-label {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.subbar-pill {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.subbar-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.subbar-pill.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.subbar-select {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #f1f5f9;
+  outline: none;
+  cursor: pointer;
+}
+
+.subbar-select:focus {
+  border-color: #38bdf8;
+}
+
+.subbar-feature-badge {
+  font-size: 12px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Autonomous Agent Plan Cards */
+.agent-execution-plan {
+  margin: 12px 0 16px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.agent-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.agent-plan-icon {
+  font-size: 16px;
+}
+
+.agent-plan-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #fbbf24;
+  letter-spacing: 0.02em;
+}
+
+.agent-plan-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.agent-plan-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.agent-step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+}
+
+.agent-step-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.agent-step-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.agent-step-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+/* Generated Media Preview Cards */
+.generated-media-card {
+  margin: 14px 0;
+  max-width: 580px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.media-preview-wrapper {
+  position: relative;
+  width: 100%;
+  background: #020617;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.generated-media-img {
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  display: block;
+  cursor: zoom-in;
+  transition: transform 0.2s ease;
+}
+
+.generated-media-img:hover {
+  transform: scale(1.01);
+}
+
+.generated-media-video {
+  width: 100%;
+  max-height: 500px;
+  background: #000;
+  display: block;
+  outline: none;
+}
+
+.media-overlay-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.media-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.media-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.media-download-btn:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.media-copy-prompt-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.media-copy-prompt-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* Neural Video Progress Bar */
+.video-generation-progress-card {
+  margin: 14px 0;
+  max-width: 520px;
+  padding: 14px 16px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.1);
+}
+
+.video-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.video-spin-icon {
+  font-size: 16px;
+  animation: pulse 1.5s infinite;
+}
+
+.video-progress-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.video-progress-percent {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c084fc;
+}
+
+.video-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.video-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #9333ea, #c084fc, #38bdf8);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+.video-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.video-progress-status-badge {
+  margin-left: auto;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 700;
+  color: #c084fc;
+}

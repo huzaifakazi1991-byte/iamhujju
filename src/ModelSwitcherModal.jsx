@@ -40,6 +40,9 @@ export default function ModelSwitcherModal({
   const categories = [
     { id: 'all', label: 'All Models', icon: '🌐' },
     { id: 'free', label: '100% Free', icon: '⚡' },
+    { id: 'image', label: 'Image Studio', icon: '🎨' },
+    { id: 'video', label: 'Video Studio', icon: '🎬' },
+    { id: 'agent', label: 'Autonomous Agents', icon: '🤖' },
     { id: 'reasoning', label: 'Reasoning & Math', icon: '🧠' },
     { id: 'coding', label: 'Coding & Dev', icon: '💻' },
     { id: 'vision', label: 'Vision & Multimodal', icon: '👁️' },
@@ -82,6 +85,21 @@ export default function ModelSwitcherModal({
 
     if (activeCategory === 'free') {
       list = list.filter(m => isModelFree(m));
+    } else if (activeCategory === 'image') {
+      list = list.filter(m => {
+        const text = `${m.id} ${m.name || ''} ${m.modality || ''}`.toLowerCase();
+        return m.modality === 'image' || text.includes('flux') || text.includes('sdxl') || text.includes('stable-diffusion') || text.includes('dall-e') || text.includes('imagen');
+      });
+    } else if (activeCategory === 'video') {
+      list = list.filter(m => {
+        const text = `${m.id} ${m.name || ''} ${m.modality || ''}`.toLowerCase();
+        return m.modality === 'video' || text.includes('kling') || text.includes('wan') || text.includes('luma') || text.includes('runway') || text.includes('sora') || text.includes('video');
+      });
+    } else if (activeCategory === 'agent') {
+      list = list.filter(m => {
+        const text = `${m.id} ${m.name || ''} ${m.modality || ''}`.toLowerCase();
+        return m.supportsTools || m.modality === 'agent' || text.includes('agent') || text.includes('tool') || text.includes('gpt-4o') || text.includes('claude-3-5') || text.includes('qwen-2.5-coder') || text.includes('r1');
+      });
     } else if (activeCategory === 'reasoning') {
       list = list.filter(m => {
         const text = `${m.id} ${m.name}`.toLowerCase();
@@ -237,6 +255,9 @@ export default function ModelSwitcherModal({
                   <div className="model-card-meta">
                     <span className="meta-tag context-tag">{contextStr}</span>
                     <span className="meta-tag speed-tag">⚡ ~140ms</span>
+                    {model.modality === 'image' && <span className="meta-tag modality-tag">🎨 Image</span>}
+                    {model.modality === 'video' && <span className="meta-tag modality-tag">🎬 Video</span>}
+                    {model.modality === 'agent' && <span className="meta-tag modality-tag">⚡ Agent</span>}
                     {isSelected && (
                       <span className="meta-tag active-tag">✓ Active</span>
                     )}

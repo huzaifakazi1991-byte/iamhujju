@@ -20,7 +20,11 @@ import {
   resolveModelTarget,
   sanitizePayloadForModel,
   createModelSyncService,
-  runAdminProviderDiagnostics
+  runAdminProviderDiagnostics,
+  detectModelModality,
+  createVideoTaskRecord,
+  getVideoTaskStatus,
+  generateImageResult
 } from './services/aiGateway.js';
 
 dotenv.config();
@@ -187,6 +191,21 @@ const chatMessageSchema = z.object({
   sources: z.array(z.any()).optional()
 }).passthrough();
 
+// Autonomous Agent & Gateway Schema supporting tool loops, functions, and tool_calls
+const gatewayChatMessageSchema = z.object({
+  role: z.string().min(1).max(32),
+  content: z.union([
+    z.string().max(25000000),
+    z.array(z.any()).max(100)
+  ]).nullable().optional(),
+  name: z.string().optional(),
+  tool_call_id: z.string().optional(),
+  tool_calls: z.array(z.any()).optional(),
+  function_call: z.any().optional(),
+  attachments: z.array(z.any()).optional(),
+  sources: z.array(z.any()).optional()
+}).passthrough();
+
 const savedConversationSchema = z.object({
   id: z.string().min(1).max(128),
   title: z.string().max(500),
@@ -249,12 +268,46 @@ const chatRequestSchema = z.object({
   messages: z.array(chatMessageSchema).min(1).max(100),
   stream: z.boolean().optional(),
   browse: z.boolean().optional(),
-  webSearch: z.boolean().optional()
+  webSearch: z.boolean().optional(),
+  tools: z.array(z.any()).optional(),
+  tool_choice: z.any().optional(),
+  functions: z.array(z.any()).optional(),
+  function_call: z.any().optional(),
+  response_format: z.any().optional(),
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+  max_tokens: z.number().optional(),
+  max_completion_tokens: z.number().optional()
 }).passthrough().superRefine((body, context) => {
   if (!body.messages.some(message => message.role === 'user')) {
     context.addIssue({
       code: 'custom',
       message: 'A user message is required.',
+      path: ['messages']
+    });
+  }
+});
+
+const gatewayChatRequestSchema = z.object({
+  model: z.string().trim().min(1).max(256),
+  messages: z.array(gatewayChatMessageSchema).min(1).max(100),
+  stream: z.boolean().optional(),
+  browse: z.boolean().optional(),
+  webSearch: z.boolean().optional(),
+  tools: z.array(z.any()).optional(),
+  tool_choice: z.any().optional(),
+  functions: z.array(z.any()).optional(),
+  function_call: z.any().optional(),
+  response_format: z.any().optional(),
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+  max_tokens: z.number().optional(),
+  max_completion_tokens: z.number().optional()
+}).passthrough().superRefine((body, context) => {
+  if (!body.messages.some(message => message.role === 'user' || message.role === 'tool' || message.role === 'assistant')) {
+    context.addIssue({
+      code: 'custom',
+      message: 'A user or agent message is required.',
       path: ['messages']
     });
   }
@@ -613,6 +666,7 @@ export function createApp({
     else if (brandPrefix.includes('baidu')) brand = 'Baidu';
     else if (brandPrefix.includes('tencent')) brand = 'Tencent';
 
+    const { modality, modalities, supportsTools } = detectModelModality(id, model);
     return {
       ...model,
       id: `openrouter:${id}`,
@@ -624,7 +678,10 @@ export function createApp({
       context_window: model.context_length,
       available: true,
       isFree,
-      tier: isFree ? 'free' : 'pro'
+      tier: isFree ? 'free' : 'pro',
+      modality,
+      modalities,
+      supportsTools
     };
   }
 
@@ -730,6 +787,7 @@ export function createApp({
 
     const contextLength = Number(model.context_window || model.context_length || 128000) || 128000;
 
+    const { modality, modalities, supportsTools } = detectModelModality(cleanId, model);
     return {
       ...model,
       id: `${providerId}:${cleanId}`,
@@ -742,7 +800,10 @@ export function createApp({
       context_length: contextLength,
       available: true,
       isFree,
-      tier: isFree ? 'free' : 'pro'
+      tier: isFree ? 'free' : 'pro',
+      modality,
+      modalities,
+      supportsTools
     };
   }
 
@@ -1385,15 +1446,19 @@ export function createApp({
         const key = effectiveKeys[p];
         if (!key) continue;
         const config = PROVIDERS[p];
-        let pModels = await discoverModels(
-          config.name,
-          config.modelsUrl,
-          {
-            Authorization: 'Bearer ' + key,
-            ...(config.headers || {})
-          },
-          key
-        );
+        let pModels = [];
+        
+        if (key) {
+          pModels = await discoverModels(
+            config.name,
+            config.modelsUrl,
+            {
+              ...(key ? { Authorization: 'Bearer ' + key } : {}),
+              ...(config.headers || {})
+            },
+            key || ''
+          );
+        }
 
         if (!pModels || pModels.length === 0) {
           pModels = PROVIDER_FALLBACK_MODELS[p] || [];
@@ -2514,7 +2579,7 @@ What would you like to explore or do right now?
     if (!user) return;
 
     const body = validatedBody(
-      chatRequestSchema,
+      gatewayChatRequestSchema,
       req,
       res,
       'Request must include a model and 1-100 valid messages, including a user message.'
@@ -2763,6 +2828,124 @@ What would you like to explore or do right now?
       : 'Request body must be valid JSON.';
     res.status(status).json({ error: { message } });
   });
+
+
+  // ── Multimodal Endpoints: Image & Video Generation ────────────────────────
+
+  // CORS preflight for multimodal endpoints
+  app.options([
+    '/v1/images/generations', '/v1/images/generations/{*splat}',
+    '/api/generate/image', '/api/generate/image/{*splat}',
+    '/v1/videos/generations', '/v1/videos/generations/{*splat}',
+    '/api/generate/video', '/api/generate/video/{*splat}',
+    '/api/generate/video/:taskId'
+  ], (req, res) => {
+    setGatewayCors(res);
+    res.status(204).end();
+  });
+
+  // Image Generation Handler
+  async function handleImageGeneration(req, res) {
+    setGatewayCors(res);
+    const authHeader = req.headers.authorization || '';
+    let user = null;
+    if (authHeader.startsWith('Bearer sk-hujju-')) {
+      user = await gatewayAuth(req, res);
+      if (!user) return;
+    } else {
+      user = await getCurrentUser(req);
+    }
+
+    const { prompt, model = 'flux-schnell', size = '1024x1024', aspect_ratio = '1:1', n = 1, response_format = 'url' } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ error: { message: 'A prompt is required for image generation.' } });
+    }
+
+    try {
+      const activeEhKey = (user && await getProviderKeyForUser(user.id, 'electronhub')) || serverElectronHubKey || (keyPool?.hasKeys('electronhub') ? keyPool.pools.get('electronhub')?.[0]?.key : null);
+      const activeOrKey = (user && await getProviderKeyForUser(user.id, 'openrouter')) || serverOpenRouterKey || (keyPool?.hasKeys('openrouter') ? keyPool.pools.get('openrouter')?.[0]?.key : null);
+
+      const result = await generateImageResult({
+        prompt: prompt.trim(),
+        model,
+        size,
+        aspect_ratio,
+        n,
+        response_format,
+        activeKey: activeEhKey || activeOrKey,
+        providerBase: activeEhKey ? PROVIDERS.electronhub.base : (activeOrKey ? PROVIDERS.openrouter.base : null)
+      });
+
+      return res.json(result);
+    } catch (err) {
+      console.error('Image generation error:', err);
+      return res.status(500).json({ error: { message: 'Image generation failed: ' + err.message } });
+    }
+  }
+
+  app.post(['/v1/images/generations', '/v1/images/generations/'], handleImageGeneration);
+  app.post(['/api/generate/image', '/api/generate/image/'], handleImageGeneration);
+
+  // Video Generation Creation Handler
+  async function handleCreateVideo(req, res) {
+    setGatewayCors(res);
+    const authHeader = req.headers.authorization || '';
+    let user = null;
+    if (authHeader.startsWith('Bearer sk-hujju-')) {
+      user = await gatewayAuth(req, res);
+      if (!user) return;
+    } else {
+      user = await getCurrentUser(req);
+    }
+
+    const { prompt, model = 'kling-video-v1', duration = 5, aspect_ratio = '16:9' } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ error: { message: 'A prompt is required for video generation.' } });
+    }
+
+    try {
+      const task = createVideoTaskRecord({
+        prompt: prompt.trim(),
+        model,
+        duration,
+        aspect_ratio
+      });
+
+      return res.status(202).json({
+        id: task.id,
+        status: task.status,
+        progress: task.progress,
+        prompt: task.prompt,
+        model: task.model,
+        created: Math.floor(Date.now() / 1000),
+        poll_url: `/api/generate/video/${task.id}`
+      });
+    } catch (err) {
+      console.error('Video generation error:', err);
+      return res.status(500).json({ error: { message: 'Video generation failed: ' + err.message } });
+    }
+  }
+
+  app.post(['/v1/videos/generations', '/v1/videos/generations/'], handleCreateVideo);
+  app.post(['/api/generate/video', '/api/generate/video/'], handleCreateVideo);
+
+  // Video Generation Status Polling Handler
+  function handlePollVideoStatus(req, res) {
+    setGatewayCors(res);
+    const taskId = req.params.taskId;
+    if (!taskId) {
+      return res.status(400).json({ error: { message: 'taskId parameter is required.' } });
+    }
+
+    const taskStatus = getVideoTaskStatus(taskId);
+    if (!taskStatus) {
+      return res.status(404).json({ error: { message: 'Video generation task not found or expired.' } });
+    }
+
+    return res.json(taskStatus);
+  }
+
+  app.get(['/api/generate/video/:taskId', '/v1/videos/generations/:taskId'], handlePollVideoStatus);
 
   return app;
 }
