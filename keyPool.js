@@ -14,21 +14,28 @@ function deriveEncryptionKey(secret) {
 }
 
 function decryptVaultCredential(row, encryptionKey) {
-  if (!encryptionKey || !row.key_ciphertext || !row.iv || !row.auth_tag) return null;
-  try {
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      encryptionKey,
-      Buffer.from(row.iv, 'base64url')
-    );
-    decipher.setAuthTag(Buffer.from(row.auth_tag, 'base64url'));
-    return Buffer.concat([
-      decipher.update(Buffer.from(row.key_ciphertext, 'base64url')),
-      decipher.final()
-    ]).toString('utf8');
-  } catch (err) {
-    return null;
+  if (!encryptionKey || !row.key_ciphertext && !row.ciphertext) return null;
+  const ivStr = row.iv;
+  const tagStr = row.auth_tag || row.authTag;
+  const cipherStr = row.key_ciphertext || row.ciphertext;
+  if (!ivStr || !tagStr || !cipherStr) return null;
+
+  // Try base64url then base64
+  for (const encoding of ['base64url', 'base64']) {
+    try {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        encryptionKey,
+        Buffer.from(ivStr, encoding)
+      );
+      decipher.setAuthTag(Buffer.from(tagStr, encoding));
+      return Buffer.concat([
+        decipher.update(Buffer.from(cipherStr, encoding)),
+        decipher.final()
+      ]).toString('utf8');
+    } catch {}
   }
+  return null;
 }
 
 export class KeyPool {
@@ -54,10 +61,10 @@ export class KeyPool {
   }
 
   initFromEnv() {
-    this.registerPool('openrouter', this.parseKeys(process.env.OPENROUTER_API_KEYS, process.env.OPENROUTER_API_KEY));
+    this.registerPool('openrouter', this.parseKeys(process.env.OPENROUTER_API_KEYS || process.env.OPEN_ROUTER_API_KEYS, process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY));
     this.registerPool('groq', this.parseKeys(process.env.GROQ_API_KEYS, process.env.GROQ_API_KEY));
-    this.registerPool('gemini', this.parseKeys(process.env.GEMINI_API_KEYS, process.env.GEMINI_API_KEY));
-    this.registerPool('electronhub', this.parseKeys(process.env.ELECTRONHUB_API_KEYS, process.env.ELECTRONHUB_API_KEY));
+    this.registerPool('gemini', this.parseKeys(process.env.GEMINI_API_KEYS || process.env.GOOGLE_AI_STUDIO_API_KEYS, process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY));
+    this.registerPool('electronhub', this.parseKeys(process.env.ELECTRONHUB_API_KEYS || process.env.ELECTRON_HUB_API_KEYS, process.env.ELECTRONHUB_API_KEY || process.env.ELECTRON_HUB_API_KEY));
     this.registerPool('freemodel', this.parseKeys(process.env.FREEMODEL_API_KEYS, process.env.FREEMODEL_API_KEY));
     this.registerPool('freellmapi', this.parseKeys(process.env.FREELLMAPI_KEYS, process.env.FREELLMAPI_KEY));
     this.registerPool('mistral', this.parseKeys(process.env.MISTRAL_API_KEYS, process.env.MISTRAL_API_KEY));
@@ -73,14 +80,14 @@ export class KeyPool {
     const encryptionKey = deriveEncryptionKey(encryptionSecret);
     if (!encryptionKey) return 0;
 
+    let loadedCount = 0;
     try {
       const res = await db.query(
         `SELECT id, provider, key_label, key_ciphertext, iv, auth_tag, status, cooldown_until
          FROM system_provider_keys
          WHERE status != 'invalid'`
-      );
+      ).catch(() => ({ rows: [] }));
 
-      let loadedCount = 0;
       for (const row of res.rows) {
         const rawKey = decryptVaultCredential(row, encryptionKey);
         if (rawKey) {
@@ -101,13 +108,42 @@ export class KeyPool {
           }
         }
       }
+
+      // Also load active encrypted keys from system_integrations
+      const integRes = await db.query(
+        `SELECT id, version, iv, auth_tag, ciphertext, updated_at
+         FROM system_integrations`
+      ).catch(() => ({ rows: [] }));
+
+      for (const row of integRes.rows) {
+        const rawKey = decryptVaultCredential(row, encryptionKey);
+        if (rawKey) {
+          const providerId = row.id === 'google-ai-studio' ? 'gemini' : row.id;
+          const pool = this.pools.get(providerId) || [];
+          if (!pool.some(k => k.key === rawKey)) {
+            pool.push({
+              key: rawKey,
+              cooldownUntil: 0,
+              lastUsedAt: 0,
+              totalRequests: 0,
+              failureCount: 0,
+              status: 'healthy',
+              dbId: row.id,
+              label: `${providerId}-vault-integration`
+            });
+            this.pools.set(providerId, pool);
+            loadedCount++;
+          }
+        }
+      }
+
       if (loadedCount > 0) {
         console.log(`[KeyVault] Successfully loaded ${loadedCount} persistent provider keys from database.`);
       }
       return loadedCount;
     } catch (err) {
       console.warn(`[KeyVault] Database key vault query note: ${err.message}`);
-      return 0;
+      return loadedCount;
     }
   }
 

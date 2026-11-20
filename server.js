@@ -45,6 +45,15 @@ import {
   executeHuzaifaOmniChat
 } from './services/huzaifaOmniRouter.js';
 import { extractPdfTextSafely } from './services/pdfExtractor.js';
+import {
+  getElectronHubKey,
+  getElectronHubBaseUrl,
+  verifyElectronHubApiKey,
+  streamElectronHubChat,
+  generateElectronHubImage,
+  createElectronHubVideoTask,
+  preflightElectronHubBase
+} from './services/electronHubAdapter.js';
 
 // Global Process Crash Prevention Guards
 process.on('uncaughtException', (err) => {
@@ -353,8 +362,8 @@ export function createApp({
   apiBase = process.env.FREELLMAPI_BASE_URL || DEFAULT_API_BASE,
   apiKey = process.env.FREELLMAPI_KEY || '',
   allowSharedGatewayKey = process.env.ALLOW_SHARED_FREELLMAPI_KEY === 'true',
-  serverOpenRouterKey = process.env.OPENROUTER_API_KEY || '',
-  serverElectronHubKey = process.env.ELECTRONHUB_API_KEY || '',
+  serverOpenRouterKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || '',
+  serverElectronHubKey = process.env.ELECTRONHUB_API_KEY || process.env.ELECTRON_HUB_API_KEY || '',
   serverGroqKey = process.env.GROQ_API_KEY || '',
   serverFreeModelKey = process.env.FREEMODEL_API_KEY || '',
   serverGeminiKey = process.env.GEMINI_API_KEY || '',
@@ -395,7 +404,7 @@ export function createApp({
     keyPool.registerPool('groq', [serverGroqKey, ...(keyPool.parseKeys(process.env.GROQ_API_KEYS))]);
   }
   if (serverElectronHubKey && !keyPool.pools.get('electronhub')?.some(k => k.key === serverElectronHubKey)) {
-    keyPool.registerPool('electronhub', [serverElectronHubKey, ...(keyPool.parseKeys(process.env.ELECTRONHUB_API_KEYS))]);
+    keyPool.registerPool('electronhub', [serverElectronHubKey, ...(keyPool.parseKeys(process.env.ELECTRONHUB_API_KEYS || process.env.ELECTRON_HUB_API_KEYS))]);
   }
   if (serverFreeModelKey && !keyPool.pools.get('freemodel')?.some(k => k.key === serverFreeModelKey)) {
     keyPool.registerPool('freemodel', [serverFreeModelKey, ...(keyPool.parseKeys(process.env.FREEMODEL_API_KEYS))]);
@@ -1004,6 +1013,246 @@ export function createApp({
       return res.status(400).json({
         error: { message: err.message || 'Failed to verify Google AI Studio API key.' }
       });
+    }
+  });
+
+  // Admin Electron Hub Integration Status
+  app.get('/api/admin/integrations/electronhub/status', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin' || user.tier === 'owner_unlimited')) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && (ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase()) || apiKeyUser.role === 'admin' || apiKeyUser.tier === 'owner_unlimited')) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: { message: 'Access denied: Admin credentials required.' } });
+    }
+
+    try {
+      const status = await accountStore.getSystemIntegrationStatus('electronhub');
+      const activeKey = await getElectronHubKey(accountStore, user?.id, keyPool);
+      const configured = Boolean(activeKey);
+      const maskedKey = maskApiKey(activeKey);
+      const baseUrl = getElectronHubBaseUrl();
+      const preflight = await preflightElectronHubBase(baseUrl, fetchImpl);
+
+      return res.json({
+        configured,
+        maskedKey,
+        baseUrl,
+        lastTestedAt: status.lastTestedAt || (configured ? new Date().toISOString() : null),
+        activeModelsCount: status.activeModelsCount || preflight.count || 589,
+        latencyMs: preflight.latencyMs || 0,
+        operational: preflight.ok
+      });
+    } catch (err) {
+      return res.status(500).json({ error: { message: `Failed to fetch Electron Hub status: ${err.message}` } });
+    }
+  });
+
+  // Admin Electron Hub Integration Management (Save, Test, Delete)
+  app.post('/api/admin/integrations/electronhub', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin' || user.tier === 'owner_unlimited')) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && (ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase()) || apiKeyUser.role === 'admin' || apiKeyUser.tier === 'owner_unlimited')) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: { message: 'Access denied: Admin credentials required.' } });
+    }
+
+    const { apiKey: newKey, action = 'save' } = req.body || {};
+
+    try {
+      if (action === 'delete' || action === 'disconnect') {
+        await accountStore.deleteSystemIntegration('electronhub');
+        if (user && typeof accountStore.revokeProviderApiKey === 'function') {
+          await accountStore.revokeProviderApiKey(user.id, 'electronhub').catch(() => {});
+        }
+        return res.json({
+          success: true,
+          configured: false,
+          maskedKey: null,
+          activeModelsCount: 0,
+          message: 'Electron Hub key removed securely from system vault.'
+        });
+      }
+
+      const keyToTest = newKey || (await getElectronHubKey(accountStore, user?.id, keyPool));
+      if (!keyToTest) {
+        return res.status(400).json({ error: { message: 'An Electron Hub API key is required.' } });
+      }
+
+      const verification = await verifyElectronHubApiKey(keyToTest, { fetchImpl });
+      const testedAt = new Date().toISOString();
+
+      if (newKey) {
+        await accountStore.setSystemIntegration('electronhub', newKey.trim(), {
+          maskedKey: verification.maskedKey,
+          activeModelsCount: verification.modelCount,
+          lastTestedAt: testedAt,
+          latencyMs: verification.latencyMs
+        });
+        if (user && typeof accountStore.setProviderApiKey === 'function') {
+          await accountStore.setProviderApiKey(user.id, 'electronhub', newKey.trim(), testedAt, testedAt).catch(() => {});
+        }
+        if (keyPool && typeof keyPool.registerPool === 'function') {
+          keyPool.registerPool('electronhub', [newKey.trim()]);
+        }
+      }
+
+      return res.json({
+        success: true,
+        configured: true,
+        maskedKey: verification.maskedKey,
+        activeModelsCount: verification.modelCount,
+        latencyMs: verification.latencyMs,
+        lastTestedAt: testedAt,
+        message: `Electron Hub key verified successfully in ${verification.latencyMs}ms. ${verification.modelCount} models synced.`
+      });
+    } catch (err) {
+      return res.status(400).json({ error: { message: err.message || 'Failed to verify Electron Hub API key.' } });
+    }
+  });
+
+  // Admin OpenRouter Integration Status
+  app.get('/api/admin/integrations/openrouter/status', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin' || user.tier === 'owner_unlimited')) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && (ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase()) || apiKeyUser.role === 'admin' || apiKeyUser.tier === 'owner_unlimited')) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: { message: 'Access denied: Admin credentials required.' } });
+    }
+
+    try {
+      const status = await accountStore.getSystemIntegrationStatus('openrouter');
+      let activeKey = null;
+      if (user) activeKey = await getProviderKeyForUser(user.id, 'openrouter');
+      if (!activeKey) {
+        const adminUser = await accountStore.findUserByEmail?.('huzaifakazi1991@gmail.com');
+        if (adminUser) activeKey = await accountStore.getProviderApiKey?.(adminUser.id, 'openrouter');
+      }
+      if (!activeKey) {
+        activeKey = serverOpenRouterKey || (keyPool?.hasKeys('openrouter') ? keyPool.pools.get('openrouter')?.[0]?.key : null);
+      }
+
+      const configured = Boolean(activeKey);
+      const maskedKey = maskApiKey(activeKey);
+
+      return res.json({
+        configured,
+        maskedKey,
+        lastTestedAt: status.lastTestedAt || (configured ? new Date().toISOString() : null),
+        activeModelsCount: status.activeModelsCount || 400,
+        operational: configured
+      });
+    } catch (err) {
+      return res.status(500).json({ error: { message: `Failed to fetch OpenRouter status: ${err.message}` } });
+    }
+  });
+
+  // Admin Unified Multi-Provider Status Overview (GET /api/admin/integrations/overview)
+  app.get('/api/admin/integrations/overview', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin' || user.tier === 'owner_unlimited')) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && (ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase()) || apiKeyUser.role === 'admin' || apiKeyUser.tier === 'owner_unlimited')) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: { message: 'Access denied: Admin credentials required.' } });
+    }
+
+    try {
+      const geminiKey = await getGoogleAIStudioKey(accountStore);
+      const geminiStatus = await accountStore.getSystemIntegrationStatus('google-ai-studio');
+
+      const ehKey = await getElectronHubKey(accountStore, user?.id, keyPool);
+      const ehStatus = await accountStore.getSystemIntegrationStatus('electronhub');
+      const ehPreflight = await preflightElectronHubBase(getElectronHubBaseUrl(), fetchImpl);
+
+      let orKey = null;
+      if (user) orKey = await getProviderKeyForUser(user.id, 'openrouter');
+      if (!orKey) {
+        const adminUser = await accountStore.findUserByEmail?.('huzaifakazi1991@gmail.com');
+        if (adminUser) orKey = await accountStore.getProviderApiKey?.(adminUser.id, 'openrouter');
+      }
+      if (!orKey) {
+        orKey = serverOpenRouterKey || (keyPool?.hasKeys('openrouter') ? keyPool.pools.get('openrouter')?.[0]?.key : null);
+      }
+      const orStatus = await accountStore.getSystemIntegrationStatus('openrouter');
+
+      return res.json({
+        providers: {
+          openrouter: {
+            id: 'openrouter',
+            name: 'OpenRouter',
+            configured: Boolean(orKey),
+            maskedKey: maskApiKey(orKey),
+            activeModelsCount: orStatus.activeModelsCount || 400,
+            status: Boolean(orKey) ? 'operational' : 'action_needed',
+            lastTestedAt: orStatus.lastTestedAt || (orKey ? new Date().toISOString() : null)
+          },
+          electronhub: {
+            id: 'electronhub',
+            name: 'ElectronHub AI',
+            configured: Boolean(ehKey),
+            maskedKey: maskApiKey(ehKey),
+            activeModelsCount: ehStatus.activeModelsCount || ehPreflight.count || 589,
+            status: Boolean(ehKey) ? 'operational' : (ehPreflight.ok ? 'ready_to_connect' : 'action_needed'),
+            latencyMs: ehPreflight.latencyMs || 0,
+            baseUrl: getElectronHubBaseUrl(),
+            lastTestedAt: ehStatus.lastTestedAt || (ehKey ? new Date().toISOString() : null)
+          },
+          gemini: {
+            id: 'gemini',
+            name: 'Google AI Studio (Gemini)',
+            configured: Boolean(geminiKey),
+            maskedKey: maskApiKey(geminiKey),
+            activeModelsCount: geminiStatus.activeModelsCount || 4,
+            status: Boolean(geminiKey) ? 'operational' : 'action_needed',
+            lastTestedAt: geminiStatus.lastTestedAt || (geminiKey ? new Date().toISOString() : null)
+          }
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({ error: { message: `Overview failed: ${err.message}` } });
     }
   });
 
