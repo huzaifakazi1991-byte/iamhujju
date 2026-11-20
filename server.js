@@ -1050,6 +1050,7 @@ export function createApp({
       );
       res.set('Cache-Control', 'no-store').json({ ...status, modelCount });
     } catch (error) {
+      console.error('[Integrations] Failed to save/verify key for ' + providerId + ':', error);
       const status = error.status || (verified ? 500 : request.timedOut ? 504 : 502);
       const message = error.status
         ? error.message

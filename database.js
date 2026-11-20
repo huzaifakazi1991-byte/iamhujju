@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -30,7 +30,7 @@ const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS provider_credentials (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL CHECK (provider IN ('freellmapi', 'openrouter', 'electronhub', 'groq', 'freemodel')),
+    provider TEXT NOT NULL,
     version SMALLINT NOT NULL,
     iv TEXT NOT NULL,
     auth_tag TEXT NOT NULL,
@@ -288,6 +288,16 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       );
     }
 
+    if (currentVersion < 8) {
+      await client.query(`
+        ALTER TABLE provider_credentials DROP CONSTRAINT IF EXISTS provider_credentials_provider_check;
+      `);
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [8]
+      );
+    }
+
     await client.query('COMMIT');
     await bootstrapOwnerAccount(client);
   } catch (error) {
@@ -331,6 +341,9 @@ export async function bootstrapOwnerAccount(client) {
       );
       ownerUserId = res.rows?.[0]?.id || newId;
     }
+
+    // Ensure provider_credentials constraint is dropped for all external providers
+    await client.query('ALTER TABLE provider_credentials DROP CONSTRAINT IF EXISTS provider_credentials_provider_check').catch(() => {});
 
     const keyCheck = await client.query(
       'SELECT id FROM api_keys WHERE key_hash = $1',

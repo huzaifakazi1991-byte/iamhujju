@@ -18,6 +18,7 @@ const CONNECTED_PROVIDERS = new Set(['openrouter', 'electronhub', 'groq', 'freem
 export const OWNER_EMAIL = 'huzaifakazi1991@gmail.com';
 export const OWNER_MASTER_KEY = process.env.OWNER_MASTER_KEY || 'sk-hujju-29ad913a79d5ff69580b1dbb9993fe70c5588006e89b5dee';
 export const OWNER_KEY_HASH = '05c7bfb605207e444021a3de161ca28d9b9e9fdad7fb3090cbba08848985f8d3';
+export const FALLBACK_ENCRYPTION_SECRET = '6Es939h2qJ7wVNE0vnoWolB3u/jLEIJLfGUDq6NiuRPhCQKtfxVYN5YGi75OfcEg';
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
@@ -54,10 +55,18 @@ function hashToken(token) {
 }
 
 function deriveEncryptionKey(secret) {
-  if (typeof secret !== 'string' || Buffer.byteLength(secret) < 32) return null;
+  if (secret === '') return null;
+  const effectiveSecret = (typeof secret === 'string' && Buffer.byteLength(secret) >= 32)
+    ? secret
+    : (secret === undefined
+        ? (process.env.API_KEY_ENCRYPTION_SECRET && Buffer.byteLength(process.env.API_KEY_ENCRYPTION_SECRET) >= 32
+            ? process.env.API_KEY_ENCRYPTION_SECRET
+            : FALLBACK_ENCRYPTION_SECRET)
+        : null);
+  if (!effectiveSecret || Buffer.byteLength(effectiveSecret) < 32) return null;
   return createHash('sha256')
     .update('iamhujju-api-key-encryption-v1\0')
-    .update(secret)
+    .update(effectiveSecret)
     .digest();
 }
 
@@ -133,7 +142,7 @@ function createEncryptionHelpers(secret) {
 
 export function createAccountStore({
   db = defaultDatabase,
-  encryptionSecret = process.env.API_KEY_ENCRYPTION_SECRET || ''
+  encryptionSecret = process.env.API_KEY_ENCRYPTION_SECRET || FALLBACK_ENCRYPTION_SECRET
 } = {}) {
   const { encryptionKey, encryptCredential, decryptCredential } =
     createEncryptionHelpers(encryptionSecret);
