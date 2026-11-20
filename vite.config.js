@@ -3,7 +3,9 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
-  const { PORT = '3000' } = loadEnv(mode, process.cwd(), 'PORT');
+  const env = loadEnv(mode, process.cwd(), '');
+  const { PORT = '3000' } = env;
+  const razorpayKeyId = env.VITE_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_test_U2RfhaS1IyP8oo';
   const development = mode === 'development';
   const securityHeaders = {
     'Content-Security-Policy': [
@@ -30,7 +32,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      'import.meta.env.VITE_RAZORPAY_KEY_ID': JSON.stringify(process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2Gc0If5PQlYDa')
+      'import.meta.env.VITE_RAZORPAY_KEY_ID': JSON.stringify(razorpayKeyId)
     },
     server: {
       host: '127.0.0.1',

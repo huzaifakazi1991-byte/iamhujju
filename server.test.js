@@ -945,8 +945,8 @@ test('Razorpay Standard Checkout endpoints POST /api/create-order and POST /api/
     }
   };
 
-  const keyId = 'rzp_test_U2Gc0If5PQlYDa';
-  const keySecret = 'rNceyP9BPqckZebTqtI5t5jJ';
+  const keyId = 'rzp_test_U2RfhaS1IyP8oo';
+  const keySecret = 'kbl9571Cpdew8dC4EkI6hCaf';
 
   const app = createApp({
     accountStore,

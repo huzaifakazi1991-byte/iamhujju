@@ -123,7 +123,7 @@ export default function PaymentModal({
 
       const orderData = await orderRes.json();
       const isScriptLoaded = await loadRazorpayScript(2);
-      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2Gc0If5PQlYDa';
+      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2RfhaS1IyP8oo';
 
       // If Razorpay SDK is ready, live Key ID is returned, and direct UPI fallback not requested
       if (isScriptLoaded && window.Razorpay && activeKeyId && !orderData.fallbackToDirectUpi) {
