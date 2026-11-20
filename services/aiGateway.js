@@ -398,7 +398,7 @@ export function sanitizePayloadForModel(provider, modelId, body, options = {}) {
   if (isReasoningModel && Array.isArray(sanitized.messages)) {
     const systemMsgs = sanitized.messages.filter(m => m.role === 'system');
     if (systemMsgs.length > 0) {
-      const systemContext = systemMsgs.map(m => m.content).join('\n\n');
+      const systemContext = systemMsgs.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n\n');
       const nonSystemMsgs = sanitized.messages.filter(m => m.role !== 'system');
 
       // Prepend system instructions context to the first user message
@@ -408,7 +408,9 @@ export function sanitizePayloadForModel(provider, modelId, body, options = {}) {
           prepended = true;
           return {
             ...m,
-            content: `[System Instructions: ${systemContext}]\n\n${m.content}`
+            content: typeof m.content === 'string'
+              ? `[System Instructions: ${systemContext}]\n\n${m.content}`
+              : [ { type: 'text', text: `[System Instructions: ${systemContext}]\n\n` }, ...m.content ]
           };
         }
         return m;
@@ -423,6 +425,23 @@ export function sanitizePayloadForModel(provider, modelId, body, options = {}) {
 
       sanitized.messages = adaptedMessages;
     }
+  }
+
+  // Multimodal safety: flatten content for legacy or text-only upstream providers
+  if (provider === 'freellmapi' && Array.isArray(sanitized.messages)) {
+    sanitized.messages = sanitized.messages.map(m => {
+      if (Array.isArray(m.content)) {
+        return {
+          ...m,
+          content: m.content.map(p => {
+            if (p.type === 'text') return p.text;
+            if (p.type === 'image_url') return '[Attached Image]';
+            return '';
+          }).filter(Boolean).join('\n')
+        };
+      }
+      return m;
+    });
   }
 
   // 2. max_tokens vs max_completion_tokens for OpenAI reasoning models

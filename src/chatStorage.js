@@ -20,7 +20,7 @@ function isSavedChat(chat) {
     chat.messages.every(message =>
       message &&
       ['system', 'user', 'assistant'].includes(message.role) &&
-      typeof message.content === 'string'
+      (typeof message.content === 'string' || Array.isArray(message.content))
     )
   );
 }

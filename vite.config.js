@@ -3,7 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
-  const { PORT = '3001' } = loadEnv(mode, process.cwd(), 'PORT');
+  const { PORT = '3000' } = loadEnv(mode, process.cwd(), 'PORT');
   const development = mode === 'development';
   const securityHeaders = {
     'Content-Security-Policy': [
@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
       "frame-ancestors 'none'",
       "frame-src 'self' https://api.razorpay.com https://iamhujju-680e8.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
       "img-src 'self' data: blob: https://api.qrserver.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
+      "media-src 'self' blob: data:",
       "object-src 'none'",
       "script-src 'self' https://checkout.razorpay.com https://apis.google.com" + (development ? " 'unsafe-inline'" : ''),
       "script-src-attr 'none'",

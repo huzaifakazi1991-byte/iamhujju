@@ -78,8 +78,49 @@ function CodeBlock({ children }) {
   );
 }
 
+function formatFileSize(bytes = 0) {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error(`Failed to read file ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error(`Failed to read file ${file.name}`));
+    reader.readAsText(file);
+  });
+}
+
 function MarkdownMessage({ content }) {
-  const safeContent = useMemo(() => sanitizeMarkdown(content), [content]);
+  const normalizedText = useMemo(() => {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .map(p => {
+          if (p.type === 'text') return p.text;
+          if (p.type === 'image_url') return '';
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+    return String(content || '');
+  }, [content]);
+
+  const safeContent = useMemo(() => sanitizeMarkdown(normalizedText), [normalizedText]);
 
   return (
     <ReactMarkdown
@@ -140,6 +181,11 @@ function App() {
   const [authRestoreAttempt, setAuthRestoreAttempt] = useState(0);
   const [requestedModelId, setRequestedModelId] = useState(null);
   const [modelsInitialQuery, setModelsInitialQuery] = useState('');
+  const [attachments, setAttachments] = useState([]);
+  const [browseEnabled, setBrowseEnabled] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [sourcesOpen, setSourcesOpen] = useState({});
+  const fileInputRef = useRef(null);
   const messagesEnd = useRef(null);
   const abortController = useRef(null);
   const currentUserRef = useRef(null);
@@ -716,14 +762,94 @@ function App() {
     abortController.current = null;
   }
 
+  async function processSelectedFiles(fileList) {
+    const newAttachments = [];
+    for (const file of fileList) {
+      if (file.size > 25 * 1024 * 1024) {
+        setError(`File "${file.name}" exceeds the 25 MB limit.`);
+        continue;
+      }
+      const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+
+      if (isImage) {
+        const data = await readFileAsDataUrl(file);
+        newAttachments.push({
+          id,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          category: 'photo',
+          data,
+          previewUrl: data
+        });
+      } else if (isVideo) {
+        const data = await readFileAsDataUrl(file);
+        newAttachments.push({
+          id,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          category: 'video',
+          data,
+          previewUrl: URL.createObjectURL(file)
+        });
+      } else {
+        // Document
+        let textPreview = '';
+        if (
+          file.type.includes('text') ||
+          file.name.match(/\.(txt|md|json|csv|py|js|ts|html|css|yaml|yml|xml|log|sh)$/i)
+        ) {
+          textPreview = await readFileAsText(file);
+        } else {
+          textPreview = `[Document file: ${file.name} (${formatFileSize(file.size)})]`;
+        }
+        newAttachments.push({
+          id,
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          size: file.size,
+          category: 'document',
+          textPreview,
+          previewUrl: null
+        });
+      }
+    }
+    if (newAttachments.length > 0) {
+      setAttachments(prev => [...prev, ...newAttachments]);
+    }
+  }
+
+  function removeAttachment(id) {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  }
+
+  function toggleSources(index) {
+    setSourcesOpen(prev => ({
+      ...prev,
+      [index]: prev[index] === false ? true : false
+    }));
+  }
+
+  function handleFileInputChange(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      processSelectedFiles(files);
+    }
+    e.target.value = '';
+  }
+
   async function sendMessage(event, regenerate = false) {
     event.preventDefault();
 
     if (loading) return;
 
     const prompt = input.trim();
+    const currentAttachments = [...attachments];
 
-    if (!regenerate && !prompt) return;
+    if (!regenerate && !prompt && currentAttachments.length === 0) return;
 
     if (
       regenerate &&
@@ -742,11 +868,47 @@ function App() {
       setActiveChatId(chatId);
     }
 
+    // Format payload for AI model
+    let payloadContent = prompt;
+    if (currentAttachments.length > 0) {
+      const docTexts = currentAttachments
+        .filter(a => a.category === 'document' && a.textPreview)
+        .map(a => `\n\n--- ATTACHED DOCUMENT: ${a.name} (${formatFileSize(a.size)}) ---\n${a.textPreview}\n--- END OF DOCUMENT ---`)
+        .join('');
+
+      const videoTexts = currentAttachments
+        .filter(a => a.category === 'video')
+        .map(a => `\n[Uploaded Video Attachment: "${a.name}" (${formatFileSize(a.size)})]`)
+        .join('');
+
+      const combinedText = (prompt + docTexts + videoTexts).trim();
+      const photoAttachments = currentAttachments.filter(a => a.category === 'photo' && a.data);
+
+      if (photoAttachments.length > 0) {
+        payloadContent = [
+          { type: 'text', text: combinedText || 'Please review and analyze the attached image(s).' },
+          ...photoAttachments.map(p => ({
+            type: 'image_url',
+            image_url: { url: p.data }
+          }))
+        ];
+      } else {
+        payloadContent = combinedText || prompt;
+      }
+    }
+
+    const newUserMessage = {
+      role: 'user',
+      content: payloadContent,
+      displayPrompt: prompt,
+      attachments: currentAttachments.length > 0 ? currentAttachments : undefined
+    };
+
     const updatedMessages = regenerate
       ? messages.slice(0, -1)
       : [
           ...messages,
-          { role: 'user', content: prompt }
+          newUserMessage
         ];
 
     setMessages([
@@ -756,6 +918,7 @@ function App() {
 
     if (!regenerate) {
       setInput('');
+      setAttachments([]);
     }
 
     setLoading(true);
@@ -770,8 +933,13 @@ function App() {
         signal: abortController.current.signal,
         body: JSON.stringify({
           model: selectedModel,
-          messages: updatedMessages,
-          stream: true
+          messages: updatedMessages.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          stream: true,
+          browse: browseEnabled,
+          webSearch: browseEnabled
         })
       });
 
@@ -802,6 +970,22 @@ function App() {
           data = JSON.parse(payload);
         } catch {
           throw new Error('FreeLLMAPI returned an invalid streaming event.');
+        }
+
+        // Capture real-time web browsing sources
+        if (Array.isArray(data.sources)) {
+          setMessages(previous => {
+            const next = [...previous];
+            const lastIdx = next.length - 1;
+            if (next[lastIdx]) {
+              next[lastIdx] = {
+                ...next[lastIdx],
+                sources: data.sources
+              };
+            }
+            return next;
+          });
+          return;
         }
 
         if (data.error) {
@@ -1392,6 +1576,98 @@ function App() {
                     <strong>
                       {message.role === 'user' ? 'You' : 'iamhujju'}
                     </strong>
+                    {/* Attached Photos, Videos, and Documents */}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="msg-attachments-container">
+                        {message.attachments.some(a => a.category === 'photo') && (
+                          <div className="msg-photos-grid">
+                            {message.attachments.filter(a => a.category === 'photo').map(photo => (
+                              <img
+                                key={photo.id}
+                                src={photo.previewUrl || photo.data}
+                                alt={photo.name}
+                                className="msg-photo-thumb"
+                                onClick={() => setLightboxImage({ url: photo.previewUrl || photo.data, name: photo.name })}
+                                title="Click to view full size"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {message.attachments.some(a => a.category === 'video') && (
+                          <div className="msg-videos-list">
+                            {message.attachments.filter(a => a.category === 'video').map(video => (
+                              <video
+                                key={video.id}
+                                src={video.previewUrl || video.data}
+                                controls
+                                className="msg-video-player"
+                                preload="metadata"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {message.attachments.some(a => a.category === 'document') && (
+                          <div className="msg-docs-list">
+                            {message.attachments.filter(a => a.category === 'document').map(doc => (
+                              <div key={doc.id} className="msg-doc-card">
+                                <span className="msg-doc-icon">📄</span>
+                                <div className="msg-doc-meta">
+                                  <span className="msg-doc-name" title={doc.name}>{doc.name}</span>
+                                  <span className="msg-doc-size">{formatFileSize(doc.size)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Real-time Web Browsing Sources Card */}
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="web-sources-card">
+                        <button
+                          type="button"
+                          className="web-sources-toggle"
+                          onClick={() => toggleSources(index)}
+                        >
+                          <span className="sources-icon">🌐</span>
+                          <span className="sources-title">
+                            Sources & Web Citations ({message.sources.length})
+                          </span>
+                          <span className="sources-arrow">
+                            {sourcesOpen[index] !== false ? '▲ Hide' : '▼ View Sources'}
+                          </span>
+                        </button>
+
+                        {sourcesOpen[index] !== false && (
+                          <div className="web-sources-list">
+                            {message.sources.map((s, sIdx) => (
+                              <a
+                                key={sIdx}
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="source-item"
+                                title={s.snippet || s.title}
+                              >
+                                <span className="source-index">{sIdx + 1}</span>
+                                <div className="source-details">
+                                  <div className="source-name">{s.title}</div>
+                                  <div className="source-meta">
+                                    <span className="source-domain">{s.source || 'Web'}</span>
+                                    {s.date && <span className="source-date"> • {s.date}</span>}
+                                  </div>
+                                </div>
+                                <span className="source-link-icon">↗</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="markdown-content">
                       {message.content
                         ? <MarkdownMessage content={message.content} />
@@ -1426,47 +1702,140 @@ function App() {
         {error && <div className="error-message" role="alert">{error}</div>}
 
         <footer className="composer-area">
-          <form className="composer" onSubmit={sendMessage}>
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.form.requestSubmit();
-                }
-              }}
-              placeholder="Message your AI assistant..."
-              aria-label="Message to the selected model"
-              rows="1"
-            />
+          {browseEnabled && (
+            <div className="browsing-status-pill">
+              <span className="pulse-dot" />
+              <span>Web Browsing Active — Live search & sources enabled</span>
+            </div>
+          )}
 
-            {loading ? (
-              <button
-                className="send-button stop-button"
-                type="button"
-                onClick={stopGeneration}
-                title="Stop generation"
-                aria-label="Stop response generation"
-              >
-                ■
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                type="submit"
-                disabled={!input.trim() || !connected || !selectedModel}
-                aria-label="Send message"
-              >
-                ↑
-              </button>
+          <form className="composer" onSubmit={sendMessage}>
+            {attachments.length > 0 && (
+              <div className="composer-attachments-tray">
+                {attachments.map(att => (
+                  <div key={att.id} className={`composer-att-chip att-${att.category}`}>
+                    {att.category === 'photo' && (
+                      <img src={att.previewUrl || att.data} alt={att.name} className="att-thumb-preview" />
+                    )}
+                    {att.category === 'video' && (
+                      <div className="att-type-icon">🎬</div>
+                    )}
+                    {att.category === 'document' && (
+                      <div className="att-type-icon">📄</div>
+                    )}
+                    <div className="att-meta">
+                      <span className="att-filename" title={att.name}>{att.name}</span>
+                      <span className="att-filesize">{formatFileSize(att.size)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="att-remove-btn"
+                      onClick={() => removeAttachment(att.id)}
+                      title="Remove attachment"
+                      aria-label="Remove attachment"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
+
+            <div className="composer-input-row">
+              <button
+                type="button"
+                className="composer-action-btn attach-action-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload document, photo, or video"
+                aria-label="Upload document, photo, or video"
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                className={`composer-action-btn browse-toggle-btn ${browseEnabled ? 'browse-active' : ''}`}
+                onClick={() => setBrowseEnabled(prev => !prev)}
+                title={browseEnabled ? 'Web Browsing ON (Click to disable)' : 'Enable Web Browsing (Real-time live search)'}
+                aria-pressed={browseEnabled}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                <span className="browse-toggle-text">Browse</span>
+                {browseEnabled && <span className="browse-active-dot" />}
+              </button>
+
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    e.currentTarget.form.requestSubmit();
+                  }
+                }}
+                placeholder={attachments.length > 0 ? "Ask about the uploaded file(s)..." : "Message your AI assistant... (or drop files)"}
+                aria-label="Message to the selected model"
+                rows="1"
+              />
+
+              {loading ? (
+                <button
+                  className="send-button stop-button"
+                  type="button"
+                  onClick={stopGeneration}
+                  title="Stop generation"
+                  aria-label="Stop response generation"
+                >
+                  ■
+                </button>
+              ) : (
+                <button
+                  className="send-button"
+                  type="submit"
+                  disabled={(!input.trim() && attachments.length === 0) || !connected || !selectedModel}
+                  aria-label="Send message"
+                >
+                  ↑
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*,.pdf,.doc,.docx,.txt,.md,.json,.csv,.py,.js,.ts,.html,.css"
+              style={{ display: 'none' }}
+              onChange={handleFileInputChange}
+            />
           </form>
 
           <p className="disclaimer">
             AI responses can make mistakes. Verify important information.
           </p>
         </footer>
+
+        {lightboxImage && (
+          <div className="image-lightbox-backdrop" onClick={() => setLightboxImage(null)}>
+            <div className="image-lightbox-content" onClick={e => e.stopPropagation()}>
+              <img src={lightboxImage.url} alt={lightboxImage.name || 'Image Preview'} className="image-lightbox-img" />
+              <button
+                type="button"
+                className="image-lightbox-close"
+                onClick={() => setLightboxImage(null)}
+                aria-label="Close image preview"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

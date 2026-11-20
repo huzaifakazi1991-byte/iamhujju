@@ -159,7 +159,12 @@ const providerKeySchema = z.object({
 
 const chatMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
-  content: z.string().max(100000)
+  content: z.union([
+    z.string().max(25000000),
+    z.array(z.any()).max(100)
+  ]),
+  attachments: z.array(z.any()).optional(),
+  sources: z.array(z.any()).optional()
 }).passthrough();
 
 const savedConversationSchema = z.object({
@@ -167,14 +172,19 @@ const savedConversationSchema = z.object({
   title: z.string().max(500),
   messages: z.array(z.object({
     role: z.enum(['system', 'user', 'assistant']),
-    content: z.string().max(100000)
+    content: z.union([
+      z.string().max(25000000),
+      z.array(z.any()).max(100)
+    ]),
+    attachments: z.array(z.any()).optional(),
+    sources: z.array(z.any()).optional()
   }).passthrough()).max(1000)
 }).passthrough().superRefine((conversation, context) => {
   const contentLength = conversation.messages.reduce(
-    (total, message) => total + message.content.length,
+    (total, message) => total + (typeof message.content === 'string' ? message.content.length : 2000),
     0
   );
-  if (contentLength > 800000) {
+  if (contentLength > 50000000) {
     context.addIssue({
       code: 'custom',
       message: 'A conversation is too large to save.',
@@ -196,12 +206,12 @@ const importConversationsSchema = z.object({
 }).strict().superRefine((body, context) => {
   const totalLength = body.conversations.reduce(
     (total, conversation) => total + conversation.messages.reduce(
-      (messageTotal, message) => messageTotal + message.content.length,
+      (messageTotal, message) => messageTotal + (typeof message.content === 'string' ? message.content.length : 2000),
       0
     ),
     0
   );
-  if (totalLength > 900000) {
+  if (totalLength > 50000000) {
     context.addIssue({
       code: 'custom',
       message: 'The browser conversation import is too large.',
@@ -217,7 +227,9 @@ const activeConversationSchema = z.object({
 const chatRequestSchema = z.object({
   model: z.string().trim().min(1).max(256),
   messages: z.array(chatMessageSchema).min(1).max(100),
-  stream: z.boolean().optional()
+  stream: z.boolean().optional(),
+  browse: z.boolean().optional(),
+  webSearch: z.boolean().optional()
 }).passthrough().superRefine((body, context) => {
   if (!body.messages.some(message => message.role === 'user')) {
     context.addIssue({
@@ -388,6 +400,7 @@ export function createApp({
           'https://lh3.googleusercontent.com',
           'https://api.qrserver.com'
         ],
+        mediaSrc: ["'self'", 'blob:', 'data:'],
         objectSrc: ["'none'"],
         scriptSrc: ["'self'", 'https://apis.google.com', 'https://checkout.razorpay.com'],
         scriptSrcAttr: ["'none'"],
@@ -423,7 +436,7 @@ export function createApp({
     next();
   });
   app.use(express.json({
-    limit: '1mb',
+    limit: '50mb',
     verify: (req, res, buf) => {
       req.rawBody = buf;
     }
