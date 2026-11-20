@@ -366,6 +366,7 @@ function HomePage({
   const [aboutOpen, setAboutOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pricingBillingCycle, setPricingBillingCycle] = useState('monthly');
   const dropdownCloseTimeoutRef = useRef(null);
   const navRef = useRef(null);
   const searchRef = useRef(null);
@@ -1904,8 +1905,422 @@ function HomePage({
           </div>
         </section>
 
+        {/* DEDICATED TRANSPARENT PRICING SECTION (ANYAPI.AI REPLICA WITH INR CONVERSION) */}
+        <section className="any-pricing-section" id="pricing">
+          {/* Atmospheric Visual Layers */}
+          <div className="pricing_glow_circle" aria-hidden="true" />
+          <div className="pricing_perspective_grid" aria-hidden="true" />
+          <div className="pricing_fader_bg is--top" aria-hidden="true" />
+          <div className="pricing_fader_bg is--bottom" aria-hidden="true" />
+
+          <div className="pricing_container">
+            {/* Header */}
+            <div className="pricing_header">
+              <div className="pricing_preheader">
+                <Icon name="sparkle" size={15} />
+                <span>NO HIDDEN FEES. SCALE AS YOU GROW.</span>
+              </div>
+
+              <h2 className="pricing_heading">
+                One AI Workspace. <span className="is--blue is_underline">400+ Models.</span> Access more, spend less.
+              </h2>
+
+              <p className="pricing_subhead">
+                Transparent, predictable pricing for developers, creators, and teams. All plans converted to Indian Rupees (INR) with matching 1:1 USD benchmark rates.
+              </p>
+
+              {/* Interactive Billing Cycle Switcher */}
+              <div className="pricing_cycle_toggle_wrapper">
+                <div className="pricing_cycle_toggle" role="tablist" aria-label="Billing Cycle">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={pricingBillingCycle === 'monthly'}
+                    className={`pricing_toggle_tab ${pricingBillingCycle === 'monthly' ? 'is--active' : ''}`}
+                    onClick={() => setPricingBillingCycle('monthly')}
+                  >
+                    Monthly Billing
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={pricingBillingCycle === 'annual'}
+                    className={`pricing_toggle_tab ${pricingBillingCycle === 'annual' ? 'is--active' : ''}`}
+                    onClick={() => setPricingBillingCycle('annual')}
+                  >
+                    Annual Billing
+                    <span className="pricing_save_pill">SAVE 20%</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Row: Dual Quickstart / Flexible Usage Cards */}
+            <div className="pricing_top_cards_grid">
+              {/* 1. Free Tier */}
+              <div className="pricing_plan is--free">
+                <div className="pricing_plan_head">
+                  <div className="pricing_plan_meta">
+                    <span className="pricing_plan_category">Getting started</span>
+                    <h3 className="pricing_plan_name">Free</h3>
+                  </div>
+                  <div className="pricing_price_block">
+                    <div className="pricing_price_row">
+                      <span className="pricing_amount">₹0</span>
+                      <span className="pricing_unit">/ mo</span>
+                    </div>
+                    <span className="pricing_usd_badge">$0 / mo</span>
+                  </div>
+                </div>
+
+                <p className="pricing_desc">Perfect for testing and personal experimentation.</p>
+
+                <div className="pricing_metrics_box">
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">ANY Tokens:</span>
+                    <span className="metric_val">100K / day</span>
+                  </div>
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">Users:</span>
+                    <span className="metric_val">Unlimited</span>
+                  </div>
+                </div>
+
+                <div className="pricing_features_block">
+                  <span className="pricing_features_title">Core features:</span>
+                  <ul className="pricing_features_list">
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>All <strong className="is--blue">free models</strong> (DeepSeek, Llama, Gemma, etc.)</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>iamhujju SDK & AnyCLI Access</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>AnyChat Playground & Companion Workspace</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="pricing_highlights_strip">
+                  <span>Plan Highlights: · No credit card required · Community support · Instant setup</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="pricing_cta_btn is--secondary"
+                  onClick={() => {
+                    if (currentUser) {
+                      openChat(selectedModel);
+                    } else {
+                      openSignup(selectedModel);
+                    }
+                  }}
+                >
+                  <span>Start for free</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+
+              {/* 2. Pay-as-you-go Tier */}
+              <div className="pricing_plan is--payg">
+                <div className="pricing_plan_head">
+                  <div className="pricing_plan_meta">
+                    <span className="pricing_plan_category">Flexible usage</span>
+                    <h3 className="pricing_plan_name">Pay-as-you-go</h3>
+                  </div>
+                  <div className="pricing_price_block">
+                    <div className="pricing_price_row">
+                      <span className="pricing_amount">₹1,699</span>
+                      <span className="pricing_unit">usage-based</span>
+                    </div>
+                    <span className="pricing_usd_badge">From $20 usage-based</span>
+                  </div>
+                </div>
+
+                <p className="pricing_desc">Only pay for what you consume. Zero monthly commitment.</p>
+
+                <div className="pricing_metrics_box">
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">ANY Tokens:</span>
+                    <span className="metric_val">80 M+</span>
+                  </div>
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">Users:</span>
+                    <span className="metric_val">Unlimited</span>
+                  </div>
+                </div>
+
+                <div className="pricing_features_block">
+                  <span className="pricing_features_title">Core features:</span>
+                  <ul className="pricing_features_list">
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>All <strong className="is--blue">400+ models</strong> included</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>iamhujju SDK · AnyCLI · AnyChat</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>BYOK (Bring Your Own Key) zero markup</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="pricing_highlights_strip">
+                  <span>Plan Highlights: · No monthly commitment · Scale as needed · Standard support · Usage-based billing</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="pricing_cta_btn is--secondary"
+                  onClick={() => {
+                    if (currentUser) {
+                      onOpenApiKeys();
+                    } else {
+                      openSignup(selectedModel);
+                    }
+                  }}
+                >
+                  <span>Get started</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Main 3-Column Tier Grid (Developer / Pro / Enterprise) */}
+            <div className="pricing_main_grid">
+              {/* 3. Developer Tier */}
+              <div className="pricing_plan is--developer">
+                <div className="pricing_plan_head">
+                  <div className="pricing_plan_meta">
+                    <span className="pricing_plan_category">Side projects & MVPs</span>
+                    <h3 className="pricing_plan_name">Developer</h3>
+                  </div>
+                  <div className="pricing_price_block">
+                    <div className="pricing_price_row">
+                      <span className="pricing_amount">
+                        {pricingBillingCycle === 'annual' ? '₹1,359' : '₹1,699'}
+                      </span>
+                      <span className="pricing_unit">/ mo</span>
+                    </div>
+                    <span className="pricing_usd_badge">
+                      {pricingBillingCycle === 'annual' ? '≈ $15.90 / mo (billed ₹16,308/yr)' : '$19.90 / mo'}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="pricing_desc">Ideal for small projects, personal companion apps, and MVPs.</p>
+
+                <div className="pricing_metrics_box">
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">ANY Tokens:</span>
+                    <span className="metric_val">100 M <small>(Rollover)</small></span>
+                  </div>
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">Users:</span>
+                    <span className="metric_val">Unlimited</span>
+                  </div>
+                </div>
+
+                <div className="pricing_features_block">
+                  <span className="pricing_features_title">Core features:</span>
+                  <ul className="pricing_features_list">
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>All 400+ models unlocked</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>iamhujju SDK · AnyCLI · AnyChat</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>Cloud conversation sync & storage</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="pricing_highlights_strip">
+                  <span>Plan Highlights: · Standard support · Shared high-speed infra · Basic analytics</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="pricing_cta_btn is--secondary"
+                  onClick={() => {
+                    if (currentUser) {
+                      onOpenApiKeys();
+                    } else {
+                      openSignup(selectedModel);
+                    }
+                  }}
+                >
+                  <span>Get started</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+
+              {/* 4. Pro Tier (MOST POPULAR) */}
+              <div className="pricing_plan is--pro is--active">
+                <div className="pricing_popular_badge">
+                  <span>🔥 Most popular</span>
+                </div>
+
+                <div className="pricing_plan_head">
+                  <div className="pricing_plan_meta">
+                    <span className="pricing_plan_category">Growing teams & startups</span>
+                    <h3 className="pricing_plan_name">Pro</h3>
+                  </div>
+                  <div className="pricing_price_block">
+                    <div className="pricing_price_row">
+                      <span className="pricing_amount">
+                        {pricingBillingCycle === 'annual' ? '₹6,559' : '₹8,199'}
+                      </span>
+                      <span className="pricing_unit">/ mo</span>
+                    </div>
+                    <span className="pricing_usd_badge">
+                      {pricingBillingCycle === 'annual' ? '≈ $76.70 / mo (billed ₹78,708/yr)' : '$95.90 / mo'}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="pricing_desc">Scales with growing projects and high-volume workloads.</p>
+
+                <div className="pricing_metrics_box">
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">ANY Tokens:</span>
+                    <span className="metric_val">500 M <small>(Rollover)</small></span>
+                  </div>
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">Users:</span>
+                    <span className="metric_val">Unlimited</span>
+                  </div>
+                </div>
+
+                <div className="pricing_features_block">
+                  <span className="pricing_features_title">Core features:</span>
+                  <ul className="pricing_features_list">
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>All 400+ frontier & open models</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>iamhujju SDK · AnyCLI · AnyChat</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>Priority smart routing & auto-failover</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>120 RPM rate limits & zero queueing</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="pricing_highlights_strip">
+                  <span>Plan Highlights: · Priority support · Team collaboration · Advanced analytics · 99.9% Uptime</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="pricing_cta_btn is--primary"
+                  onClick={() => {
+                    if (currentUser) {
+                      onOpenApiKeys();
+                    } else {
+                      openSignup(selectedModel);
+                    }
+                  }}
+                >
+                  <span>Get started</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+
+              {/* 5. Enterprise Tier */}
+              <div className="pricing_plan is--enterprise">
+                <div className="pricing_plan_head">
+                  <div className="pricing_plan_meta">
+                    <span className="pricing_plan_category">Large teams & production apps</span>
+                    <h3 className="pricing_plan_name">Enterprise</h3>
+                  </div>
+                  <div className="pricing_price_block">
+                    <div className="pricing_price_row">
+                      <span className="pricing_amount">
+                        {pricingBillingCycle === 'annual' ? '₹19,199' : '₹23,999'}
+                      </span>
+                      <span className="pricing_unit">/ mo</span>
+                    </div>
+                    <span className="pricing_usd_badge">
+                      {pricingBillingCycle === 'annual' ? '≈ $223.90 / mo (billed ₹230,388/yr)' : '$279.90 / mo'}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="pricing_desc">Designed for high-traffic applications, custom fine-tuning & VPCs.</p>
+
+                <div className="pricing_metrics_box">
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">ANY Tokens:</span>
+                    <span className="metric_val">1.5 B <small>(Rollover)</small></span>
+                  </div>
+                  <div className="pricing_metric_item">
+                    <span className="metric_label">Users:</span>
+                    <span className="metric_val">Unlimited</span>
+                  </div>
+                </div>
+
+                <div className="pricing_features_block">
+                  <span className="pricing_features_title">Core features:</span>
+                  <ul className="pricing_features_list">
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>All 400+ models + custom fine-tunes</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>iamhujju SDK · AnyCLI · AnyChat · MCP</span>
+                    </li>
+                    <li>
+                      <Icon name="check" size={14} />
+                      <span>Dedicated GPU instances & VPC peering</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="pricing_highlights_strip">
+                  <span>Plan Highlights: · Dedicated support · Custom integrations · Advanced logging · 99.99% SLA</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="pricing_cta_btn is--secondary"
+                  onClick={() => {
+                    window.location.href = 'mailto:contact@iamhujju.com?subject=iamhujju Enterprise Plan Inquiry (INR)';
+                  }}
+                >
+                  <span>Contact Enterprise</span>
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Disclaimer */}
+            <div className="pricing_disclaimer">
+              <p>* All plans are displayed in Indian Rupees (INR / ₹) matching standard USD benchmark exchange rates. Taxes and local fees may apply based on your jurisdiction.</p>
+            </div>
+          </div>
+        </section>
+
         {/* BOTTOM CALL TO ACTION & PRICING/QUICKSTART CARDS (IMAGE 4) */}
-        <section className="any-cta-banner any-cta-landscape" id="pricing">
+        <section className="any-cta-banner any-cta-landscape" id="cta">
           <div className="any-cta-inner">
             <div className="any-cta-content">
               <h2>Everything you need to build on ANY model</h2>
