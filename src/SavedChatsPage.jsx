@@ -48,8 +48,8 @@ export default function SavedChatsPage({
     <div className="saved-chats-page">
       <header className="saved-chats-nav">
         <button className="saved-chats-brand" type="button" onClick={onOpenHome}>
-          <span aria-hidden="true">i</span>
-          iamhujju
+          <span aria-hidden="true">R</span>
+          Ratnagiri_Enterprenuers
         </button>
         <nav aria-label="Main navigation">
           <button type="button" onClick={onOpenHome}>Explore</button>

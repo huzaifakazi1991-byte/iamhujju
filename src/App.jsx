@@ -1421,7 +1421,7 @@ function App() {
             <img src="/mascot.jpg" alt="iamhujju mascot" className="brand-mascot-img" />
           </div>
           <div>
-            <h2>iamhujju</h2>
+            <h2>Ratnagiri_Enterprenuers</h2>
             <span>PERSONAL AI</span>
           </div>
         </button>

@@ -613,7 +613,7 @@ function HomePage({
             <div className="any-brand-mascot-ring">
               <img src="/mascot.jpg" alt="iamhujju mascot" className="any-brand-mascot-img" />
             </div>
-            <span className="any-brand-text">iamhujju</span>
+            <span className="any-brand-text">Ratnagiri_Enterprenuers</span>
           </button>
 
           <nav className="any-nav-links" aria-label="Main navigation">
@@ -2069,7 +2069,7 @@ function HomePage({
               <div className="any-brand-mascot-ring">
                 <img src="/mascot.jpg" alt="iamhujju mascot" className="any-brand-mascot-img" />
               </div>
-              <span className="any-brand-text">iamhujju</span>
+              <span className="any-brand-text">Ratnagiri_Enterprenuers</span>
             </div>
             <p className="any-footer-tagline">
               Your Personal AI Companion · One API & Workspace for every model.

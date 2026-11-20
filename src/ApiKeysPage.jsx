@@ -741,7 +741,7 @@ export default function ApiKeysPage({
           <div className="ak-brand-mascot-ring">
             <img src="/mascot.jpg" alt="iamhujju mascot" className="ak-brand-mascot-img" />
           </div>
-          <span className="ak-brand-text">iamhujju</span>
+          <span className="ak-brand-text">Ratnagiri_Enterprenuers</span>
         </button>
 
         <nav className="ak-nav-links" aria-label="Main navigation">

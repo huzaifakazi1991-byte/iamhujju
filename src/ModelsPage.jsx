@@ -417,7 +417,7 @@ export default function ModelsPage({
           <div className="models-brand-mascot-ring">
             <img src="/mascot.jpg" alt="iamhujju mascot" className="models-brand-mascot-img" />
           </div>
-          <span>iamhujju</span>
+          <span>Ratnagiri_Enterprenuers</span>
         </button>
         <nav className="models-nav-links" aria-label="Main navigation">
           <button type="button" onClick={onOpenHome}>Explore</button>
