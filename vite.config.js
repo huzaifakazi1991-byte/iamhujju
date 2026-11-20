@@ -29,6 +29,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      'import.meta.env.VITE_RAZORPAY_KEY_ID': JSON.stringify(process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2Gc0If5PQlYDa')
+    },
     server: {
       host: '127.0.0.1',
       headers: securityHeaders,

@@ -110,7 +110,11 @@ export function useRazorpayCheckout({
 
       const orderData = await orderRes.json();
       const isScriptLoaded = await loadRazorpayScript(2);
-      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2Gc0If5PQlYDa';
+
+      if (orderData.fallbackToDirectUpi) {
+        return { success: false, fallbackToDirectUpi: true, orderData };
+      }
 
       if (!isScriptLoaded || !window.Razorpay) {
         throw new Error('Razorpay secure checkout script could not be loaded. Please check your connection.');

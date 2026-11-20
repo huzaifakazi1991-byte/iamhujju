@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
+import PaymentModal from './PaymentModal.jsx';
 import './PricingPage.css';
 import { PRICING_PLANS, resolvePlan, CURRENCY_SYMBOL } from './pricingConfig.js';
 import { useRazorpayCheckout } from './useRazorpayCheckout.js';
@@ -29,6 +30,8 @@ export default function PricingPage({
   const [authPassword, setAuthPassword] = useState('');
   const [authConfirm, setAuthConfirm] = useState('');
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState(null);
 
   const fetchHistory = useCallback(async () => {
     if (!user) return;
@@ -84,13 +87,15 @@ export default function PricingPage({
         const intended = JSON.parse(intendedRaw);
         sessionStorage.removeItem('iamhujju_intended_plan');
         if (intended && intended.planId) {
-          startCheckout(intended.planId, intended.billingCycle || 'monthly');
+          const resolved = resolvePlan(intended.planId, intended.billingCycle || billingCycle);
+          setSelectedPlanForPayment(resolved);
+          setPaymentModalOpen(true);
         }
       }
     } catch {}
-  }, [user, startCheckout]);
+  }, [user, billingCycle]);
 
-  async function handlePlanClick(planKey) {
+  function handlePlanClick(planKey) {
     resetState();
     const resolved = resolvePlan(planKey, billingCycle);
     if (resolved.isFree) {
@@ -98,7 +103,21 @@ export default function PricingPage({
       else if (onOpenHome) onOpenHome();
       return;
     }
-    await startCheckout(resolved.planId, billingCycle);
+    if (!user) {
+      try {
+        sessionStorage.setItem('iamhujju_intended_plan', JSON.stringify({
+          planId: resolved.planId,
+          basePlanId: resolved.basePlanId || resolved.planId,
+          billingCycle: resolved.billingCycle || billingCycle
+        }));
+      } catch {}
+      setAuthMode('login');
+      setAuthError('');
+      setAuthOpen(true);
+      return;
+    }
+    setSelectedPlanForPayment(resolved);
+    setPaymentModalOpen(true);
   }
 
   async function handleAuthSubmit(e) {
@@ -885,6 +904,17 @@ export default function PricingPage({
           </div>
         </div>
       )}
+      {/* Razorpay & Direct UPI Secure Payment Checkout Modal */}
+      <PaymentModal
+        isOpen={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        plan={selectedPlanForPayment}
+        currentUser={user}
+        onPaymentSuccess={(updatedUser) => {
+          setPaymentModalOpen(false);
+          handlePaymentSuccess(updatedUser);
+        }}
+      />
     </div>
   );
 }

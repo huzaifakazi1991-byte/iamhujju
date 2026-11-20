@@ -57,6 +57,14 @@ export default function PaymentModal({
       setUtrNumber('');
       setEmailInput(currentUser?.email || '');
       loadRazorpayScript();
+      fetch('/api/payment/config')
+        .then(r => r.json())
+        .then(cfg => {
+          if (!cfg?.isLive && !cfg?.keyId) {
+            setActiveMethod('upi_direct');
+          }
+        })
+        .catch(() => {});
       if (dialogRef.current && !dialogRef.current.open) {
         dialogRef.current.showModal();
       }
@@ -115,10 +123,10 @@ export default function PaymentModal({
 
       const orderData = await orderRes.json();
       const isScriptLoaded = await loadRazorpayScript(2);
-      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const activeKeyId = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2Gc0If5PQlYDa';
 
-      // If Razorpay SDK is ready and live Key ID is returned, launch native checkout
-      if (isScriptLoaded && window.Razorpay && activeKeyId) {
+      // If Razorpay SDK is ready, live Key ID is returned, and direct UPI fallback not requested
+      if (isScriptLoaded && window.Razorpay && activeKeyId && !orderData.fallbackToDirectUpi) {
         const options = {
           key: activeKeyId,
           amount: orderData.amount,

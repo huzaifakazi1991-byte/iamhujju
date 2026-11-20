@@ -359,7 +359,7 @@ export function createApp({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
   conversationStore = createConversationStore(),
-  razorpayKeyId = process.env.RAZORPAY_KEY_ID || '',
+  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2Gc0If5PQlYDa',
   razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || '',
   razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || '',
   officialUpiId = process.env.OFFICIAL_UPI_ID || '9975649957@mbk',
