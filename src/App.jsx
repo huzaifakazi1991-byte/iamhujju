@@ -200,6 +200,9 @@ function App() {
   const [browseEnabled, setBrowseEnabled] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [sourcesOpen, setSourcesOpen] = useState({});
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState(null);
   const fileInputRef = useRef(null);
   const messagesEnd = useRef(null);
   const abortController = useRef(null);
@@ -884,18 +887,19 @@ function App() {
     e.target.value = '';
   }
 
-  async function sendMessage(event, regenerate = false) {
-    event.preventDefault();
+  async function sendMessage(event, regenerate = false, overrideMessages = null) {
+    if (event?.preventDefault) event.preventDefault();
 
     if (loading) return;
 
     const prompt = input.trim();
     const currentAttachments = [...attachments];
 
-    if (!regenerate && !prompt && currentAttachments.length === 0) return;
+    if (!overrideMessages && !regenerate && !prompt && currentAttachments.length === 0) return;
 
     if (
       regenerate &&
+      !overrideMessages &&
       (
         messages.length < 2 ||
         messages[messages.length - 1].role !== 'assistant' ||
@@ -947,19 +951,24 @@ function App() {
       attachments: currentAttachments.length > 0 ? currentAttachments : undefined
     };
 
-    const updatedMessages = regenerate
-      ? messages.slice(0, -1)
-      : [
-          ...messages,
-          newUserMessage
-        ];
+    let updatedMessages;
+    if (overrideMessages) {
+      updatedMessages = overrideMessages;
+    } else if (regenerate) {
+      updatedMessages = messages.slice(0, -1);
+    } else {
+      updatedMessages = [
+        ...messages,
+        newUserMessage
+      ];
+    }
 
     setMessages([
       ...updatedMessages,
       { role: 'assistant', content: '' }
     ]);
 
-    if (!regenerate) {
+    if (!regenerate && !overrideMessages) {
       setInput('');
       setAttachments([]);
     }
@@ -1103,6 +1112,86 @@ function App() {
       abortController.current = null;
       setLoading(false);
     }
+  }
+
+  function startEditingMessage(index, content) {
+    if (loading) return;
+    setEditingIndex(index);
+    setEditingText(typeof content === 'string' ? content : (content?.text || ''));
+  }
+
+  function cancelEditingMessage() {
+    setEditingIndex(null);
+    setEditingText('');
+  }
+
+  async function saveEditedMessage(index) {
+    if (!editingText.trim()) return;
+    const target = messages[index];
+    if (!target) return;
+
+    const trimmed = editingText.trim();
+    setEditingIndex(null);
+
+    if (target.role === 'user') {
+      const updatedUserMsg = {
+        ...target,
+        content: trimmed,
+        displayPrompt: trimmed
+      };
+      const baseMessages = [...messages.slice(0, index), updatedUserMsg];
+      await sendMessage({ preventDefault() {} }, false, baseMessages);
+    } else {
+      setMessages(prev => prev.map((m, i) => i === index ? { ...m, content: trimmed } : m));
+    }
+  }
+
+  async function regenerateAt(index) {
+    if (loading || !messages.length) return;
+    const target = messages[index];
+    if (!target) return;
+
+    let baseMessages;
+    if (target.role === 'assistant') {
+      baseMessages = messages.slice(0, index);
+    } else {
+      baseMessages = messages.slice(0, index + 1);
+    }
+
+    if (!baseMessages.length) return;
+    await sendMessage({ preventDefault() {} }, false, baseMessages);
+  }
+
+  function undoMessage(index) {
+    if (loading) return;
+    const target = messages[index];
+    if (!target) return;
+
+    let nextMessages;
+    if (target.role === 'user') {
+      if (index + 1 < messages.length && messages[index + 1].role === 'assistant') {
+        nextMessages = messages.filter((_, i) => i !== index && i !== index + 1);
+      } else {
+        nextMessages = messages.filter((_, i) => i !== index);
+      }
+      if (typeof target.content === 'string') {
+        setInput(target.displayPrompt || target.content);
+      }
+    } else {
+      nextMessages = messages.filter((_, i) => i !== index);
+    }
+
+    setMessages(nextMessages);
+    setError('');
+  }
+
+  async function copyMessage(index, content) {
+    const textToCopy = typeof content === 'string' ? content : JSON.stringify(content);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedMessageIndex(index);
+      setTimeout(() => setCopiedMessageIndex(null), 2000);
+    } catch {}
   }
 
   async function regenerateResponse() {
@@ -1837,23 +1926,110 @@ function App() {
                       </div>
                     )}
 
-                    <div className="markdown-content">
-                      {message.content
-                        ? <MarkdownMessage content={message.content} />
-                        : loading ? 'Thinking...' : ''}
-                    </div>
+                    {editingIndex === index ? (
+                      <div className="msg-inline-edit-box">
+                        <textarea
+                          className="msg-inline-edit-textarea"
+                          value={editingText}
+                          onChange={e => setEditingText(e.target.value)}
+                          rows={Math.max(2, editingText.split('\n').length)}
+                          autoFocus
+                          placeholder="Edit message..."
+                        />
+                        <div className="msg-inline-edit-actions">
+                          <button
+                            type="button"
+                            className="msg-edit-save-btn"
+                            onClick={() => saveEditedMessage(index)}
+                          >
+                            {message.role === 'user' ? 'Save & Submit' : 'Save Changes'}
+                          </button>
+                          <button
+                            type="button"
+                            className="msg-edit-cancel-btn"
+                            onClick={cancelEditingMessage}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="markdown-content">
+                        {message.content
+                          ? <MarkdownMessage content={message.content} />
+                          : loading ? 'Thinking...' : ''}
+                      </div>
+                    )}
 
-                    {message.role === 'assistant' &&
-                      index === messages.length - 1 &&
-                      !loading && (
+                    {/* Small action buttons toolbar below every message: edit, regenerate, undo, copy */}
+                    {!loading && editingIndex !== index && (
+                      <div className="message-action-bar">
                         <button
-                          className="regenerate-button"
                           type="button"
-                          onClick={regenerateResponse}
+                          className="msg-action-btn"
+                          onClick={() => startEditingMessage(index, message.content)}
+                          title="Edit message"
+                          aria-label="Edit message"
                         >
-                          ↻ Regenerate
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          <span>Edit</span>
                         </button>
-                      )}
+
+                        <button
+                          type="button"
+                          className="msg-action-btn"
+                          onClick={() => regenerateAt(index)}
+                          title="Regenerate response from this point"
+                          aria-label="Regenerate response"
+                        >
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                          </svg>
+                          <span>Regenerate</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="msg-action-btn"
+                          onClick={() => undoMessage(index)}
+                          title="Undo / Remove message"
+                          aria-label="Undo message"
+                        >
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="1 4 1 10 7 10" />
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                          </svg>
+                          <span>Undo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`msg-action-btn ${copiedMessageIndex === index ? 'is-copied' : ''}`}
+                          onClick={() => copyMessage(index, message.content)}
+                          title="Copy text to clipboard"
+                          aria-label="Copy text"
+                        >
+                          {copiedMessageIndex === index ? (
+                            <>
+                              <span className="copied-check">✓</span>
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
 
                   </div>
                 </article>
