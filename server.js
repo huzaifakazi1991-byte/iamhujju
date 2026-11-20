@@ -14,6 +14,14 @@ import { createConversationStore } from './conversationStore.js';
 import Razorpay from 'razorpay';
 import { PRICING_PLANS, resolvePlan, CURRENCY } from './src/pricingConfig.js';
 import { KeyPool, defaultKeyPool, estimateTokens } from './keyPool.js';
+import {
+  PROVIDERS,
+  PROVIDER_FALLBACK_MODELS,
+  resolveModelTarget,
+  sanitizePayloadForModel,
+  createModelSyncService,
+  runAdminProviderDiagnostics
+} from './services/aiGateway.js';
 
 dotenv.config();
 
@@ -22,81 +30,7 @@ const DEFAULT_OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const DEFAULT_TIMEOUT_MS = 180000;
 const SESSION_COOKIE = 'iamhujju_session';
 
-const PROVIDERS = {
-  openrouter: {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    base: DEFAULT_OPENROUTER_BASE,
-    modelsUrl: `${DEFAULT_OPENROUTER_BASE}/models`,
-    chatUrl: `${DEFAULT_OPENROUTER_BASE}/chat/completions`,
-    portalUrl: 'https://openrouter.ai',
-    requiresTerms: true
-  },
-  electronhub: {
-    id: 'electronhub',
-    name: 'ElectronHub AI',
-    base: 'https://api.electronhub.ai/v1',
-    modelsUrl: 'https://api.electronhub.ai/v1/models',
-    chatUrl: 'https://api.electronhub.ai/v1/chat/completions',
-    portalUrl: 'https://app.electronhub.ai',
-    requiresTerms: false
-  },
-  groq: {
-    id: 'groq',
-    name: 'Groq Cloud',
-    base: 'https://api.groq.com/openai/v1',
-    modelsUrl: 'https://api.groq.com/openai/v1/models',
-    chatUrl: 'https://api.groq.com/openai/v1/chat/completions',
-    portalUrl: 'https://console.groq.com',
-    requiresTerms: false
-  },
-  freemodel: {
-    id: 'freemodel',
-    name: 'FreeModel.in',
-    base: 'https://freemodel.in/v1',
-    modelsUrl: 'https://freemodel.in/v1/models',
-    chatUrl: 'https://freemodel.in/v1/chat/completions',
-    portalUrl: 'https://freemodel.in',
-    requiresTerms: false
-  }
-};
 
-const PROVIDER_FALLBACK_MODELS = {
-  electronhub: [
-    { id: 'gpt-4o', name: 'GPT-4o (Omni)', owned_by: 'OpenAI', context_window: 128000 },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', owned_by: 'OpenAI', context_window: 128000 },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', owned_by: 'Anthropic', context_window: 200000 },
-    { id: 'claude-3-5-haiku', name: 'Claude 3.5 Haiku', owned_by: 'Anthropic', context_window: 200000 },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', owned_by: 'Google', context_window: 1048576 },
-    { id: 'deepseek-r1', name: 'DeepSeek R1', owned_by: 'DeepSeek', context_window: 64000 }
-  ],
-  groq: [
-    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', owned_by: 'Meta', context_window: 128000 },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', owned_by: 'Meta', context_window: 128000 },
-    { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill Llama 70B', owned_by: 'DeepSeek', context_window: 128000 },
-    { id: 'gemma2-9b-it', name: 'Gemma 2 9B IT', owned_by: 'Google', context_window: 8192 },
-    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B 32k', owned_by: 'Mistral', context_window: 32768 }
-  ],
-  freemodel: [
-    { id: 'claude-opus-4.8', name: 'Claude Opus 4.8', owned_by: 'Anthropic', context_window: 200000 },
-    { id: 'gpt-4o', name: 'GPT-4o Developer', owned_by: 'OpenAI', context_window: 128000 },
-    { id: 'deepseek-v3', name: 'DeepSeek V3', owned_by: 'DeepSeek', context_window: 64000 },
-    { id: 'llama-3.3-70b', name: 'Llama 3.3 70B Free', owned_by: 'Meta', context_window: 128000 }
-  ]
-};
-
-function resolveModelTarget(modelName) {
-  if (typeof modelName !== 'string') return { provider: 'freellmapi', sourceModel: '' };
-  for (const p of ['openrouter', 'electronhub', 'groq', 'freemodel']) {
-    if (modelName.startsWith(`${p}:`)) {
-      return { provider: p, sourceModel: modelName.slice(`${p}:`.length) };
-    }
-    if (modelName.startsWith(`${p}/`)) {
-      return { provider: p, sourceModel: modelName.slice(`${p}/`.length) };
-    }
-  }
-  return { provider: 'freellmapi', sourceModel: modelName };
-}
 const PROJECT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIRECTORY = path.join(PROJECT_ROOT, 'dist');
 const INDEX_FILE = path.join(DIST_DIRECTORY, 'index.html');
@@ -725,12 +659,63 @@ export function createApp({
     };
   }
 
+  const modelSyncService = createModelSyncService({
+    db: accountStore?.db,
+    keyPool,
+    fetchImpl
+  });
+  if (process.env.NODE_ENV !== 'test') {
+    modelSyncService.startPeriodicSync();
+  }
+
+  const ADMIN_EMAILS = new Set([
+    'huzaifakazi1991@gmail.com',
+    ...(process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase()) : [])
+  ]);
+
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
       apiKeyConfigured: Boolean(apiKey) || keyPool.hasKeys('freellmapi') || keyPool.hasKeys('openrouter'),
       pool: keyPool.getPoolHealth()
     });
+  });
+
+  app.get('/api/admin/health/providers', async (req, res) => {
+    const user = await getCurrentUser(req);
+    const authHeader = req.headers.authorization;
+    let isAdmin = false;
+
+    if (user && ADMIN_EMAILS.has(user.email?.toLowerCase())) {
+      isAdmin = true;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      const apiKeyUser = await accountStore.verifyAndTrackApiKey?.(token);
+      if (apiKeyUser && ADMIN_EMAILS.has(apiKeyUser.email?.toLowerCase())) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: { message: 'Access denied: Admin credentials required for diagnostic telemetry.' }
+      });
+    }
+
+    try {
+      const diagnostics = await runAdminProviderDiagnostics({ keyPool, fetchImpl });
+      const modelCatalog = modelSyncService.getCatalog();
+
+      for (const [pId, pRes] of Object.entries(diagnostics.providers)) {
+        pRes.activeModels = modelCatalog.models.filter(m => m.provider === pId).length;
+      }
+      diagnostics.totalModelsOnline = modelCatalog.count;
+      diagnostics.lastCatalogSync = modelCatalog.lastSyncedAt;
+
+      return res.json(diagnostics);
+    } catch (err) {
+      return res.status(500).json({ error: { message: `Diagnostic scan failed: ${err.message}` } });
+    }
   });
 
   app.post('/api/auth/signup', authRateLimiter, async (req, res) => {
@@ -1408,7 +1393,8 @@ export function createApp({
     }
 
     const hasPersonalKey = Boolean(userPersonalKey);
-    const isFreeTierUsingServerKey = (!user || user.tier === 'free') && !hasPersonalKey;
+    const isUserPro = Boolean(user && (user.tier !== 'free' || user.hasActiveSubscription || user.unlockedAllModels));
+    const isFreeTierUsingServerKey = !isUserPro && !hasPersonalKey;
 
     if (targetProvider === 'openrouter') {
       const isFreeModel = sourceModel.endsWith(':free') ||
@@ -1424,15 +1410,8 @@ export function createApp({
       }
     }
 
-    const requestBody = targetProvider !== 'freellmapi'
-      ? {
-          ...body,
-          model: sourceModel,
-          ...(targetProvider === 'openrouter' && isFreeTierUsingServerKey
-            ? { max_tokens: Math.min(Number(body.max_tokens) || 2048, 2048) }
-            : (body.max_tokens !== undefined ? { max_tokens: Number(body.max_tokens) } : {}))
-        }
-      : body;
+    const modelTarget = resolveModelTarget(body.model);
+    const requestBody = sanitizePayloadForModel(targetProvider, sourceModel, body, { isFreeTierUsingServerKey });
 
     const providerConfig = PROVIDERS[targetProvider];
     const providerName = providerConfig ? providerConfig.name : (targetProvider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI');
@@ -1444,19 +1423,29 @@ export function createApp({
       const response = await keyPool.executeWithFailover({
         providerId: targetProvider,
         userKey: userPersonalKey,
-        requestFn: async (activeKey) => {
+        fallbackChain: modelTarget.fallbackChain,
+        requestFn: async (activeKey, currentProvider, currentModel) => {
           activeRequestKey = activeKey;
+          const curConfig = (currentProvider && PROVIDERS[currentProvider]) || providerConfig;
+          const curEndpoint = curConfig ? curConfig.chatUrl : `${upstreamBase}/chat/completions`;
+          const curModel = currentModel || sourceModel;
+          const curBody = sanitizePayloadForModel(currentProvider || targetProvider, curModel, body, { isFreeTierUsingServerKey });
+
           return await fetchImpl(
-            chatEndpoint,
+            curEndpoint,
             {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${activeKey}`,
                 'Content-Type': 'application/json',
-                ...(targetProvider === 'openrouter' ? { 'X-OpenRouter-Title': 'iamhujju' } : {}),
-                ...(providerConfig?.headers || {})
+                ...((currentProvider || targetProvider) === 'openrouter' ? {
+                  'HTTP-Referer': 'https://iamhujju.com',
+                  'X-Title': 'iamhujju',
+                  'X-OpenRouter-Title': 'iamhujju'
+                } : {}),
+                ...(curConfig?.headers || {})
               },
-              body: JSON.stringify(requestBody),
+              body: JSON.stringify(curBody),
               signal: request.controller.signal
             }
           );
@@ -2024,6 +2013,9 @@ What would you like to explore or do right now?
         planId: resolvedPlan.planId,
         planTitle: resolvedPlan.title || resolvedPlan.name,
         paymentRef: paymentId,
+        hasActiveSubscription: true,
+        unlockedAllModels: true,
+        provisionedApiKey: captureResult?.provisionedApiKey || null,
         message: `Payment verified successfully! Your ${resolvedPlan.title || resolvedPlan.name} is now active.`,
         user: updatedUser
       });
@@ -2395,24 +2387,49 @@ What would you like to explore or do right now?
       });
     }
 
+    const isUserPro = Boolean(user && (user.tier !== 'free' || user.hasActiveSubscription || user.unlockedAllModels));
+    const hasPersonalKey = Boolean(userPersonalKey);
+    const isFreeTierUsingServerKey = !isUserPro && !hasPersonalKey;
+    const modelTarget = resolveModelTarget(body.model);
+
     const providerConfig = PROVIDERS[targetProvider];
     const providerName = providerConfig ? providerConfig.name : (targetProvider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI');
     const chatEndpoint = providerConfig ? providerConfig.chatUrl : `${upstreamBase}/chat/completions`;
-    const requestBody = { ...body, model: sourceModel };
-
     const request = requestAbortSignal(req, res, timeoutMs);
 
     try {
-      const upstream = await fetchImpl(chatEndpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${requestApiKey}`,
-          'Content-Type': 'application/json',
-          ...(targetProvider === 'openrouter' ? { 'X-OpenRouter-Title': 'iamhujju' } : {}),
-          ...(providerConfig?.headers || {})
+      let activeRequestKey = requestApiKey;
+      const upstream = await keyPool.executeWithFailover({
+        providerId: targetProvider,
+        userKey: userPersonalKey,
+        fallbackChain: modelTarget.fallbackChain,
+        requestFn: async (activeKey, currentProvider, currentModel) => {
+          activeRequestKey = activeKey;
+          const curConfig = (currentProvider && PROVIDERS[currentProvider]) || providerConfig;
+          const curEndpoint = curConfig ? curConfig.chatUrl : `${upstreamBase}/chat/completions`;
+          const curModel = currentModel || sourceModel;
+          const curBody = sanitizePayloadForModel(currentProvider || targetProvider, curModel, body, { isFreeTierUsingServerKey });
+
+          return await fetchImpl(
+            curEndpoint,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${activeKey}`,
+                'Content-Type': 'application/json',
+                ...((currentProvider || targetProvider) === 'openrouter' ? {
+                  'HTTP-Referer': 'https://iamhujju.com',
+                  'X-Title': 'iamhujju',
+                  'X-OpenRouter-Title': 'iamhujju'
+                } : {}),
+                ...(curConfig?.headers || {})
+              },
+              body: JSON.stringify(curBody),
+              signal: request.controller.signal
+            }
+          );
         },
-        body: JSON.stringify(requestBody),
-        signal: request.controller.signal
+        maxRetries: 3
       });
 
       if (!upstream.ok) {

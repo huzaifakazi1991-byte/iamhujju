@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -10,7 +10,12 @@ const SCHEMA_SQL = `
     password_salt TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    tier TEXT NOT NULL DEFAULT 'free'
+    tier TEXT NOT NULL DEFAULT 'free',
+    subscription_active BOOLEAN NOT NULL DEFAULT false,
+    plan_id TEXT NOT NULL DEFAULT 'free',
+    credits_balance INTEGER NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ,
+    unlocked_all_models BOOLEAN NOT NULL DEFAULT false
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -234,6 +239,51 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       await client.query(
         'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
         [6]
+      );
+    }
+
+    if (currentVersion < 7) {
+      await client.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_active BOOLEAN NOT NULL DEFAULT false;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT 'free';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_balance INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS unlocked_all_models BOOLEAN NOT NULL DEFAULT false;
+
+        CREATE TABLE IF NOT EXISTS system_provider_keys (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          provider TEXT NOT NULL,
+          key_label TEXT,
+          key_ciphertext TEXT NOT NULL,
+          iv TEXT NOT NULL,
+          auth_tag TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'healthy' CHECK (status IN ('healthy', 'cooldown', 'exhausted', 'invalid')),
+          cooldown_until TIMESTAMPTZ,
+          failure_count INTEGER NOT NULL DEFAULT 0,
+          success_count INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS system_provider_keys_provider_idx ON system_provider_keys (provider, status);
+
+        CREATE TABLE IF NOT EXISTS cached_provider_models (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          upstream_model_id TEXT NOT NULL,
+          context_window INTEGER NOT NULL DEFAULT 4096,
+          is_free BOOLEAN NOT NULL DEFAULT true,
+          tier TEXT NOT NULL DEFAULT 'free',
+          fallback_chain JSONB NOT NULL DEFAULT '[]'::jsonb,
+          owned_by TEXT,
+          raw_metadata JSONB,
+          last_synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS cached_provider_models_provider_idx ON cached_provider_models (provider);
+      `);
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [7]
       );
     }
 

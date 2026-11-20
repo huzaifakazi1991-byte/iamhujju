@@ -49,7 +49,7 @@ test('PostgreSQL schema migration is repeatable and records its version', async 
 
   await migrateDatabase(pool);
   const result = await pool.query('SELECT version FROM schema_migrations');
-  assert.deepEqual(result.rows.map(row => row.version), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(result.rows.map(row => row.version), [1, 2, 3, 4, 5, 6, 7]);
 });
 
 test('account store hashes passwords and sessions and encrypts provider keys', async t => {

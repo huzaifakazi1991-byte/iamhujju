@@ -13,7 +13,7 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PASSWORD_HASH_BYTES = 64;
 const DUMMY_SALT = '8d417e16f514d4dfe422051741481f41';
 const DUMMY_HASH = scryptSync('invalid-account-password', DUMMY_SALT, PASSWORD_HASH_BYTES);
-const CONNECTED_PROVIDERS = new Set(['openrouter', 'electronhub', 'groq', 'freemodel']);
+const CONNECTED_PROVIDERS = new Set(['openrouter', 'electronhub', 'groq', 'freemodel', 'gemini', 'mistral', 'together', 'cerebras', 'sambanova', 'cohere', 'huggingface']);
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
@@ -31,7 +31,16 @@ function validPassword(password) {
 }
 
 function publicUser(user) {
-  return { id: user.id, email: user.email, tier: user.tier || 'free' };
+  return {
+    id: user.id,
+    email: user.email,
+    tier: user.tier || 'free',
+    hasActiveSubscription: Boolean(user.subscription_active || (user.tier && user.tier !== 'free')),
+    unlockedAllModels: Boolean(user.unlocked_all_models || (user.tier && user.tier !== 'free')),
+    planId: user.plan_id || user.tier || 'free',
+    creditsBalance: Number(user.credits_balance || 0),
+    expiresAt: user.expires_at ? isoDate(user.expires_at) : null
+  };
 }
 
 function hashToken(token) {
@@ -638,9 +647,18 @@ export function createAccountStore({
         const targetUserId = userId || updatedPayment?.user_id;
         let updatedUser = null;
 
+        let provisionedApiKey = null;
         if (targetUserId && effectivePlanId) {
           const userRes = await client.query(
-            `UPDATE users SET tier = $1 WHERE id = $2 RETURNING id, email, COALESCE(tier, $1) AS tier`,
+            `UPDATE users
+             SET tier = $1,
+                 subscription_active = true,
+                 unlocked_all_models = true,
+                 plan_id = $1,
+                 expires_at = NOW() + interval '30 days',
+                 credits_balance = COALESCE(credits_balance, 0) + 1000000
+             WHERE id = $2
+             RETURNING id, email, tier, subscription_active, plan_id, credits_balance, expires_at, unlocked_all_models`,
             [effectivePlanId, targetUserId]
           );
           if (userRes.rows[0]) {
@@ -648,7 +666,15 @@ export function createAccountStore({
           }
         } else if (updatedPayment?.email && effectivePlanId) {
           const userRes = await client.query(
-            `UPDATE users SET tier = $1 WHERE email = $2 RETURNING id, email, COALESCE(tier, $1) AS tier`,
+            `UPDATE users
+             SET tier = $1,
+                 subscription_active = true,
+                 unlocked_all_models = true,
+                 plan_id = $1,
+                 expires_at = NOW() + interval '30 days',
+                 credits_balance = COALESCE(credits_balance, 0) + 1000000
+             WHERE email = $2
+             RETURNING id, email, tier, subscription_active, plan_id, credits_balance, expires_at, unlocked_all_models`,
             [effectivePlanId, updatedPayment.email]
           );
           if (userRes.rows[0]) {
@@ -656,11 +682,33 @@ export function createAccountStore({
           }
         }
 
+        // Auto-provision personal sk-hujju-... API key if user does not already have an active one
+        const resolvedUserId = targetUserId || updatedUser?.id;
+        if (resolvedUserId) {
+          const existingKeyRes = await client.query(
+            `SELECT id, prefix FROM api_keys WHERE user_id = $1 AND status = 'active' LIMIT 1`,
+            [resolvedUserId]
+          );
+          if (existingKeyRes.rows.length === 0) {
+            const rawKey = 'sk-hujju-' + randomBytes(24).toString('hex');
+            const keyHash = createHash('sha256').update(rawKey).digest('hex');
+            const prefix = rawKey.slice(0, 9) + '••••' + rawKey.slice(-4);
+            await client.query(
+              `INSERT INTO api_keys (user_id, name, key_hash, prefix)
+               VALUES ($1, $2, $3, $4)`,
+              [resolvedUserId, 'Auto-Provisioned Pro Master Key', keyHash, prefix]
+            );
+            provisionedApiKey = rawKey;
+            console.log(`[Auto-Provision] Generated new API key ${prefix} for user ${resolvedUserId}`);
+          }
+        }
+
         await client.query('COMMIT');
         return {
           alreadyCaptured: false,
           payment: updatedPayment,
-          user: updatedUser
+          user: updatedUser,
+          provisionedApiKey
         };
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
