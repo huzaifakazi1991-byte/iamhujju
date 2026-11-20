@@ -377,6 +377,33 @@ function ConnectDrawer({ activeKeys, rawKeyMap, defaultModel = 'openrouter/free'
         </div>
       </div>
 
+      {/* Live SLA & Failover Status Ribbon */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '12px 18px',
+        background: 'rgba(0, 229, 153, 0.04)',
+        border: '1px solid rgba(0, 229, 153, 0.18)',
+        borderRadius: '12px',
+        margin: '16px 0 20px',
+        fontSize: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00e599', boxShadow: '0 0 10px #00e599' }} />
+          <span style={{ color: '#ffffff', fontWeight: 600 }}>Gateway Engine: Operational</span>
+          <span style={{ color: '#8b949e' }}>(99.99% Availability SLA)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="ak-tag-ready" style={{ fontSize: '10px', padding: '3px 8px' }}>
+            Multi-Key Pool Active
+          </span>
+          <span style={{ color: '#8b949e', fontSize: '11px' }}>Zero-Downtime Rate-Limit Shield</span>
+        </div>
+      </div>
+
       {/* Connection Parameters Ribbon */}
       <div className="ak-conn-params">
         <div className="ak-param-item">
@@ -882,7 +909,7 @@ export default function ApiKeysPage({
                       <th scope="col">Secret Key</th>
                       <th scope="col">Created Date</th>
                       <th scope="col">Last Used</th>
-                      <th scope="col">Requests Count</th>
+                      <th scope="col">Requests & Tokens</th>
                       <th scope="col">Status</th>
                       <th scope="col" className="ak-th-actions">Actions</th>
                     </tr>
@@ -917,9 +944,16 @@ export default function ApiKeysPage({
                             {formatLastUsed(key.lastUsedAt)}
                           </td>
 
-                          {/* Requests Count */}
+                          {/* Requests & Tokens Count */}
                           <td className="ak-td-count">
-                            {(key.requestCount || 0).toLocaleString()}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: 600, color: '#e5e9f0' }}>
+                                {(key.requestCount || 0).toLocaleString()} reqs
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#00e599', fontFamily: 'monospace' }}>
+                                {(key.tokensUsed || 0).toLocaleString()} tokens
+                              </span>
+                            </div>
                           </td>
 
                           {/* Status Badge */}

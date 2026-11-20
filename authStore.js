@@ -422,7 +422,7 @@ export function createAccountStore({
 
     async listApiKeys(userId) {
       const result = await db.query(
-        `SELECT id, name, prefix, created_at, last_used_at, request_count, status
+        `SELECT id, name, prefix, created_at, last_used_at, request_count, COALESCE(tokens_used, 0) AS tokens_used, status
          FROM api_keys
          WHERE user_id = $1 AND status = 'active'
          ORDER BY created_at DESC`,
@@ -435,6 +435,7 @@ export function createAccountStore({
         createdAt: isoDate(row.created_at),
         lastUsedAt: isoDate(row.last_used_at),
         requestCount: row.request_count,
+        tokensUsed: Number(row.tokens_used || 0),
         status: row.status
       }));
     },
@@ -531,23 +532,39 @@ export function createAccountStore({
       return result.rowCount > 0;
     },
 
-    async verifyAndTrackApiKey(rawKey) {
+    async verifyAndTrackApiKey(rawKey, tokens = 0) {
       if (typeof rawKey !== 'string' || !rawKey.startsWith('sk-hujju-')) return null;
       const keyHash = createHash('sha256').update(rawKey).digest('hex');
+      const tokenCount = Math.max(0, Number(tokens) || 0);
       const result = await db.query(
         `UPDATE api_keys
-         SET last_used_at = NOW(), request_count = request_count + 1
+         SET last_used_at = NOW(),
+             request_count = request_count + 1,
+             tokens_used = COALESCE(tokens_used, 0) + $2
          WHERE key_hash = $1 AND status = 'active'
-         RETURNING user_id`,
-        [keyHash]
+         RETURNING user_id, id AS key_id`,
+        [keyHash, tokenCount]
       );
       if (!result.rows[0]) return null;
-      const userId = result.rows[0].user_id;
+      const { user_id: userId, key_id: keyId } = result.rows[0];
       const userResult = await db.query(
         `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE id = $1`,
         [userId]
       );
-      return userResult.rows[0] ? publicUser(userResult.rows[0]) : null;
+      if (!userResult.rows[0]) return null;
+      const user = publicUser(userResult.rows[0]);
+      user.activeKeyId = keyId;
+      return user;
+    },
+
+    async recordApiKeyTokens(keyId, tokens = 0) {
+      if (!keyId || !tokens) return;
+      await db.query(
+        `UPDATE api_keys
+         SET tokens_used = COALESCE(tokens_used, 0) + $2
+         WHERE id = $1`,
+        [keyId, Math.max(0, Number(tokens) || 0)]
+      );
     },
 
     async recordPaymentOrder({ orderId, userId = null, email, planId, billingCycle = 'monthly', amountPaise, currency = 'INR', receipt, metadata = {} }) {

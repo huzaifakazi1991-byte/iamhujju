@@ -13,6 +13,7 @@ import { closeDatabase, getDatabasePool, migrateDatabase } from './database.js';
 import { createConversationStore } from './conversationStore.js';
 import Razorpay from 'razorpay';
 import { PRICING_PLANS, resolvePlan, CURRENCY } from './src/pricingConfig.js';
+import { KeyPool, defaultKeyPool, estimateTokens } from './keyPool.js';
 
 dotenv.config();
 
@@ -320,20 +321,40 @@ export function createApp({
   officialUpiId = process.env.OFFICIAL_UPI_ID || '9975649957@mbk',
   razorpayAccountName = process.env.RAZORPAY_ACCOUNT_NAME || 'iamhujju',
   razorpayInstance = null,
+  keyPool = defaultKeyPool,
   rateLimits = {},
-  allowedOrigins = process.env.APP_ORIGIN
-    ? [process.env.APP_ORIGIN]
-    : process.env.NODE_ENV === 'production'
-      ? []
-      : [
+  allowedOrigins = [
+    'https://iamhujju.com',
+    'https://www.iamhujju.com',
+    ...(process.env.APP_ORIGIN ? [process.env.APP_ORIGIN] : []),
+    ...(process.env.NODE_ENV !== 'production'
+      ? [
           'http://localhost:5173',
           'http://localhost:5174',
           'http://127.0.0.1:5173',
           'http://127.0.0.1:5174'
         ]
+      : [])
+  ]
 } = {}) {
   const upstreamBase = normalizeApiBase(apiBase);
   const openRouterUpstreamBase = DEFAULT_OPENROUTER_BASE;
+
+  if (serverOpenRouterKey && !keyPool.pools.get('openrouter')?.some(k => k.key === serverOpenRouterKey)) {
+    keyPool.registerPool('openrouter', [serverOpenRouterKey, ...(keyPool.parseKeys(process.env.OPENROUTER_API_KEYS))]);
+  }
+  if (apiKey && !keyPool.pools.get('freellmapi')?.some(k => k.key === apiKey)) {
+    keyPool.registerPool('freellmapi', [apiKey, ...(keyPool.parseKeys(process.env.FREELLMAPI_KEYS))]);
+  }
+  if (serverGroqKey && !keyPool.pools.get('groq')?.some(k => k.key === serverGroqKey)) {
+    keyPool.registerPool('groq', [serverGroqKey, ...(keyPool.parseKeys(process.env.GROQ_API_KEYS))]);
+  }
+  if (serverElectronHubKey && !keyPool.pools.get('electronhub')?.some(k => k.key === serverElectronHubKey)) {
+    keyPool.registerPool('electronhub', [serverElectronHubKey, ...(keyPool.parseKeys(process.env.ELECTRONHUB_API_KEYS))]);
+  }
+  if (serverFreeModelKey && !keyPool.pools.get('freemodel')?.some(k => k.key === serverFreeModelKey)) {
+    keyPool.registerPool('freemodel', [serverFreeModelKey, ...(keyPool.parseKeys(process.env.FREEMODEL_API_KEYS))]);
+  }
   const app = express();
   if (process.env.NODE_ENV === 'production') {
     app.set('trust proxy', 1);
@@ -707,7 +728,8 @@ export function createApp({
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
-      apiKeyConfigured: Boolean(apiKey)
+      apiKeyConfigured: Boolean(apiKey) || keyPool.hasKeys('freellmapi') || keyPool.hasKeys('openrouter'),
+      pool: keyPool.getPoolHealth()
     });
   });
 
@@ -1351,18 +1373,27 @@ export function createApp({
       });
     }
 
-    let requestApiKey;
-    if (targetProvider !== 'freellmapi') {
-      const userKey = user ? await getProviderKeyForUser(user.id, targetProvider) : null;
-      const serverKey = targetProvider === 'openrouter' ? serverOpenRouterKey
-        : targetProvider === 'electronhub' ? serverElectronHubKey
-        : targetProvider === 'groq' ? serverGroqKey
-        : targetProvider === 'freemodel' ? serverFreeModelKey
-        : '';
-      requestApiKey = userKey || serverKey;
-    } else {
-      const userKey = typeof accountStore.getApiKey === 'function' ? await accountStore.getApiKey(user.id) : null;
-      requestApiKey = userKey || (allowSharedGatewayKey ? apiKey : '');
+    let userPersonalKey = null;
+    if (user) {
+      if (targetProvider !== 'freellmapi') {
+        userPersonalKey = await getProviderKeyForUser(user.id, targetProvider);
+      } else if (typeof accountStore.getApiKey === 'function') {
+        userPersonalKey = await accountStore.getApiKey(user.id);
+      }
+    }
+
+    let requestApiKey = userPersonalKey;
+    if (!requestApiKey) {
+      if (targetProvider !== 'freellmapi') {
+        const serverKey = targetProvider === 'openrouter' ? (serverOpenRouterKey || (keyPool?.hasKeys('openrouter') ? 'pool' : ''))
+          : targetProvider === 'electronhub' ? (serverElectronHubKey || (keyPool?.hasKeys('electronhub') ? 'pool' : ''))
+          : targetProvider === 'groq' ? (serverGroqKey || (keyPool?.hasKeys('groq') ? 'pool' : ''))
+          : targetProvider === 'freemodel' ? (serverFreeModelKey || (keyPool?.hasKeys('freemodel') ? 'pool' : ''))
+          : '';
+        requestApiKey = serverKey;
+      } else {
+        requestApiKey = allowSharedGatewayKey ? (apiKey || (keyPool?.hasKeys('freellmapi') ? 'pool' : '')) : '';
+      }
     }
 
     if (!requestApiKey) {
@@ -1376,10 +1407,7 @@ export function createApp({
       });
     }
 
-    const userKey = user && targetProvider !== 'freellmapi'
-      ? await getProviderKeyForUser(user.id, targetProvider)
-      : null;
-    const hasPersonalKey = Boolean(userKey);
+    const hasPersonalKey = Boolean(userPersonalKey);
     const isFreeTierUsingServerKey = (!user || user.tier === 'free') && !hasPersonalKey;
 
     if (targetProvider === 'openrouter') {
@@ -1412,20 +1440,29 @@ export function createApp({
     const request = requestAbortSignal(req, res, timeoutMs);
 
     try {
-      const response = await fetchImpl(
-        chatEndpoint,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${requestApiKey}`,
-            'Content-Type': 'application/json',
-            ...(targetProvider === 'openrouter' ? { 'X-OpenRouter-Title': 'iamhujju' } : {}),
-            ...(providerConfig?.headers || {})
-          },
-          body: JSON.stringify(requestBody),
-          signal: request.controller.signal
-        }
-      );
+      let activeRequestKey = requestApiKey;
+      const response = await keyPool.executeWithFailover({
+        providerId: targetProvider,
+        userKey: userPersonalKey,
+        requestFn: async (activeKey) => {
+          activeRequestKey = activeKey;
+          return await fetchImpl(
+            chatEndpoint,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${activeKey}`,
+                'Content-Type': 'application/json',
+                ...(targetProvider === 'openrouter' ? { 'X-OpenRouter-Title': 'iamhujju' } : {}),
+                ...(providerConfig?.headers || {})
+              },
+              body: JSON.stringify(requestBody),
+              signal: request.controller.signal
+            }
+          );
+        },
+        maxRetries: 3
+      });
 
       if (!response.ok) {
         const bodyText = await response.text();
@@ -2324,20 +2361,25 @@ What would you like to explore or do right now?
 
     const { provider: targetProvider, sourceModel } = resolveModelTarget(body.model);
 
-    let requestApiKey;
+    let userPersonalKey = null;
     if (targetProvider !== 'freellmapi') {
-      const userKey = await getProviderKeyForUser(user.id, targetProvider);
-      const serverKey = targetProvider === 'openrouter' ? serverOpenRouterKey
-        : targetProvider === 'electronhub' ? serverElectronHubKey
-        : targetProvider === 'groq' ? serverGroqKey
-        : targetProvider === 'freemodel' ? serverFreeModelKey
-        : '';
-      requestApiKey = userKey || serverKey;
-    } else {
-      const userApiKey = typeof accountStore.getApiKey === 'function'
-        ? await accountStore.getApiKey(user.id)
-        : null;
-      requestApiKey = userApiKey || (allowSharedGatewayKey ? apiKey : '');
+      userPersonalKey = await getProviderKeyForUser(user.id, targetProvider);
+    } else if (typeof accountStore.getApiKey === 'function') {
+      userPersonalKey = await accountStore.getApiKey(user.id);
+    }
+
+    let requestApiKey = userPersonalKey;
+    if (!requestApiKey) {
+      if (targetProvider !== 'freellmapi') {
+        const serverKey = targetProvider === 'openrouter' ? (serverOpenRouterKey || (keyPool?.hasKeys('openrouter') ? 'pool' : ''))
+          : targetProvider === 'electronhub' ? (serverElectronHubKey || (keyPool?.hasKeys('electronhub') ? 'pool' : ''))
+          : targetProvider === 'groq' ? (serverGroqKey || (keyPool?.hasKeys('groq') ? 'pool' : ''))
+          : targetProvider === 'freemodel' ? (serverFreeModelKey || (keyPool?.hasKeys('freemodel') ? 'pool' : ''))
+          : '';
+        requestApiKey = serverKey;
+      } else {
+        requestApiKey = allowSharedGatewayKey ? (apiKey || (keyPool?.hasKeys('freellmapi') ? 'pool' : '')) : '';
+      }
     }
 
     if (!requestApiKey) {
@@ -2382,6 +2424,39 @@ What would you like to explore or do right now?
 
       if (!upstream.body) {
         return res.status(502).json({ error: { message: `${providerName} returned an empty response.` } });
+      }
+
+      if (!body.stream) {
+        const responseText = await upstream.text();
+        let completionJson;
+        try {
+          completionJson = JSON.parse(responseText);
+        } catch {
+          completionJson = null;
+        }
+
+        if (completionJson) {
+          const promptEst = estimateTokens(body.messages);
+          const completionEst = estimateTokens(completionJson.choices?.[0]?.message?.content);
+          completionJson.usage = {
+            prompt_tokens: Number(completionJson.usage?.prompt_tokens) || promptEst,
+            completion_tokens: Number(completionJson.usage?.completion_tokens) || completionEst,
+            total_tokens: Number(completionJson.usage?.total_tokens) || (promptEst + completionEst)
+          };
+
+          if (user.activeKeyId && typeof accountStore.recordApiKeyTokens === 'function') {
+            await accountStore.recordApiKeyTokens(user.activeKeyId, completionJson.usage.total_tokens);
+          }
+
+          res.status(upstream.status);
+          res.setHeader('Content-Type', 'application/json');
+          return res.json(completionJson);
+        }
+      }
+
+      if (user.activeKeyId && typeof accountStore.recordApiKeyTokens === 'function') {
+        const promptEst = estimateTokens(body.messages);
+        await accountStore.recordApiKeyTokens(user.activeKeyId, promptEst);
       }
 
       res.status(upstream.status);

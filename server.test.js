@@ -7,6 +7,7 @@ import { createAccountStore } from './authStore.js';
 import { migrateDatabase } from './database.js';
 import { createConversationStore } from './conversationStore.js';
 import { createApp } from './server.js';
+import { KeyPool } from './keyPool.js';
 
 async function createTestStores(t, encryptionSecret = 'test-encryption-secret-that-is-long-enough') {
   const memory = newDb({ noAstCoverageCheck: true });
@@ -2089,4 +2090,80 @@ test('External providers (ElectronHub, Groq, FreeModel) can be connected, discov
   });
   assert.equal(delRes.status, 204);
   assert.equal(await accountStore.getProviderApiKey(user.id, 'electronhub'), null);
+});
+
+
+test('High-Capacity Multi-Key Load Balancing & Failover: 429 rate limit triggers 60s cooldown and transparent retry on next key', async t => {
+  const { accountStore, pool } = await createTestStores(t);
+  const user = await accountStore.register('failover@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const poolKeys = ['sk-pool-key-alpha-12345678', 'sk-pool-key-bravo-87654321'];
+  let attemptsCount = 0;
+  const attemptedKeys = [];
+
+  const customKeyPool = new KeyPool();
+  customKeyPool.registerPool('openrouter', poolKeys);
+
+  const streamBody = 'data: {"choices":[{"delta":{"content":"failover success"}}]}\\n\\ndata: [DONE]\\n\\n';
+
+  const app = createApp({
+    accountStore,
+    conversationStore: createConversationStore({ db: pool }),
+    keyPool: customKeyPool,
+    fetchImpl: async (url, options) => {
+      if (url === 'https://openrouter.ai/api/v1/chat/completions') {
+        attemptsCount++;
+        const authKey = options.headers.Authorization.replace('Bearer ', '');
+        attemptedKeys.push(authKey);
+
+        // Key 1 hits 429 Rate Limit
+        if (authKey === poolKeys[0]) {
+          return new Response(JSON.stringify({ error: { message: 'Rate limit exceeded: 429 Too Many Requests' } }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Key 2 succeeds!
+        if (authKey === poolKeys[1]) {
+          return new Response(streamBody, {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' }
+          });
+        }
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    }
+  });
+
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // Chat completion request to a free openrouter model
+  const res = await fetch(`${baseUrl}/api/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      model: 'openrouter:openrouter/free',
+      messages: [{ role: 'user', content: 'test rate-limit failover' }],
+      stream: true
+    })
+  });
+
+  // Must succeed with 200 without exposing 429 to the client!
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), streamBody);
+
+  // Both keys were attempted in order
+  assert.equal(attemptsCount, 2);
+  assert.equal(attemptedKeys[0], poolKeys[0]);
+  assert.equal(attemptedKeys[1], poolKeys[1]);
+
+  // Key 1 is now in cooldown
+  const status = customKeyPool.getStatus();
+  assert.equal(status.openrouter.inCooldown, 1);
+  assert.equal(status.openrouter.healthyKeys, 1);
 });

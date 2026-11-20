@@ -914,7 +914,7 @@ function App() {
       const printWindow = window.open('', '_blank');
 
       if (!printWindow) {
-        setError('PDF popup blocked. Allow pop-ups for localhost and try again.');
+        setError('PDF popup blocked. Allow pop-ups for iamhujju.com and try again.');
         return;
       }
 

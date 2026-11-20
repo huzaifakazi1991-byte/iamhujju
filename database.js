@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -184,6 +184,7 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           last_used_at TIMESTAMPTZ,
           request_count INTEGER NOT NULL DEFAULT 0,
+          tokens_used BIGINT NOT NULL DEFAULT 0,
           status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked'))
         );
         CREATE INDEX IF NOT EXISTS api_keys_user_id_idx ON api_keys (user_id, created_at DESC);
@@ -223,6 +224,16 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       await client.query(
         'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
         [5]
+      );
+    }
+
+    if (currentVersion < 6) {
+      await client.query(`
+        ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS tokens_used BIGINT NOT NULL DEFAULT 0;
+      `);
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [6]
       );
     }
 
