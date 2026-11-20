@@ -122,7 +122,7 @@ test('security headers, origin checks, and API rate limits are enforced', async 
   assert.equal(upstreamCalls, 0);
 
   const allowedOrigin = await fetch(`${baseUrl}/api/models`, {
-    headers: { Origin: 'http://localhost:5173' }
+    headers: { Origin: 'https://iamhujju.com' }
   });
   assert.equal(allowedOrigin.status, 200);
   assert.equal(allowedOrigin.headers.get('x-frame-options'), 'DENY');

@@ -26,7 +26,7 @@ API_KEY_ENCRYPTION_SECRET=your-random-secret-at-least-32-bytes
 # Shared server-key chat access is disabled unless explicitly enabled.
 # ALLOW_SHARED_FREELLMAPI_KEY=true
 # For a deployed frontend, set its exact origin.
-# APP_ORIGIN=https://app.example.com
+# APP_ORIGIN=https://iamhujju.com
 ```
 
 Keep `.env` out of source control. `DATABASE_URL` is used only by the Express

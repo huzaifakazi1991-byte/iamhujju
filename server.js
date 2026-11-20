@@ -299,15 +299,7 @@ export function createApp({
   allowedOrigins = [
     'https://iamhujju.com',
     'https://www.iamhujju.com',
-    ...(process.env.APP_ORIGIN ? [process.env.APP_ORIGIN] : []),
-    ...(process.env.NODE_ENV !== 'production'
-      ? [
-          'http://localhost:5173',
-          'http://localhost:5174',
-          'http://127.0.0.1:5173',
-          'http://127.0.0.1:5174'
-        ]
-      : [])
+    ...(process.env.APP_ORIGIN && !process.env.APP_ORIGIN.includes('localhost') && !process.env.APP_ORIGIN.includes('127.0.0.1') ? [process.env.APP_ORIGIN] : [])
   ]
 } = {}) {
   const upstreamBase = normalizeApiBase(apiBase);
