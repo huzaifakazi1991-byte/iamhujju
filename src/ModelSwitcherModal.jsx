@@ -85,7 +85,27 @@ export default function ModelSwitcherModal({
 
   // Filter models
   const filteredModels = useMemo(() => {
-    let list = models || [];
+    let list = [...(models || [])];
+    if (!list.some(m => m.id === 'huzaifa-kazi-omni')) {
+      list.unshift({
+        id: 'huzaifa-kazi-omni',
+        name: 'Huzaifa Kazi (Omni AI)',
+        provider: 'Huzaifa Kazi Omni AI',
+        owned_by: 'Huzaifa Kazi',
+        tier: 'free',
+        isFree: true,
+        modality: 'multimodal',
+        context_length: 128000,
+        capabilities: {
+          chat: true,
+          reasoning: true,
+          image_generation: true,
+          video_generation: true,
+          web_search: true,
+          autonomous_agent: true
+        }
+      });
+    }
 
     if (activeCategory === 'free') {
       list = list.filter(m => m.id === 'huzaifa-kazi-omni' || isModelFree(m));
@@ -138,7 +158,8 @@ export default function ModelSwitcherModal({
       list = list.filter(m =>
         m.id.toLowerCase().includes(q) ||
         (m.name && m.name.toLowerCase().includes(q)) ||
-        (m.provider && m.provider.toLowerCase().includes(q))
+        (m.provider && m.provider.toLowerCase().includes(q)) ||
+        (m.id === 'huzaifa-kazi-omni' && 'huzaifa kazi omni ai'.includes(q))
       );
     }
 

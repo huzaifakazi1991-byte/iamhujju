@@ -332,7 +332,9 @@ function App() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.replace(/^\//, '');
-      if (path === 'pricing') {
+      if (path === 'chat') {
+        setCurrentView('chat');
+      } else if (path === 'pricing') {
         setCurrentView('pricing');
       } else if (path === 'models') {
         setCurrentView('models');
@@ -667,13 +669,9 @@ function App() {
   const getAutoFreeModelId = useCallback(() => {
     return (
       models.find(m => m.id === 'huzaifa-kazi-omni' || m.id === 'huzaifa-kazi')?.id ||
-      models.find(m => m.id === 'openrouter:openrouter/free' || m.id === 'openrouter/free')?.id ||
-      models.find(m => m.id === 'free-router')?.id ||
-      models.find(m => m.id === 'auto')?.id ||
-      models.find(isModelFree)?.id ||
       'huzaifa-kazi-omni'
     );
-  }, [models, isModelFree]);
+  }, [models]);
 
   const chatModelOptions = useMemo(() => {
     if (isFreeTierUser) {
@@ -1680,6 +1678,13 @@ function App() {
 
   // Current active model display metadata
   const currentModelInfo = useMemo(() => {
+    if (selectedModel === 'huzaifa-kazi-omni' || selectedModel === 'huzaifa-kazi' || selectedModel === 'omni') {
+      return {
+        name: 'Huzaifa Kazi (Omni AI)',
+        isFree: true,
+        tag: '✨ Omni Brain · 100% Free'
+      };
+    }
     const found = chatModelOptions.find(m => m.id === selectedModel);
     if (!found) {
       if (selectedModel.includes('auto') || selectedModel.includes('free')) {
