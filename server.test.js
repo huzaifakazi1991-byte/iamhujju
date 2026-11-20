@@ -825,7 +825,7 @@ test('payment endpoints support Razorpay config, order creation, UPI verificatio
   const app = createApp({
     accountStore,
     apiKey: 'test-secret',
-    officialUpiId: '9975649957@mbk',
+    officialUpiId: 'test@upi',
     razorpayAccountName: 'iamhujju',
     fetchImpl: async () => { throw new Error('not used'); }
   });
@@ -836,7 +836,7 @@ test('payment endpoints support Razorpay config, order creation, UPI verificatio
   const configRes = await fetch(`${baseUrl}/api/payment/config`);
   assert.equal(configRes.status, 200);
   const config = await configRes.json();
-  assert.equal(config.upiId, '9975649957@mbk');
+  assert.equal(config.upiId, 'test@upi');
   assert.equal(config.currency, 'INR');
 
   // 2. Order creation check

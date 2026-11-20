@@ -29,7 +29,6 @@ export default function PricingPage({
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authConfirm, setAuthConfirm] = useState('');
-  const [copiedUpi, setCopiedUpi] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState(null);
 
@@ -182,12 +181,6 @@ export default function PricingPage({
     } finally {
       setAuthBusy(false);
     }
-  }
-
-  function copyUpi() {
-    navigator.clipboard.writeText('9975649957@mbk');
-    setCopiedUpi(true);
-    setTimeout(() => setCopiedUpi(false), 2000);
   }
 
   // Get active resolved plan cards
@@ -579,36 +572,6 @@ export default function PricingPage({
                   : 'Upgrade to Enterprise'}
             </button>
           </div>
-        </div>
-
-        {/* Direct UPI Alternate Block */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.02)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '14px',
-          padding: '1.25rem 1.75rem',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          marginBottom: '3rem'
-        }}>
-          <div>
-            <h4 style={{ margin: '0 0 0.25rem', color: '#fff', fontSize: '0.95rem' }}>
-              Prefer direct UPI payment?
-            </h4>
-            <p style={{ margin: 0, color: '#a1a1aa', fontSize: '0.84rem' }}>
-              Pay directly to VPA <code>9975649957@mbk</code> (Huzaifa Kazi) via GPay, PhonePe, Paytm, or CRED.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="pricing-nav-btn"
-            onClick={copyUpi}
-          >
-            {copiedUpi ? '✓ UPI ID Copied!' : 'Copy UPI ID: 9975649957@mbk'}
-          </button>
         </div>
 
         {/* Billing & Payment History Section */}

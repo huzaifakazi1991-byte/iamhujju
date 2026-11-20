@@ -44,11 +44,15 @@ export default function PaymentModal({
   // Resolve plan from single source of truth
   const currentPlan = resolvePlan(plan || 'pro');
 
-  const officialUpiId = '9975649957@mbk';
-  const accountHolder = 'Huzaifa Kazi (iamhujju)';
+  const [officialUpiId, setOfficialUpiId] = useState('');
+  const [accountHolder, setAccountHolder] = useState('iamhujju');
 
-  const upiIntentUrl = `upi://pay?pa=${officialUpiId}&pn=iamhujju&am=${currentPlan.amountInr}&cu=INR&tn=iamhujju%20${encodeURIComponent(currentPlan.name)}%20Subscription`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiIntentUrl)}`;
+  const upiIntentUrl = officialUpiId
+    ? `upi://pay?pa=${officialUpiId}&pn=iamhujju&am=${currentPlan.amountInr}&cu=INR&tn=iamhujju%20${encodeURIComponent(currentPlan.name)}%20Subscription`
+    : '';
+  const qrCodeUrl = upiIntentUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiIntentUrl)}`
+    : '';
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +64,12 @@ export default function PaymentModal({
       fetch('/api/payment/config')
         .then(r => r.json())
         .then(cfg => {
+          if (cfg?.upiId) {
+            setOfficialUpiId(cfg.upiId);
+          }
+          if (cfg?.accountName) {
+            setAccountHolder(cfg.accountName);
+          }
           if (!cfg?.isLive && !cfg?.keyId) {
             setActiveMethod('upi_direct');
           }

@@ -362,7 +362,7 @@ export function createApp({
   razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2RfhaS1IyP8oo',
   razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET || '',
   razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || '',
-  officialUpiId = process.env.OFFICIAL_UPI_ID || '9975649957@mbk',
+  officialUpiId = process.env.OFFICIAL_UPI_ID || '',
   razorpayAccountName = process.env.RAZORPAY_ACCOUNT_NAME || 'iamhujju',
   razorpayInstance = null,
   keyPool = defaultKeyPool,

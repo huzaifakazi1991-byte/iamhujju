@@ -127,8 +127,7 @@ iamhujju offers transparent plans in Indian Rupees with Razorpay & UPI support:
 • **Enterprise Plan (₹23,999/mo · $279.90):** Dedicated instances, 1.5B tokens & 99.99% SLA.
 
 **Payment Methods:**
-• **Razorpay:** UPI (GPay, PhonePe, Paytm, CRED), Cards, NetBanking.
-• **Direct UPI:** \`9975649957@mbk\` (Huzaifa Kazi / iamhujju).
+• **Razorpay Checkout:** Instant UPI (GPay, PhonePe, Paytm, CRED), Cards, NetBanking.
 
 [[action:checkout:pro|💳 Upgrade to Pro]] [[action:checkout:developer|⚡ Upgrade to Developer]] [[action:pricing|💰 View All Plans]]`;
   }
