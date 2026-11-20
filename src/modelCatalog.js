@@ -1,9 +1,14 @@
 export function getModelProvider(model) {
-  if (model?.brand && model.brand !== 'OpenRouter') return model.brand;
+  if (model?.brand && !['OpenRouter', 'ElectronHub', 'Groq', 'FreeModel'].includes(model.brand)) {
+    return model.brand;
+  }
   const provider = String(model?.provider || model?.owned_by || 'Unknown provider');
   const normalized = provider.toLowerCase();
 
   if (normalized === 'freellmapi') return 'FreeLLMAPI';
+  if (normalized === 'electronhub') return 'ElectronHub';
+  if (normalized === 'groq') return 'Groq';
+  if (normalized === 'freemodel') return 'FreeModel';
   if (normalized === 'openrouter') {
     const id = String(model?.sourceId || model?.id || '');
     const cleanId = id.startsWith('openrouter:') ? id.slice('openrouter:'.length) : id;
@@ -24,7 +29,7 @@ export function getModelProvider(model) {
     }
     return 'OpenRouter';
   }
-  return provider;
+  return model?.brand || provider;
 }
 
 export function getModelContextWindow(model) {

@@ -2,9 +2,78 @@ import { useEffect, useState } from 'react';
 import AccountMenu from './AccountMenu.jsx';
 import './ApiKeysPage.css';
 
-const TERMS_URL = 'https://openrouter.ai/terms';
-const PRIVACY_URL = 'https://openrouter.ai/privacy';
-const DOCS_URL = 'https://openrouter.ai/docs/api-reference/overview';
+const PROVIDERS_CONFIG = [
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    tagline: '400+ Frontier & Open Models',
+    description: 'Unified AI gateway aggregating models from OpenAI, Anthropic Claude, Meta Llama 3, Google Gemini, and DeepSeek with transparent routing.',
+    badge: '400+ MODELS',
+    portalUrl: 'https://openrouter.ai',
+    docsUrl: 'https://openrouter.ai/docs/api-reference/overview',
+    termsUrl: 'https://openrouter.ai/terms',
+    privacyUrl: 'https://openrouter.ai/privacy',
+    placeholder: 'sk-or-v1-...',
+    requiresTerms: true,
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+        <path d="M2 12h20" />
+      </svg>
+    )
+  },
+  {
+    id: 'electronhub',
+    name: 'ElectronHub AI',
+    tagline: 'High-Speed LLM Inference & Routing',
+    description: 'High-performance model gateway providing low-latency access to GPT-4o, Claude 3.5 Sonnet, Gemini 2.0, and DeepSeek R1 with full token availability.',
+    badge: 'FULL TOKEN ACCESS',
+    portalUrl: 'https://app.electronhub.ai',
+    docsUrl: 'https://app.electronhub.ai',
+    placeholder: 'ek-...',
+    requiresTerms: false,
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    )
+  },
+  {
+    id: 'groq',
+    name: 'Groq Cloud',
+    tagline: 'Ultra-Fast LPU Inference Engine',
+    description: 'Lightning-fast inference powered by Groq LPUs. Near-instant token generation for Llama 3.3 70B, DeepSeek R1, Gemma 2, and Mixtral.',
+    badge: 'ULTRA FAST LPU',
+    portalUrl: 'https://console.groq.com',
+    docsUrl: 'https://console.groq.com/docs',
+    placeholder: 'gsk_...',
+    requiresTerms: false,
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    )
+  },
+  {
+    id: 'freemodel',
+    name: 'FreeModel.in',
+    tagline: 'Curated Developer AI Access',
+    description: 'Curated platform offering developer API access for top-tier models including Claude Opus 4.8, GPT-4o, and DeepSeek V3 with generous quotas.',
+    badge: 'DEVELOPER ACCESS',
+    portalUrl: 'https://freemodel.in',
+    docsUrl: 'https://freemodel.in',
+    placeholder: 'fm_...',
+    requiresTerms: false,
+    icon: (
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
+      </svg>
+    )
+  }
+];
 
 async function readResponse(response, fallback) {
   let result;
@@ -47,26 +116,36 @@ export default function IntegrationsPage({
   onOpenPricing,
   onModelsChanged
 }) {
-  const [integration, setIntegration] = useState(null);
-  const [apiKey, setApiKey] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [integrations, setIntegrations] = useState({});
+  const [apiKeys, setApiKeys] = useState({});
+  const [termsAccepted, setTermsAccepted] = useState({});
+  const [editingProvider, setEditingProvider] = useState(null);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busyProvider, setBusyProvider] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  async function loadIntegration(signal) {
+  async function loadAllIntegrations(signal) {
     try {
-      const response = await fetch('/api/account/integrations/openrouter', {
-        signal,
-        cache: 'no-store'
-      });
-      setIntegration(await readResponse(response, 'Could not load integration status'));
+      const results = {};
+      await Promise.all(
+        PROVIDERS_CONFIG.map(async (provider) => {
+          try {
+            const response = await fetch(`/api/account/integrations/${provider.id}`, {
+              signal,
+              cache: 'no-store'
+            });
+            results[provider.id] = await readResponse(response, `Could not load ${provider.name} status`);
+          } catch {
+            results[provider.id] = { configured: false, lastTestedAt: null, updatedAt: null };
+          }
+        })
+      );
+      setIntegrations(results);
     } catch (requestError) {
       if (requestError.name !== 'AbortError') {
-        setError(requestError.message || 'Could not load integration status.');
+        setError(requestError.message || 'Could not load integrations status.');
       }
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -75,89 +154,114 @@ export default function IntegrationsPage({
 
   useEffect(() => {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => loadIntegration(controller.signal), 0);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
+    loadAllIntegrations(controller.signal);
+    return () => controller.abort();
   }, []);
 
-  async function connect(event) {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
+  function handleKeyChange(providerId, value) {
+    setApiKeys(prev => ({ ...prev, [providerId]: value }));
+  }
+
+  function handleTermsChange(providerId, value) {
+    setTermsAccepted(prev => ({ ...prev, [providerId]: value }));
+  }
+
+  async function connect(providerId, event) {
+    if (event) event.preventDefault();
+    if (busyProvider) return;
+    const provider = PROVIDERS_CONFIG.find(p => p.id === providerId);
+    const keyCandidate = (apiKeys[providerId] || '').trim();
+    if (!keyCandidate) {
+      setError(`Please enter a valid API key for ${provider?.name || providerId}.`);
+      return;
+    }
+
+    setBusyProvider(providerId);
     setError('');
     setNotice('');
     try {
-      const response = await fetch('/api/account/integrations/openrouter', {
+      const response = await fetch(`/api/account/integrations/${providerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey,
-          termsAccepted: Boolean(integration?.termsAcceptedAt) || termsAccepted
+          apiKey: keyCandidate,
+          termsAccepted: provider.requiresTerms
+            ? Boolean(integrations[providerId]?.termsAcceptedAt || termsAccepted[providerId])
+            : undefined
         })
       });
-      const result = await readResponse(response, 'Could not connect OpenRouter');
-      setIntegration(previous => ({ ...previous, ...result, configured: true }));
-      setApiKey('');
-      setEditing(false);
-      setTermsAccepted(false);
-      setNotice(`OpenRouter connected successfully. ${result.modelCount} models are now unlocked and available in your workspace.`);
+      const result = await readResponse(response, `Could not connect ${provider?.name}`);
+      setIntegrations(prev => ({
+        ...prev,
+        [providerId]: { ...prev[providerId], ...result, configured: true }
+      }));
+      setApiKeys(prev => ({ ...prev, [providerId]: '' }));
+      setEditingProvider(null);
+      setTermsAccepted(prev => ({ ...prev, [providerId]: false }));
+      setNotice(`${provider.name} connected successfully. All available models and tokens are now unlocked in your workspace.`);
       if (typeof onModelsChanged === 'function') await onModelsChanged();
     } catch (requestError) {
-      setError(requestError.message || 'Could not connect OpenRouter.');
+      setError(requestError.message || `Could not connect ${provider?.name}.`);
     } finally {
-      setBusy(false);
-      setApiKey('');
+      setBusyProvider(null);
+      setApiKeys(prev => ({ ...prev, [providerId]: '' }));
     }
   }
 
-  async function testConnection() {
-    if (busy) return;
-    setBusy(true);
+  async function testConnection(providerId) {
+    if (busyProvider) return;
+    const provider = PROVIDERS_CONFIG.find(p => p.id === providerId);
+    setBusyProvider(providerId);
     setError('');
     setNotice('');
     try {
-      const response = await fetch('/api/account/integrations/openrouter/test', {
+      const response = await fetch(`/api/account/integrations/${providerId}/test`, {
         method: 'POST'
       });
-      const result = await readResponse(response, 'Could not test OpenRouter');
-      setIntegration(previous => ({ ...previous, ...result, configured: true }));
-      setNotice(`Connection verified. Gateway is responsive with ${result.modelCount} models accessible.`);
+      const result = await readResponse(response, `Could not test ${provider?.name}`);
+      setIntegrations(prev => ({
+        ...prev,
+        [providerId]: { ...prev[providerId], ...result, configured: true }
+      }));
+      setNotice(`${provider.name} connection verified. Gateway is responsive with ${result.modelCount || 'active'} models accessible.`);
       if (typeof onModelsChanged === 'function') await onModelsChanged();
     } catch (requestError) {
-      setError(requestError.message || 'Could not test OpenRouter.');
+      setError(requestError.message || `Could not test ${provider?.name}.`);
     } finally {
-      setBusy(false);
+      setBusyProvider(null);
     }
   }
 
-  async function disconnect() {
-    if (busy) return;
-    setBusy(true);
+  async function disconnect(providerId) {
+    if (busyProvider) return;
+    const provider = PROVIDERS_CONFIG.find(p => p.id === providerId);
+    setBusyProvider(providerId);
     setError('');
     setNotice('');
     try {
-      const response = await fetch('/api/account/integrations/openrouter', {
+      const response = await fetch(`/api/account/integrations/${providerId}`, {
         method: 'DELETE'
       });
       if (!response.ok) {
-        throw new Error(await response.text() || `Could not disconnect OpenRouter (HTTP ${response.status}).`);
+        throw new Error(await response.text() || `Could not disconnect ${provider.name} (HTTP ${response.status}).`);
       }
-      setIntegration(previous => ({
-        ...previous,
-        configured: false,
-        lastTestedAt: null,
-        updatedAt: null,
-        termsAcceptedAt: null
+      setIntegrations(prev => ({
+        ...prev,
+        [providerId]: {
+          ...prev[providerId],
+          configured: false,
+          lastTestedAt: null,
+          updatedAt: null,
+          termsAcceptedAt: null
+        }
       }));
-      setConfirmDisconnect(false);
-      setNotice('OpenRouter credentials disconnected. Default community models remain active.');
+      setConfirmDisconnect(null);
+      setNotice(`${provider.name} credentials disconnected. Default gateway models remain active.`);
       if (typeof onModelsChanged === 'function') await onModelsChanged();
     } catch (requestError) {
-      setError(requestError.message || 'Could not disconnect OpenRouter.');
+      setError(requestError.message || `Could not disconnect ${provider?.name}.`);
     } finally {
-      setBusy(false);
+      setBusyProvider(null);
     }
   }
 
@@ -235,306 +339,323 @@ export default function IntegrationsPage({
               <span>Subscription & Plans</span>
             </button>
           )}
-          {onOpenSavedChats && (
-            <button type="button" onClick={onOpenSavedChats}>
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              <span>Saved Chats</span>
-            </button>
-          )}
 
-          <div className="ak-sidebar-divider" />
-
-          <span className="ak-sidebar-label">WORKSPACE</span>
-          <button type="button" onClick={onOpenChat}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-            <span>Companion Chat</span>
-          </button>
-          <button type="button" onClick={() => onOpenModels && onOpenModels()}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1.5" />
-              <rect x="14" y="3" width="7" height="7" rx="1.5" />
-              <rect x="3" y="14" width="7" height="7" rx="1.5" />
-              <rect x="14" y="14" width="7" height="7" rx="1.5" />
-            </svg>
-            <span>Explore Models</span>
-          </button>
-
-          <p className="ak-sidebar-note">
-            Provider credentials are encrypted at rest with AES-256 and never returned to client applications.
-          </p>
+          <span className="ak-sidebar-label" style={{ marginTop: '24px' }}>NAVIGATION</span>
+          <button type="button" onClick={onOpenHome}>Explore Platform</button>
+          <button type="button" onClick={() => onOpenModels && onOpenModels()}>Model Catalog</button>
+          <button type="button" onClick={onOpenChat}>AI Companion</button>
         </aside>
 
-        {/* Main Content */}
+        {/* Main Content Area */}
         <main className="ak-main">
-          {/* Page Header */}
-          <header className="ak-page-header">
-            <div className="ak-page-title-group">
-              <div className="ak-card-title-wrap" style={{ marginBottom: 6 }}>
-                <span className="ak-sidebar-label" style={{ margin: 0 }}>MODEL CONNECTORS</span>
-                {integration?.configured && (
-                  <span className="ak-count-pill" style={{ color: '#00e599', background: 'rgba(0, 229, 153, 0.12)' }}>
-                    ACTIVE
-                  </span>
-                )}
-              </div>
+          {/* Header Title */}
+          <div className="ak-header">
+            <div className="ak-header-copy">
               <h1>Integrations & Connectors</h1>
-              <p className="ak-page-subtitle">
-                Connect your external provider keys to discover 400+ frontier AI models, stream completions in real-time, and route requests via the unified gateway.
+              <p>
+                Connect your external API keys from OpenRouter, ElectronHub AI, Groq Cloud, or FreeModel.in.
+                Keys are encrypted at rest with AES-256-GCM, unlocking complete access with available tokens across the workspace and OpenAI-compatible gateway endpoints.
               </p>
             </div>
-          </header>
+          </div>
 
-          {/* Feedback Alerts */}
-          {error && (
-            <div className="ak-msg ak-msg--error" role="alert">
-              <span aria-hidden="true">⚠️</span>
-              <span>{error}</span>
-            </div>
-          )}
+          {/* Alert Banners */}
           {notice && (
-            <div className="ak-msg ak-msg--success" role="status">
-              <span aria-hidden="true">✓</span>
+            <div className="ak-alert-banner is-success" role="status">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
               <span>{notice}</span>
+              <button type="button" onClick={() => setNotice('')} aria-label="Dismiss notice">✕</button>
             </div>
           )}
 
-          {/* Integration Body */}
-          {loading ? (
-            <div className="ak-card">
-              <div className="ak-state-box">
-                <div className="ak-spinner" aria-hidden="true" />
-                <span>Loading integration status…</span>
-              </div>
+          {error && (
+            <div className="ak-alert-banner is-error" role="alert">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>{error}</span>
+              <button type="button" onClick={() => setError('')} aria-label="Dismiss error">✕</button>
             </div>
-          ) : (
-            <div className={`ak-integration-card${integration?.configured ? ' is-active' : ''}`}>
-              <div className="ak-integration-header">
-                <div className="ak-integration-logo-ring">
-                  <svg className="ak-integration-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <circle cx="12" cy="12" r="4" />
-                    <line x1="4.93" y1="4.93" x2="9.17" y2="9.17" />
-                    <line x1="14.83" y1="14.83" x2="19.07" y2="19.07" />
-                    <line x1="14.83" y1="9.17" x2="19.07" y2="4.93" />
-                    <line x1="4.93" y1="19.07" x2="9.17" y2="14.83" />
-                  </svg>
-                </div>
+          )}
 
-                <div className="ak-integration-title-group">
-                  <div className="ak-integration-title-row">
-                    <h2>OpenRouter</h2>
-                    <span className={`ak-badge ${integration?.configured ? 'ak-badge--active' : 'ak-badge--revoked'}`}>
-                      <span className="ak-badge-dot" aria-hidden="true" />
-                      <span>{integration?.configured ? 'CONNECTED & ACTIVE' : 'NOT CONNECTED'}</span>
-                    </span>
-                  </div>
+          {/* Loading Skeleton */}
+          {loading && (
+            <div className="ak-table-empty">
+              <span className="ak-spinner" aria-hidden="true" />
+              <p>Loading integration status…</p>
+            </div>
+          )}
 
-                  <p className="ak-integration-desc">
-                    Unified model gateway providing high-speed streaming access to 400+ leading open-source and proprietary models (Claude 3.5, GPT-4o, DeepSeek-R1, Llama 3.3, Gemini 2.0).
-                  </p>
+          {/* Providers Grid / Stack */}
+          {!loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {PROVIDERS_CONFIG.map((provider) => {
+                const info = integrations[provider.id] || { configured: false };
+                const isConfigured = Boolean(info.configured);
+                const isEditing = editingProvider === provider.id;
+                const isDisconnecting = confirmDisconnect === provider.id;
+                const isBusy = busyProvider === provider.id;
+                const inputKey = apiKeys[provider.id] || '';
 
-                  <div className="ak-integration-links">
-                    <a href={DOCS_URL} target="_blank" rel="noreferrer">
-                      API Documentation ↗
-                    </a>
-                    <a href={TERMS_URL} target="_blank" rel="noreferrer">
-                      Terms of Service ↗
-                    </a>
-                    <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
-                      Privacy Policy ↗
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              {/* Security & Metadata Grid */}
-              <div className="ak-integration-meta">
-                <div className="ak-meta-item">
-                  <span className="ak-meta-label">Storage & Encryption</span>
-                  <span className="ak-meta-value highlight-green">AES-256 Encrypted on Server</span>
-                </div>
-                <div className="ak-meta-item">
-                  <span className="ak-meta-label">Available Models</span>
-                  <span className="ak-meta-value">
-                    {integration?.configured ? `${integration.modelCount || 400}+ Models Accessible` : 'Community tier active'}
-                  </span>
-                </div>
-                <div className="ak-meta-item">
-                  <span className="ak-meta-label">Last Tested</span>
-                  <span className="ak-meta-value">{testedLabel(integration?.lastTestedAt)}</span>
-                </div>
-              </div>
-
-              {/* Server Admin Notice */}
-              {!integration?.canConfigure && (
-                <div className="ak-msg ak-msg--error" role="status">
-                  <span aria-hidden="true">🔒</span>
-                  <span>Server Notice: API_KEY_ENCRYPTION_SECRET is not configured on this host. Provider keys cannot be saved until this secret is configured.</span>
-                </div>
-              )}
-
-              {/* Unconnected State Button */}
-              {!integration?.configured && !editing && (
-                <div className="ak-integration-actions">
-                  <button
-                    className="ak-btn-primary"
-                    type="button"
-                    disabled={!integration?.canConfigure}
-                    onClick={() => {
-                      setEditing(true);
-                      setError('');
-                    }}
+                return (
+                  <div
+                    key={provider.id}
+                    className={`ak-integration-card${isConfigured ? ' is-active' : ''}`}
+                    id={`integration-${provider.id}`}
                   >
-                    Connect OpenRouter API Key
-                  </button>
-                </div>
-              )}
+                    {/* Card Header */}
+                    <div className="ak-integration-header">
+                      <div className="ak-integration-logo-ring">
+                        <div className="ak-integration-logo-icon">{provider.icon}</div>
+                      </div>
 
-              {/* Connected State Actions */}
-              {integration?.configured && !editing && !confirmDisconnect && (
-                <div className="ak-integration-actions">
-                  <button
-                    className="ak-btn-test"
-                    type="button"
-                    disabled={busy || !integration?.canConfigure}
-                    onClick={testConnection}
-                  >
-                    {busy ? (
+                      <div className="ak-integration-title-group">
+                        <div className="ak-integration-title-row">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <h2>{provider.name}</h2>
+                            <span className="ak-tag-badge">{provider.badge}</span>
+                          </div>
+
+                          <span className={`ak-badge-status ${isConfigured ? 'is-active' : 'is-revoked'}`}>
+                            {isConfigured ? 'Active & Connected' : 'Not Connected'}
+                          </span>
+                        </div>
+
+                        <p className="ak-integration-desc">{provider.description}</p>
+
+                        <div className="ak-integration-links">
+                          <a href={provider.portalUrl} target="_blank" rel="noreferrer">
+                            Get API Key on {provider.name} ↗
+                          </a>
+                          {provider.docsUrl && (
+                            <a href={provider.docsUrl} target="_blank" rel="noreferrer">
+                              Documentation ↗
+                            </a>
+                          )}
+                          {provider.termsUrl && (
+                            <a href={provider.termsUrl} target="_blank" rel="noreferrer">
+                              Terms & Privacy ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Configured Details View */}
+                    {isConfigured && !isEditing && (
                       <>
-                        <span className="ak-spinner-sm" aria-hidden="true" />
-                        <span>Testing Gateway…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span aria-hidden="true">⚡</span>
-                        <span>Test Connection</span>
+                        <div className="ak-integration-meta">
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">STORED KEY</span>
+                            <span className="ak-meta-value" style={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                              {info.prefix ? `••••••••${info.prefix}` : 'Configured & Encrypted'}
+                            </span>
+                          </div>
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">STATUS & ENCRYPTION</span>
+                            <span className="ak-meta-value highlight-green">Encrypted (AES-256-GCM)</span>
+                          </div>
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">LAST VERIFIED</span>
+                            <span className="ak-meta-value">{testedLabel(info.lastTestedAt)}</span>
+                          </div>
+                          <div className="ak-meta-item">
+                            <span className="ak-meta-label">ACCESSIBLE MODELS</span>
+                            <span className="ak-meta-value highlight-green">
+                              {info.modelCount ? `${info.modelCount} models discovered` : 'Complete Token Access'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions Row */}
+                        <div className="ak-integration-actions">
+                          <button
+                            className="ak-btn-secondary"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => testConnection(provider.id)}
+                            title={`Test live connectivity to ${provider.name}`}
+                          >
+                            {isBusy ? (
+                              <>
+                                <span className="ak-spinner-sm" aria-hidden="true" />
+                                <span>Testing Gateway…</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                                </svg>
+                                <span>Test Connection</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            className="ak-btn-secondary"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => {
+                              setEditingProvider(provider.id);
+                              setApiKeys(prev => ({ ...prev, [provider.id]: '' }));
+                              setConfirmDisconnect(null);
+                            }}
+                          >
+                            <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                            </svg>
+                            <span>Replace Key</span>
+                          </button>
+
+                          <button
+                            className="ak-btn-secondary is-danger-text"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => setConfirmDisconnect(provider.id)}
+                          >
+                            Disconnect
+                          </button>
+                        </div>
                       </>
                     )}
-                  </button>
-                  <button
-                    className="ak-btn-secondary"
-                    type="button"
-                    disabled={busy || !integration?.canConfigure}
-                    onClick={() => {
-                      setEditing(true);
-                      setConfirmDisconnect(false);
-                      setError('');
-                    }}
-                  >
-                    Replace API Key
-                  </button>
-                  <button
-                    className="ak-btn-danger"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setConfirmDisconnect(true);
-                      setEditing(false);
-                      setError('');
-                    }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              )}
 
-              {/* Edit / Connect Form */}
-              {editing && integration?.canConfigure && (
-                <form className="ak-integration-form" onSubmit={connect}>
-                  <label htmlFor="openrouter-api-key">
-                    {integration.configured ? 'Replace OpenRouter API Key' : 'Enter OpenRouter API Key'}
-                  </label>
-                  <input
-                    id="openrouter-api-key"
-                    className="ak-integration-input"
-                    type="password"
-                    autoComplete="new-password"
-                    spellCheck="false"
-                    maxLength={4096}
-                    value={apiKey}
-                    onChange={event => setApiKey(event.target.value)}
-                    placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    required
-                  />
-                  <p className="ak-integration-form-hint">
-                    Your key is tested against OpenRouter's live API catalog before being encrypted and saved. It is never logged or exposed in client responses.
-                  </p>
+                    {/* Not Connected CTA */}
+                    {!isConfigured && !isEditing && (
+                      <div className="ak-integration-actions">
+                        <button
+                          className="ak-btn-primary"
+                          type="button"
+                          onClick={() => {
+                            setEditingProvider(provider.id);
+                            setConfirmDisconnect(null);
+                          }}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                          <span>Connect {provider.name} API Key</span>
+                        </button>
+                      </div>
+                    )}
 
-                  {!integration?.termsAcceptedAt && (
-                    <label className="ak-integration-terms">
-                      <input
-                        type="checkbox"
-                        checked={termsAccepted}
-                        onChange={event => setTermsAccepted(event.target.checked)}
-                        required
-                      />
-                      <span>
-                        I have reviewed and agree to OpenRouter's{' '}
-                        <a href={TERMS_URL} target="_blank" rel="noreferrer">Terms of Service</a>
-                        {' '}and{' '}
-                        <a href={PRIVACY_URL} target="_blank" rel="noreferrer">Privacy Policy</a>.
-                      </span>
-                    </label>
-                  )}
+                    {/* Form for Connecting or Replacing Key */}
+                    {isEditing && (
+                      <form
+                        className="ak-integration-form"
+                        onSubmit={(e) => connect(provider.id, e)}
+                        autoComplete="off"
+                      >
+                        <label htmlFor={`api-key-${provider.id}`}>
+                          {isConfigured ? `Replace ${provider.name} API Key` : `Enter ${provider.name} API Key`}
+                        </label>
+                        <input
+                          id={`api-key-${provider.id}`}
+                          className="ak-integration-input"
+                          type="password"
+                          autoComplete="new-password"
+                          spellCheck="false"
+                          placeholder={provider.placeholder}
+                          value={inputKey}
+                          onChange={(e) => handleKeyChange(provider.id, e.target.value)}
+                          disabled={isBusy}
+                          required
+                        />
 
-                  <div className="ak-integration-form-actions">
-                    <button className="ak-btn-primary" type="submit" disabled={busy}>
-                      {busy ? (
-                        <>
-                          <span className="ak-spinner-sm" aria-hidden="true" />
-                          <span>Testing & Connecting…</span>
-                        </>
-                      ) : (
-                        'Save & Verify Connection'
-                      )}
-                    </button>
-                    <button
-                      className="ak-btn-secondary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setEditing(false);
-                        setApiKey('');
-                        setTermsAccepted(false);
-                        setError('');
-                      }}
-                    >
-                      Cancel
-                    </button>
+                        <p className="ak-integration-form-hint">
+                          Your key is verified live against {provider.name}&apos;s API endpoint before being encrypted and saved.
+                          It is never logged or exposed in client responses.
+                        </p>
+
+                        {provider.requiresTerms && (
+                          <label className="ak-integration-terms">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(info.termsAcceptedAt) || Boolean(termsAccepted[provider.id])}
+                              onChange={(e) => handleTermsChange(provider.id, e.target.checked)}
+                              disabled={Boolean(info.termsAcceptedAt) || isBusy}
+                              required
+                            />
+                            <span>
+                              I have reviewed and agree to {provider.name}&apos;s{' '}
+                              <a href={provider.termsUrl} target="_blank" rel="noreferrer">Terms of Service</a>
+                              {' '}and{' '}
+                              <a href={provider.privacyUrl} target="_blank" rel="noreferrer">Privacy Policy</a>.
+                            </span>
+                          </label>
+                        )}
+
+                        <div className="ak-integration-form-actions">
+                          <button
+                            className="ak-btn-primary"
+                            type="submit"
+                            disabled={isBusy || !inputKey.trim() || (provider.requiresTerms && !info.termsAcceptedAt && !termsAccepted[provider.id])}
+                          >
+                            {isBusy ? (
+                              <>
+                                <span className="ak-spinner-sm" aria-hidden="true" />
+                                <span>Verifying & Connecting…</span>
+                              </>
+                            ) : (
+                              'Save & Verify Connection'
+                            )}
+                          </button>
+                          <button
+                            className="ak-btn-secondary"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => {
+                              setEditingProvider(null);
+                              setApiKeys(prev => ({ ...prev, [provider.id]: '' }));
+                              setTermsAccepted(prev => ({ ...prev, [provider.id]: false }));
+                              setError('');
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Confirm Disconnect Banner */}
+                    {isDisconnecting && (
+                      <div className="ak-integration-confirm" role="group" aria-label="Confirm disconnect">
+                        <p>Are you sure you want to disconnect {provider.name}? Custom models from this provider will be removed from your catalog.</p>
+                        <div className="ak-integration-confirm-btns">
+                          <button
+                            className="ak-btn-danger"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => disconnect(provider.id)}
+                          >
+                            {isBusy ? 'Disconnecting…' : 'Confirm Disconnect'}
+                          </button>
+                          <button
+                            className="ak-btn-secondary"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => setConfirmDisconnect(null)}
+                          >
+                            Keep Connected
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </form>
-              )}
-
-              {/* Confirm Disconnect Banner */}
-              {confirmDisconnect && (
-                <div className="ak-integration-confirm" role="group" aria-label="Confirm disconnect">
-                  <p>Are you sure you want to disconnect OpenRouter? Custom provider models will be removed from your model catalog.</p>
-                  <div className="ak-integration-confirm-btns">
-                    <button className="ak-btn-danger" type="button" disabled={busy} onClick={disconnect}>
-                      {busy ? 'Disconnecting…' : 'Confirm Disconnect'}
-                    </button>
-                    <button
-                      className="ak-btn-secondary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => setConfirmDisconnect(false)}
-                    >
-                      Keep Connected
-                    </button>
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           )}
 
           {/* ── Available Connectors & Gateway Extensions Showcase ── */}
           <section className="ak-catalog-section">
             <div className="ak-catalog-title-wrap">
-              <h2>Available Connectors & Supported Gateways</h2>
+              <h2>Unified Gateway Protocols & Standards</h2>
               <p>Direct routes and protocol extensions available through your iamhujju developer gateway.</p>
             </div>
 
@@ -543,11 +664,11 @@ export default function IntegrationsPage({
                 <div className="ak-catalog-card-header">
                   <div className="ak-catalog-card-brand">
                     <span className="ak-catalog-card-icon">⚡</span>
-                    <strong>OpenAI Direct</strong>
+                    <strong>OpenAI SDK Drop-in</strong>
                   </div>
                   <span className="ak-catalog-card-badge">ACTIVE VIA GATEWAY</span>
                 </div>
-                <p>Access GPT-4o, o1-preview, and o3-mini models via OpenAI compatible /v1/chat/completions endpoints.</p>
+                <p>Access GPT-4o, o1, and all connected provider models through standard OpenAI-compatible /v1/chat/completions endpoints.</p>
                 <div className="ak-catalog-card-footer">Zero-config drop-in SDK support</div>
               </div>
 
@@ -555,23 +676,23 @@ export default function IntegrationsPage({
                 <div className="ak-catalog-card-header">
                   <div className="ak-catalog-card-brand">
                     <span className="ak-catalog-card-icon">🧠</span>
-                    <strong>Anthropic Claude</strong>
+                    <strong>Anthropic Claude Routing</strong>
                   </div>
                   <span className="ak-catalog-card-badge">ACTIVE VIA GATEWAY</span>
                 </div>
-                <p>Deploy Claude 3.5 Sonnet, Claude 3.5 Haiku, and Claude 3 Opus with reasoning tokens and tool calling.</p>
-                <div className="ak-catalog-card-footer">High context 200k tokens</div>
+                <p>Deploy Claude 3.5 Sonnet, Haiku, and Opus across connected providers with full token allowances and extended thinking.</p>
+                <div className="ak-catalog-card-footer">200k high-context window</div>
               </div>
 
               <div className="ak-catalog-card">
                 <div className="ak-catalog-card-header">
                   <div className="ak-catalog-card-brand">
                     <span className="ak-catalog-card-icon">✨</span>
-                    <strong>Google Gemini</strong>
+                    <strong>Google Gemini Multimodal</strong>
                   </div>
                   <span className="ak-catalog-card-badge">ACTIVE VIA GATEWAY</span>
                 </div>
-                <p>Harness Gemini 2.0 Flash, Gemini 1.5 Pro multimodal reasoning with real-time web grounding and coding.</p>
+                <p>Harness Gemini 2.0 Flash and 1.5 Pro multimodal reasoning with real-time web grounding and coding capabilities.</p>
                 <div className="ak-catalog-card-footer">Native multimodal vision & audio</div>
               </div>
 

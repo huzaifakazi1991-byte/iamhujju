@@ -24,7 +24,7 @@ const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS provider_credentials (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL CHECK (provider IN ('freellmapi', 'openrouter')),
+    provider TEXT NOT NULL CHECK (provider IN ('freellmapi', 'openrouter', 'electronhub', 'groq', 'freemodel')),
     version SMALLINT NOT NULL,
     iv TEXT NOT NULL,
     auth_tag TEXT NOT NULL,

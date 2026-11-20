@@ -13,7 +13,7 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PASSWORD_HASH_BYTES = 64;
 const DUMMY_SALT = '8d417e16f514d4dfe422051741481f41';
 const DUMMY_HASH = scryptSync('invalid-account-password', DUMMY_SALT, PASSWORD_HASH_BYTES);
-const CONNECTED_PROVIDERS = new Set(['openrouter']);
+const CONNECTED_PROVIDERS = new Set(['openrouter', 'electronhub', 'groq', 'freemodel']);
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();

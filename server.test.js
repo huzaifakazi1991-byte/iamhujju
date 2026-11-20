@@ -1925,3 +1925,168 @@ test('DELETE /api/keys/:keyId with non-existent keyId returns 404', async t => {
   });
   assert.equal(res.status, 404);
 });
+
+test('External providers (ElectronHub, Groq, FreeModel) can be connected, discovered, chatted with, and revoked', async t => {
+  const { accountStore, pool } = await createTestStores(t);
+  const user = await accountStore.register('multiprovider@example.com', 'correct horse battery');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const electronHubKey = 'ek-live-test-key-12345678';
+  const groqKey = 'gsk_live_test_key_87654321';
+  const freeModelKey = 'fm_live_test_key_abcdef12';
+
+  const streamChunk = 'data: {"choices":[{"delta":{"content":"ok"}}]}\\n\\ndata: [DONE]\\n\\n';
+
+  const app = createApp({
+    accountStore,
+    conversationStore: createConversationStore({ db: pool }),
+    apiKey: 'server-default-secret',
+    fetchImpl: async (url, options) => {
+      // 1. ElectronHub models
+      if (url === 'https://api.electronhub.ai/v1/models') {
+        assert.equal(options.headers.Authorization, `Bearer ${electronHubKey}`);
+        return new Response(JSON.stringify({
+          data: [{ id: 'gpt-4o', name: 'GPT-4o', context_window: 128000 }]
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // 2. Groq models
+      if (url === 'https://api.groq.com/openai/v1/models') {
+        assert.equal(options.headers.Authorization, `Bearer ${groqKey}`);
+        return new Response(JSON.stringify({
+          data: [{ id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', context_window: 128000 }]
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // 3. FreeModel models
+      if (url === 'https://freemodel.in/v1/models') {
+        assert.equal(options.headers.Authorization, `Bearer ${freeModelKey}`);
+        return new Response(JSON.stringify({
+          data: [{ id: 'claude-opus-4.8', name: 'Claude Opus 4.8', context_window: 200000 }]
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // FreeLLMAPI default
+      if (url === 'http://127.0.0.1:31415/v1/models?available=true') {
+        return new Response(JSON.stringify({
+          object: 'list',
+          data: [{ id: 'auto', name: 'Auto' }]
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Chat completions
+      if (url === 'https://api.electronhub.ai/v1/chat/completions') {
+        assert.equal(options.headers.Authorization, `Bearer ${electronHubKey}`);
+        const parsed = JSON.parse(options.body);
+        assert.equal(parsed.model, 'gpt-4o');
+        return new Response(streamChunk, { headers: { 'Content-Type': 'text/event-stream' } });
+      }
+
+      if (url === 'https://api.groq.com/openai/v1/chat/completions') {
+        assert.equal(options.headers.Authorization, `Bearer ${groqKey}`);
+        const parsed = JSON.parse(options.body);
+        assert.equal(parsed.model, 'llama-3.3-70b-versatile');
+        return new Response(streamChunk, { headers: { 'Content-Type': 'text/event-stream' } });
+      }
+
+      if (url === 'https://freemodel.in/v1/chat/completions') {
+        assert.equal(options.headers.Authorization, `Bearer ${freeModelKey}`);
+        const parsed = JSON.parse(options.body);
+        assert.equal(parsed.model, 'claude-opus-4.8');
+        return new Response(streamChunk, { headers: { 'Content-Type': 'text/event-stream' } });
+      }
+
+      throw new Error(`Unexpected upstream request: ${url}`);
+    }
+  });
+
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  // Connect ElectronHub
+  const ehRes = await fetch(`${baseUrl}/api/account/integrations/electronhub`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ apiKey: electronHubKey })
+  });
+  assert.equal(ehRes.status, 200);
+  const ehData = await ehRes.json();
+  assert.equal(ehData.configured, true);
+  assert.equal(ehData.modelCount, 1);
+
+  // Connect Groq
+  const groqRes = await fetch(`${baseUrl}/api/account/integrations/groq`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ apiKey: groqKey })
+  });
+  assert.equal(groqRes.status, 200);
+  const groqData = await groqRes.json();
+  assert.equal(groqData.configured, true);
+
+  // Connect FreeModel
+  const fmRes = await fetch(`${baseUrl}/api/account/integrations/freemodel`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ apiKey: freeModelKey })
+  });
+  assert.equal(fmRes.status, 200);
+  const fmData = await fmRes.json();
+  assert.equal(fmData.configured, true);
+
+  // Check /api/models discovery includes models from all 3 connected providers
+  const modelsRes = await fetch(`${baseUrl}/api/models`, {
+    headers: { Cookie: cookie }
+  });
+  assert.equal(modelsRes.status, 200);
+  const modelList = await modelsRes.json();
+  const modelIds = modelList.data.map(m => m.id);
+  assert.ok(modelIds.includes('electronhub:gpt-4o'), 'Missing electronhub:gpt-4o');
+  assert.ok(modelIds.includes('groq:llama-3.3-70b-versatile'), 'Missing groq:llama-3.3-70b-versatile');
+  assert.ok(modelIds.includes('freemodel:claude-opus-4.8'), 'Missing freemodel:claude-opus-4.8');
+
+  // Test chat completion with ElectronHub
+  const ehChat = await fetch(`${baseUrl}/api/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      model: 'electronhub:gpt-4o',
+      messages: [{ role: 'user', content: 'test electronhub' }],
+      stream: true
+    })
+  });
+  assert.equal(ehChat.status, 200);
+
+  // Test chat completion with Groq
+  const groqChat = await fetch(`${baseUrl}/api/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      model: 'groq:llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'test groq' }],
+      stream: true
+    })
+  });
+  assert.equal(groqChat.status, 200);
+
+  // Test chat completion with FreeModel
+  const fmChat = await fetch(`${baseUrl}/api/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      model: 'freemodel:claude-opus-4.8',
+      messages: [{ role: 'user', content: 'test freemodel' }],
+      stream: true
+    })
+  });
+  assert.equal(fmChat.status, 200);
+
+  // Revoke/Disconnect ElectronHub
+  const delRes = await fetch(`${baseUrl}/api/account/integrations/electronhub`, {
+    method: 'DELETE',
+    headers: { Cookie: cookie }
+  });
+  assert.equal(delRes.status, 204);
+  assert.equal(await accountStore.getProviderApiKey(user.id, 'electronhub'), null);
+});

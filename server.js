@@ -20,6 +20,82 @@ const DEFAULT_API_BASE = 'http://127.0.0.1:31415/v1';
 const DEFAULT_OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const DEFAULT_TIMEOUT_MS = 180000;
 const SESSION_COOKIE = 'iamhujju_session';
+
+const PROVIDERS = {
+  openrouter: {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    base: DEFAULT_OPENROUTER_BASE,
+    modelsUrl: `${DEFAULT_OPENROUTER_BASE}/models`,
+    chatUrl: `${DEFAULT_OPENROUTER_BASE}/chat/completions`,
+    portalUrl: 'https://openrouter.ai',
+    requiresTerms: true
+  },
+  electronhub: {
+    id: 'electronhub',
+    name: 'ElectronHub AI',
+    base: 'https://api.electronhub.ai/v1',
+    modelsUrl: 'https://api.electronhub.ai/v1/models',
+    chatUrl: 'https://api.electronhub.ai/v1/chat/completions',
+    portalUrl: 'https://app.electronhub.ai',
+    requiresTerms: false
+  },
+  groq: {
+    id: 'groq',
+    name: 'Groq Cloud',
+    base: 'https://api.groq.com/openai/v1',
+    modelsUrl: 'https://api.groq.com/openai/v1/models',
+    chatUrl: 'https://api.groq.com/openai/v1/chat/completions',
+    portalUrl: 'https://console.groq.com',
+    requiresTerms: false
+  },
+  freemodel: {
+    id: 'freemodel',
+    name: 'FreeModel.in',
+    base: 'https://freemodel.in/v1',
+    modelsUrl: 'https://freemodel.in/v1/models',
+    chatUrl: 'https://freemodel.in/v1/chat/completions',
+    portalUrl: 'https://freemodel.in',
+    requiresTerms: false
+  }
+};
+
+const PROVIDER_FALLBACK_MODELS = {
+  electronhub: [
+    { id: 'gpt-4o', name: 'GPT-4o (Omni)', owned_by: 'OpenAI', context_window: 128000 },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', owned_by: 'OpenAI', context_window: 128000 },
+    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', owned_by: 'Anthropic', context_window: 200000 },
+    { id: 'claude-3-5-haiku', name: 'Claude 3.5 Haiku', owned_by: 'Anthropic', context_window: 200000 },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', owned_by: 'Google', context_window: 1048576 },
+    { id: 'deepseek-r1', name: 'DeepSeek R1', owned_by: 'DeepSeek', context_window: 64000 }
+  ],
+  groq: [
+    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', owned_by: 'Meta', context_window: 128000 },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', owned_by: 'Meta', context_window: 128000 },
+    { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill Llama 70B', owned_by: 'DeepSeek', context_window: 128000 },
+    { id: 'gemma2-9b-it', name: 'Gemma 2 9B IT', owned_by: 'Google', context_window: 8192 },
+    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B 32k', owned_by: 'Mistral', context_window: 32768 }
+  ],
+  freemodel: [
+    { id: 'claude-opus-4.8', name: 'Claude Opus 4.8', owned_by: 'Anthropic', context_window: 200000 },
+    { id: 'gpt-4o', name: 'GPT-4o Developer', owned_by: 'OpenAI', context_window: 128000 },
+    { id: 'deepseek-v3', name: 'DeepSeek V3', owned_by: 'DeepSeek', context_window: 64000 },
+    { id: 'llama-3.3-70b', name: 'Llama 3.3 70B Free', owned_by: 'Meta', context_window: 128000 }
+  ]
+};
+
+function resolveModelTarget(modelName) {
+  if (typeof modelName !== 'string') return { provider: 'freellmapi', sourceModel: '' };
+  for (const p of ['openrouter', 'electronhub', 'groq', 'freemodel']) {
+    if (modelName.startsWith(`${p}:`)) {
+      return { provider: p, sourceModel: modelName.slice(`${p}:`.length) };
+    }
+    if (modelName.startsWith(`${p}/`)) {
+      return { provider: p, sourceModel: modelName.slice(`${p}/`.length) };
+    }
+  }
+  return { provider: 'freellmapi', sourceModel: modelName };
+}
 const PROJECT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIRECTORY = path.join(PROJECT_ROOT, 'dist');
 const INDEX_FILE = path.join(DIST_DIRECTORY, 'index.html');
@@ -137,9 +213,14 @@ const apiKeySchema = z.object({
 }).strict();
 
 const openRouterKeySchema = z.object({
-  apiKey: z.string().trim().min(16).max(4096),
+  apiKey: z.string().trim().min(8).max(4096),
   termsAccepted: z.literal(true)
 }).strict();
+
+const providerKeySchema = z.object({
+  apiKey: z.string().trim().min(8).max(4096),
+  termsAccepted: z.boolean().optional()
+}).passthrough();
 
 const chatMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
@@ -226,6 +307,9 @@ export function createApp({
   apiKey = process.env.FREELLMAPI_KEY || '',
   allowSharedGatewayKey = process.env.ALLOW_SHARED_FREELLMAPI_KEY === 'true',
   serverOpenRouterKey = process.env.OPENROUTER_API_KEY || '',
+  serverElectronHubKey = process.env.ELECTRONHUB_API_KEY || '',
+  serverGroqKey = process.env.GROQ_API_KEY || '',
+  serverFreeModelKey = process.env.FREEMODEL_API_KEY || '',
   fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
@@ -381,6 +465,12 @@ export function createApp({
       : null;
   }
 
+  async function getProviderKeyForUser(userId, providerId) {
+    return typeof accountStore.getProviderApiKey === 'function'
+      ? await accountStore.getProviderApiKey(userId, providerId)
+      : null;
+  }
+
   async function requireAccount(req, res) {
     const user = await getCurrentUser(req);
     if (!user) {
@@ -501,6 +591,119 @@ export function createApp({
     };
   }
 
+  async function verifyProviderApiKey(providerId, candidate, signal) {
+    if (providerId === 'openrouter') {
+      try {
+        return await verifyOpenRouterApiKey(candidate, signal);
+      } catch (err) {
+        if (err.status && err.status !== 404) throw err;
+        const response = await fetchImpl(
+          `${openRouterUpstreamBase}/models`,
+          {
+            headers: {
+              Authorization: `Bearer ${candidate}`,
+              'X-OpenRouter-Title': 'iamhujju'
+            },
+            signal
+          }
+        );
+        const body = await response.text();
+        if (!response.ok) {
+          const error = new Error(safeUpstreamMessage(body, response.status, candidate, 'OpenRouter'));
+          error.status = response.status;
+          throw error;
+        }
+        let result;
+        try { result = JSON.parse(body); } catch { throw new Error('OpenRouter returned an invalid model list.'); }
+        return Array.isArray(result?.data) ? result.data.length : 1;
+      }
+    }
+
+    const provider = PROVIDERS[providerId];
+    if (!provider) {
+      const error = new Error(`Provider '${providerId}' is not supported.`);
+      error.status = 400;
+      throw error;
+    }
+
+    const response = await fetchImpl(
+      provider.modelsUrl,
+      {
+        headers: {
+          Authorization: `Bearer ${candidate}`,
+          ...(provider.headers || {})
+        },
+        signal
+      }
+    );
+    const body = await response.text();
+
+    if (!response.ok) {
+      const error = new Error(
+        safeUpstreamMessage(body, response.status, candidate, provider.name)
+      );
+      error.status = response.status;
+      throw error;
+    }
+
+    let result;
+    try {
+      result = JSON.parse(body);
+    } catch {
+      const error = new Error(`${provider.name} returned an invalid model list.`);
+      error.status = 502;
+      throw error;
+    }
+
+    if (Array.isArray(result?.data)) {
+      return result.data.filter(m => m && typeof m.id === 'string').length || 1;
+    }
+    if (Array.isArray(result)) {
+      return result.length || 1;
+    }
+    return 1;
+  }
+
+  function formatExternalModel(model, providerId) {
+    const provider = PROVIDERS[providerId] || { name: providerId };
+    const id = typeof model.id === 'string' ? model.id : '';
+    const cleanId = id.startsWith(`${providerId}:`) ? id.slice(`${providerId}:`.length) : id;
+
+    let brand = provider.name;
+    const lower = cleanId.toLowerCase();
+    if (lower.includes('claude') || lower.includes('anthropic')) brand = 'Anthropic';
+    else if (lower.includes('gpt') || lower.includes('o1') || lower.includes('o3') || lower.includes('openai')) brand = 'OpenAI';
+    else if (lower.includes('gemini') || lower.includes('gemma') || lower.includes('google')) brand = 'Google';
+    else if (lower.includes('llama') || lower.includes('meta')) brand = 'Meta';
+    else if (lower.includes('deepseek')) brand = 'DeepSeek';
+    else if (lower.includes('mistral') || lower.includes('mixtral') || lower.includes('codestral')) brand = 'Mistral';
+    else if (lower.includes('qwen') || lower.includes('alibaba')) brand = 'Qwen';
+
+    const isFree = Boolean(
+      model.isFree ||
+      cleanId.endsWith(':free') ||
+      cleanId.includes('/free') ||
+      (model.pricing?.prompt === '0' && model.pricing?.completion === '0')
+    );
+
+    const contextLength = Number(model.context_window || model.context_length || 128000) || 128000;
+
+    return {
+      ...model,
+      id: `${providerId}:${cleanId}`,
+      sourceId: cleanId,
+      provider: providerId,
+      brand,
+      name: model.name || cleanId,
+      owned_by: brand,
+      context_window: contextLength,
+      context_length: contextLength,
+      available: true,
+      isFree,
+      tier: isFree ? 'free' : 'pro'
+    };
+  }
+
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
@@ -574,7 +777,26 @@ export function createApp({
 
   app.get('/api/auth/me', async (req, res) => {
     const user = await getCurrentUser(req);
-    res.set('Cache-Control', 'no-store').json({ user });
+    if (!user) {
+      return res.set('Cache-Control', 'no-store').json({ user: null });
+    }
+    const connectedProviders = [];
+    if (typeof accountStore.getProviderApiKeyStatus === 'function') {
+      for (const p of ['openrouter', 'electronhub', 'groq', 'freemodel']) {
+        try {
+          const status = await accountStore.getProviderApiKeyStatus(user.id, p);
+          if (status?.configured) connectedProviders.push(p);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    res.set('Cache-Control', 'no-store').json({
+      user,
+      connectedProviders,
+      hasOpenRouterKey: connectedProviders.includes('openrouter'),
+      hasExternalKeys: connectedProviders.length > 0
+    });
   });
 
   app.post('/api/auth/logout', async (req, res) => {
@@ -702,9 +924,14 @@ export function createApp({
     res.set('Cache-Control', 'no-store').status(204).end();
   });
 
-  app.get('/api/account/integrations/openrouter', async (req, res) => {
+  app.get('/api/account/integrations/:provider', async (req, res) => {
     const user = await requireAccount(req, res);
     if (!user) return;
+    const providerId = req.params.provider;
+    const providerConfig = PROVIDERS[providerId];
+    if (!providerConfig) {
+      return res.status(404).json({ error: { message: `Provider '${providerId}' is not supported.` } });
+    }
     if (typeof accountStore.getProviderApiKeyStatus !== 'function') {
       return res.status(503).json({
         error: { message: 'Provider integrations are not available in this account store.' }
@@ -712,20 +939,26 @@ export function createApp({
     }
 
     res.set('Cache-Control', 'no-store').json({
-      ...await accountStore.getProviderApiKeyStatus(user.id, 'openrouter'),
-      canConfigure: Boolean(accountStore.apiKeysEnabled)
+      ...await accountStore.getProviderApiKeyStatus(user.id, providerId),
+      canConfigure: Boolean(accountStore.apiKeysEnabled),
+      provider: providerId
     });
   });
 
-  app.put('/api/account/integrations/openrouter', credentialRateLimiter, async (req, res) => {
+  app.put('/api/account/integrations/:provider', credentialRateLimiter, async (req, res) => {
     const user = await requireAccount(req, res);
     if (!user) return;
+    const providerId = req.params.provider;
+    const providerConfig = PROVIDERS[providerId];
+    if (!providerConfig) {
+      return res.status(404).json({ error: { message: `Provider '${providerId}' is not supported.` } });
+    }
     if (
       typeof accountStore.setProviderApiKey !== 'function' ||
       typeof accountStore.apiKeysEnabled !== 'boolean'
     ) {
       return res.status(503).json({
-        error: { message: 'OpenRouter integration is not available in this account store.' }
+        error: { message: `${providerConfig.name} integration is not available in this account store.` }
       });
     }
     if (!accountStore.apiKeysEnabled) {
@@ -733,13 +966,15 @@ export function createApp({
         error: { message: 'API key encryption is not configured on the local server.' }
       });
     }
+
+    const schema = providerConfig.requiresTerms ? openRouterKeySchema : providerKeySchema;
     const body = validatedBody(
-      openRouterKeySchema,
+      schema,
       req,
       res,
-      req.body?.termsAccepted === true
-        ? 'Enter a valid OpenRouter API key (16-4096 characters).'
-        : 'Review and accept OpenRouter terms before connecting.'
+      providerConfig.requiresTerms && req.body?.termsAccepted !== true
+        ? `Review and accept ${providerConfig.name} terms before connecting.`
+        : `Enter a valid ${providerConfig.name} API key (8-4096 characters).`
     );
     if (!body) return;
     const candidate = body.apiKey;
@@ -747,11 +982,11 @@ export function createApp({
     const request = requestAbortSignal(req, res, Math.min(timeoutMs, 15000));
     let verified = false;
     try {
-      const modelCount = await verifyOpenRouterApiKey(candidate, request.controller.signal);
+      const modelCount = await verifyProviderApiKey(providerId, candidate, request.controller.signal);
       verified = true;
       const status = await accountStore.setProviderApiKey(
         user.id,
-        'openrouter',
+        providerId,
         candidate,
         new Date().toISOString(),
         new Date().toISOString()
@@ -764,8 +999,8 @@ export function createApp({
         : verified
           ? 'The key was verified but could not be saved securely.'
           : request.timedOut
-            ? 'OpenRouter did not respond in time while checking the key.'
-            : 'Could not connect to OpenRouter while checking the key.';
+            ? `${providerConfig.name} did not respond in time while checking the key.`
+            : `Could not connect to ${providerConfig.name} while checking the key.`;
       if (!res.headersSent && !res.destroyed) {
         res.status(status).json({ error: { message } });
       }
@@ -774,37 +1009,42 @@ export function createApp({
     }
   });
 
-  app.post('/api/account/integrations/openrouter/test', credentialRateLimiter, async (req, res) => {
+  app.post('/api/account/integrations/:provider/test', credentialRateLimiter, async (req, res) => {
     const user = await requireAccount(req, res);
     if (!user) return;
+    const providerId = req.params.provider;
+    const providerConfig = PROVIDERS[providerId];
+    if (!providerConfig) {
+      return res.status(404).json({ error: { message: `Provider '${providerId}' is not supported.` } });
+    }
     if (
       typeof accountStore.getProviderApiKey !== 'function' ||
       typeof accountStore.markProviderApiKeyTested !== 'function'
     ) {
       return res.status(503).json({
-        error: { message: 'OpenRouter integration is not available in this account store.' }
+        error: { message: `${providerConfig.name} integration is not available in this account store.` }
       });
     }
 
-    const candidate = await getOpenRouterKeyForUser(user.id);
+    const candidate = await getProviderKeyForUser(user.id, providerId);
     if (!candidate) {
       return res.status(404).json({
-        error: { message: 'Connect an OpenRouter API key before testing the integration.' }
+        error: { message: `Connect an ${providerConfig.name} API key before testing the integration.` }
       });
     }
 
     const request = requestAbortSignal(req, res, Math.min(timeoutMs, 15000));
     try {
-      const modelCount = await verifyOpenRouterApiKey(candidate, request.controller.signal);
-      const status = await accountStore.markProviderApiKeyTested(user.id, 'openrouter');
+      const modelCount = await verifyProviderApiKey(providerId, candidate, request.controller.signal);
+      const status = await accountStore.markProviderApiKeyTested(user.id, providerId);
       res.set('Cache-Control', 'no-store').json({ ...status, modelCount });
     } catch (error) {
       const status = error.status || (request.timedOut ? 504 : 502);
       const message = error.status
         ? error.message
         : request.timedOut
-          ? 'OpenRouter did not respond in time while checking the integration.'
-          : 'Could not connect to OpenRouter while checking the integration.';
+          ? `${providerConfig.name} did not respond in time while checking the integration.`
+          : `Could not connect to ${providerConfig.name} while checking the integration.`;
       if (!res.headersSent && !res.destroyed) {
         res.status(status).json({ error: { message } });
       }
@@ -813,16 +1053,20 @@ export function createApp({
     }
   });
 
-  app.delete('/api/account/integrations/openrouter', async (req, res) => {
+  app.delete('/api/account/integrations/:provider', async (req, res) => {
     const user = await requireAccount(req, res);
     if (!user) return;
+    const providerId = req.params.provider;
+    if (!PROVIDERS[providerId]) {
+      return res.status(404).json({ error: { message: `Provider '${providerId}' is not supported.` } });
+    }
     if (typeof accountStore.revokeProviderApiKey !== 'function') {
       return res.status(503).json({
-        error: { message: 'OpenRouter integration is not available in this account store.' }
+        error: { message: 'Provider integration is not available in this account store.' }
       });
     }
 
-    await accountStore.revokeProviderApiKey(user.id, 'openrouter');
+    await accountStore.revokeProviderApiKey(user.id, providerId);
     res.set('Cache-Control', 'no-store').status(204).end();
   });
 
@@ -926,9 +1170,21 @@ export function createApp({
   app.get('/api/models', modelsRateLimiter, async (req, res) => {
     const user = await getCurrentUser(req);
     const requestApiKey = await getApiKeyForRequest(req);
-    const openRouterKey = user ? await getOpenRouterKeyForUser(user.id) : null;
-    const effectiveOpenRouterKey = openRouterKey || serverOpenRouterKey;
-    if (!requestApiKey && !effectiveOpenRouterKey) {
+
+    const userProviderKeys = {};
+    if (user) {
+      for (const p of ['openrouter', 'electronhub', 'groq', 'freemodel']) {
+        userProviderKeys[p] = await getProviderKeyForUser(user.id, p);
+      }
+    }
+    const effectiveKeys = {
+      openrouter: userProviderKeys.openrouter || serverOpenRouterKey,
+      electronhub: userProviderKeys.electronhub || serverElectronHubKey,
+      groq: userProviderKeys.groq || serverGroqKey,
+      freemodel: userProviderKeys.freemodel || serverFreeModelKey
+    };
+
+    if (!requestApiKey && !Object.values(effectiveKeys).some(Boolean)) {
       return res.status(503).json({
         error: { message: 'Configure a FreeLLMAPI server key or connect a provider account.' }
       });
@@ -959,11 +1215,14 @@ export function createApp({
           warnings.push(label + ' returned an invalid model list.');
           return [];
         }
-        if (!Array.isArray(result?.data)) {
-          warnings.push(label + ' returned an invalid model list.');
-          return [];
+        if (Array.isArray(result?.data)) {
+          return result.data.filter(model => model && typeof model.id === 'string');
         }
-        return result.data.filter(model => model && typeof model.id === 'string');
+        if (Array.isArray(result)) {
+          return result.filter(model => model && typeof model.id === 'string');
+        }
+        warnings.push(label + ' returned an invalid model list.');
+        return [];
       } catch (error) {
         warnings.push(
           error?.name === 'AbortError'
@@ -990,15 +1249,15 @@ export function createApp({
         ));
       }
 
-      if (effectiveOpenRouterKey) {
+      if (effectiveKeys.openrouter) {
         let openRouterModels = await discoverModels(
           'OpenRouter',
           openRouterUpstreamBase + '/models',
           {
-            Authorization: 'Bearer ' + effectiveOpenRouterKey,
+            Authorization: 'Bearer ' + effectiveKeys.openrouter,
             'X-OpenRouter-Title': 'iamhujju'
           },
-          effectiveOpenRouterKey
+          effectiveKeys.openrouter
         );
 
         if (!openRouterModels.length) {
@@ -1006,10 +1265,10 @@ export function createApp({
             'OpenRouter',
             openRouterUpstreamBase + '/models/user',
             {
-              Authorization: 'Bearer ' + effectiveOpenRouterKey,
+              Authorization: 'Bearer ' + effectiveKeys.openrouter,
               'X-OpenRouter-Title': 'iamhujju'
             },
-            effectiveOpenRouterKey
+            effectiveKeys.openrouter
           );
         }
 
@@ -1024,6 +1283,28 @@ export function createApp({
           return 0;
         });
 
+        models.push(...mapped);
+      }
+
+      for (const p of ['electronhub', 'groq', 'freemodel']) {
+        const key = effectiveKeys[p];
+        if (!key) continue;
+        const config = PROVIDERS[p];
+        let pModels = await discoverModels(
+          config.name,
+          config.modelsUrl,
+          {
+            Authorization: 'Bearer ' + key,
+            ...(config.headers || {})
+          },
+          key
+        );
+
+        if (!pModels || pModels.length === 0) {
+          pModels = PROVIDER_FALLBACK_MODELS[p] || [];
+        }
+
+        const mapped = pModels.map(m => formatExternalModel(m, p));
         models.push(...mapped);
       }
 
@@ -1063,68 +1344,83 @@ export function createApp({
       });
     }
 
-    const usesOpenRouter = body.model.startsWith('openrouter:') || body.model.startsWith('openrouter/');
-    const sourceModel = body.model.startsWith('openrouter:')
-      ? body.model.slice('openrouter:'.length)
-      : body.model;
+    const { provider: targetProvider, sourceModel } = resolveModelTarget(body.model);
     if (!sourceModel) {
       return res.status(400).json({
         error: { message: 'Select a valid model from the connected provider.' }
       });
     }
 
-    const requestApiKey = usesOpenRouter
-      ? (await getOpenRouterKeyForUser(user.id)) || serverOpenRouterKey
-      : typeof accountStore.getApiKey === 'function'
-        ? await accountStore.getApiKey(user.id) || (allowSharedGatewayKey ? apiKey : '')
-        : allowSharedGatewayKey ? apiKey : '';
+    let requestApiKey;
+    if (targetProvider !== 'freellmapi') {
+      const userKey = user ? await getProviderKeyForUser(user.id, targetProvider) : null;
+      const serverKey = targetProvider === 'openrouter' ? serverOpenRouterKey
+        : targetProvider === 'electronhub' ? serverElectronHubKey
+        : targetProvider === 'groq' ? serverGroqKey
+        : targetProvider === 'freemodel' ? serverFreeModelKey
+        : '';
+      requestApiKey = userKey || serverKey;
+    } else {
+      const userKey = typeof accountStore.getApiKey === 'function' ? await accountStore.getApiKey(user.id) : null;
+      requestApiKey = userKey || (allowSharedGatewayKey ? apiKey : '');
+    }
+
     if (!requestApiKey) {
+      const pName = PROVIDERS[targetProvider]?.name || targetProvider;
       return res.status(403).json({
         error: {
-          message: usesOpenRouter
-            ? 'Connect an OpenRouter account before using its models.'
+          message: targetProvider !== 'freellmapi'
+            ? `Connect your ${pName} API key in Account Integrations before using this model.`
             : 'Add your personal FreeLLMAPI key in Account before using this model.'
         }
       });
     }
 
-    const hasPersonalKey = usesOpenRouter && user ? Boolean(await getOpenRouterKeyForUser(user.id)) : false;
+    const userKey = user && targetProvider !== 'freellmapi'
+      ? await getProviderKeyForUser(user.id, targetProvider)
+      : null;
+    const hasPersonalKey = Boolean(userKey);
     const isFreeTierUsingServerKey = (!user || user.tier === 'free') && !hasPersonalKey;
 
-    const isFreeModel = sourceModel.endsWith(':free') ||
-      sourceModel === 'openrouter/free' ||
-      sourceModel === 'openrouter/auto';
+    if (targetProvider === 'openrouter') {
+      const isFreeModel = sourceModel.endsWith(':free') ||
+        sourceModel === 'openrouter/free' ||
+        sourceModel === 'openrouter/auto';
 
-    if (usesOpenRouter && isFreeTierUsingServerKey && !isFreeModel) {
-      return res.status(403).json({
-        error: {
-          message: `${sourceModel} is a Pro model. Connect your personal OpenRouter API key in Account to use Pro models, or choose any of the 100% Free models.`
-        }
-      });
+      if (isFreeTierUsingServerKey && !isFreeModel) {
+        return res.status(403).json({
+          error: {
+            message: `${sourceModel} is a Pro model. Connect your personal OpenRouter API key in Account to use Pro models, or choose any of the 100% Free models.`
+          }
+        });
+      }
     }
 
-    const requestBody = usesOpenRouter
+    const requestBody = targetProvider !== 'freellmapi'
       ? {
           ...body,
           model: sourceModel,
-          ...(isFreeTierUsingServerKey
+          ...(targetProvider === 'openrouter' && isFreeTierUsingServerKey
             ? { max_tokens: Math.min(Number(body.max_tokens) || 2048, 2048) }
             : (body.max_tokens !== undefined ? { max_tokens: Number(body.max_tokens) } : {}))
         }
       : body;
-    const providerName = usesOpenRouter ? 'OpenRouter' : 'FreeLLMAPI';
-    const providerBase = usesOpenRouter ? openRouterUpstreamBase : upstreamBase;
+
+    const providerConfig = PROVIDERS[targetProvider];
+    const providerName = providerConfig ? providerConfig.name : (targetProvider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI');
+    const chatEndpoint = providerConfig ? providerConfig.chatUrl : `${upstreamBase}/chat/completions`;
     const request = requestAbortSignal(req, res, timeoutMs);
 
     try {
       const response = await fetchImpl(
-        `${providerBase}/chat/completions`,
+        chatEndpoint,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${requestApiKey}`,
             'Content-Type': 'application/json',
-            ...(usesOpenRouter ? { 'X-OpenRouter-Title': 'iamhujju' } : {})
+            ...(targetProvider === 'openrouter' ? { 'X-OpenRouter-Title': 'iamhujju' } : {}),
+            ...(providerConfig?.headers || {})
           },
           body: JSON.stringify(requestBody),
           signal: request.controller.signal
@@ -1132,11 +1428,11 @@ export function createApp({
       );
 
       if (!response.ok) {
-        const body = await response.text();
+        const bodyText = await response.text();
         return res.status(response.status).json({
           error: {
             message: safeUpstreamMessage(
-              body,
+              bodyText,
               response.status,
               requestApiKey,
               providerName
@@ -1538,7 +1834,8 @@ What would you like to explore or do right now?
       source: 'iamhujju.com'
     };
 
-    if (rzpClient && (process.env.NODE_ENV !== 'test' || razorpayInstance)) {
+    const isTestMode = process.env.NODE_ENV === 'test' || process.env.npm_lifecycle_event === 'test';
+    if (rzpClient && (!isTestMode || razorpayInstance)) {
       try {
         const order = await rzpClient.orders.create({
           amount: amountPaise,
@@ -1945,8 +2242,17 @@ What would you like to explore or do right now?
       ? await accountStore.getApiKey(user.id)
       : null;
     const effectiveApiKey = userApiKey || (allowSharedGatewayKey ? apiKey : '');
-    const userOpenRouterKey = await getOpenRouterKeyForUser(user.id);
-    const effectiveOpenRouterKey = userOpenRouterKey || serverOpenRouterKey;
+
+    const userProviderKeys = {};
+    for (const p of ['openrouter', 'electronhub', 'groq', 'freemodel']) {
+      userProviderKeys[p] = await getProviderKeyForUser(user.id, p);
+    }
+    const effectiveKeys = {
+      openrouter: userProviderKeys.openrouter || serverOpenRouterKey,
+      electronhub: userProviderKeys.electronhub || serverElectronHubKey,
+      groq: userProviderKeys.groq || serverGroqKey,
+      freemodel: userProviderKeys.freemodel || serverFreeModelKey
+    };
 
     const models = [];
 
@@ -1958,7 +2264,9 @@ What would you like to explore or do right now?
         clearTimeout(timer);
         if (!response.ok) return [];
         const data = await response.json();
-        return Array.isArray(data?.data) ? data.data.filter(m => m && typeof m.id === 'string') : [];
+        if (Array.isArray(data?.data)) return data.data.filter(m => m && typeof m.id === 'string');
+        if (Array.isArray(data)) return data.filter(m => m && typeof m.id === 'string');
+        return [];
       } catch {
         return [];
       }
@@ -1972,12 +2280,26 @@ What would you like to explore or do right now?
       models.push(...upstream);
     }
 
-    if (effectiveOpenRouterKey) {
+    if (effectiveKeys.openrouter) {
       const orModels = await fetchModels(
         `${openRouterUpstreamBase}/models`,
-        { Authorization: `Bearer ${effectiveOpenRouterKey}`, 'X-OpenRouter-Title': 'iamhujju' }
+        { Authorization: `Bearer ${effectiveKeys.openrouter}`, 'X-OpenRouter-Title': 'iamhujju' }
       );
       models.push(...orModels.map(openRouterModel));
+    }
+
+    for (const p of ['electronhub', 'groq', 'freemodel']) {
+      const key = effectiveKeys[p];
+      if (!key) continue;
+      const config = PROVIDERS[p];
+      let pModels = await fetchModels(config.modelsUrl, {
+        Authorization: `Bearer ${key}`,
+        ...(config.headers || {})
+      });
+      if (!pModels || pModels.length === 0) {
+        pModels = PROVIDER_FALLBACK_MODELS[p] || [];
+      }
+      models.push(...pModels.map(m => formatExternalModel(m, p)));
     }
 
     res.set('Cache-Control', 'no-store').json({ object: 'list', data: models });
@@ -2000,14 +2322,17 @@ What would you like to explore or do right now?
     );
     if (!body) return;
 
-    const usesOpenRouter = body.model.startsWith('openrouter:') || body.model.startsWith('openrouter/');
-    const sourceModel = body.model.startsWith('openrouter:')
-      ? body.model.slice('openrouter:'.length)
-      : body.model;
+    const { provider: targetProvider, sourceModel } = resolveModelTarget(body.model);
 
     let requestApiKey;
-    if (usesOpenRouter) {
-      requestApiKey = (await getOpenRouterKeyForUser(user.id)) || serverOpenRouterKey;
+    if (targetProvider !== 'freellmapi') {
+      const userKey = await getProviderKeyForUser(user.id, targetProvider);
+      const serverKey = targetProvider === 'openrouter' ? serverOpenRouterKey
+        : targetProvider === 'electronhub' ? serverElectronHubKey
+        : targetProvider === 'groq' ? serverGroqKey
+        : targetProvider === 'freemodel' ? serverFreeModelKey
+        : '';
+      requestApiKey = userKey || serverKey;
     } else {
       const userApiKey = typeof accountStore.getApiKey === 'function'
         ? await accountStore.getApiKey(user.id)
@@ -2016,10 +2341,11 @@ What would you like to explore or do right now?
     }
 
     if (!requestApiKey) {
+      const pName = PROVIDERS[targetProvider]?.name || targetProvider;
       return res.status(403).json({
         error: {
-          message: usesOpenRouter
-            ? 'No OpenRouter key configured for this account.'
+          message: targetProvider !== 'freellmapi'
+            ? `No ${pName} key configured for this account.`
             : 'No upstream API key available.',
           type: 'invalid_request_error',
           code: 'no_upstream_key'
@@ -2027,19 +2353,21 @@ What would you like to explore or do right now?
       });
     }
 
-    const providerName = usesOpenRouter ? 'OpenRouter' : 'FreeLLMAPI';
-    const providerBase = usesOpenRouter ? openRouterUpstreamBase : upstreamBase;
+    const providerConfig = PROVIDERS[targetProvider];
+    const providerName = providerConfig ? providerConfig.name : (targetProvider === 'openrouter' ? 'OpenRouter' : 'FreeLLMAPI');
+    const chatEndpoint = providerConfig ? providerConfig.chatUrl : `${upstreamBase}/chat/completions`;
     const requestBody = { ...body, model: sourceModel };
 
     const request = requestAbortSignal(req, res, timeoutMs);
 
     try {
-      const upstream = await fetchImpl(`${providerBase}/chat/completions`, {
+      const upstream = await fetchImpl(chatEndpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${requestApiKey}`,
           'Content-Type': 'application/json',
-          ...(usesOpenRouter ? { 'X-OpenRouter-Title': 'iamhujju' } : {})
+          ...(targetProvider === 'openrouter' ? { 'X-OpenRouter-Title': 'iamhujju' } : {}),
+          ...(providerConfig?.headers || {})
         },
         body: JSON.stringify(requestBody),
         signal: request.controller.signal

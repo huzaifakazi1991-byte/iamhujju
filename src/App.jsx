@@ -358,7 +358,14 @@ function App() {
 
       const result = await response.json();
       if (signal?.aborted) return;
-      const user = result.user || null;
+      const user = result.user
+        ? {
+            ...result.user,
+            connectedProviders: result.connectedProviders || [],
+            hasOpenRouterKey: result.hasOpenRouterKey || false,
+            hasExternalKeys: result.hasExternalKeys || false
+          }
+        : null;
       currentUserRef.current = user;
       setCurrentUser(user);
       await loadChatsForUser(user?.id, signal);
@@ -481,7 +488,7 @@ function App() {
     navigateToView('chat');
   }
 
-  const isFreeTierUser = !currentUser?.hasOpenRouterKey && (!currentUser || currentUser.tier === 'free');
+  const isFreeTierUser = !currentUser?.hasExternalKeys && !currentUser?.hasOpenRouterKey && (!currentUser || currentUser.tier === 'free');
 
   const isModelFree = useCallback((modelOrId) => {
     if (!modelOrId) return false;
@@ -489,6 +496,8 @@ function App() {
       ? models.find(m => m.id === modelOrId)
       : modelOrId;
     if (model) {
+      const isFromConnectedProvider = currentUser?.connectedProviders?.some(p => model.id?.startsWith(`${p}:`));
+      if (isFromConnectedProvider) return true;
       return Boolean(
         model.isFree ||
         model.tier === 'free' ||
@@ -499,8 +508,10 @@ function App() {
       );
     }
     const id = String(modelOrId);
+    const isFromConnectedProvider = currentUser?.connectedProviders?.some(p => id.startsWith(`${p}:`));
+    if (isFromConnectedProvider) return true;
     return id.endsWith(':free') || id === 'openrouter:openrouter/free' || id === 'openrouter/free' || id === 'auto';
-  }, [models]);
+  }, [models, currentUser]);
 
   const getAutoFreeModelId = useCallback(() => {
     return (
