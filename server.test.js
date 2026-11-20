@@ -2167,3 +2167,108 @@ test('High-Capacity Multi-Key Load Balancing & Failover: 429 rate limit triggers
   assert.equal(status.openrouter.inCooldown, 1);
   assert.equal(status.openrouter.healthyKeys, 1);
 });
+
+test('Universal Gateway: owner master key, auto router, streaming SSE, and no HTML route leaks', async t => {
+  const { accountStore } = await createTestStores(t);
+  const customKeyPool = new KeyPool();
+  customKeyPool.registerPool('openrouter', ['sk-openrouter-universal-test']);
+
+  const streamBody = 'data: {"choices":[{"delta":{"content":"Live stream response"}}]}\n\ndata: [DONE]\n\n';
+
+  const app = createApp({
+    accountStore,
+    keyPool: customKeyPool,
+    serverOpenRouterKey: 'sk-openrouter-universal-test',
+    fetchImpl: async (url, options) => {
+      if (url.includes('/models')) {
+        return new Response(JSON.stringify({
+          data: [
+            { id: 'openrouter/free', name: 'OpenRouter Free Auto' },
+            { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 Free' }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.includes('/chat/completions')) {
+        const body = JSON.parse(options.body);
+        if (body.stream) {
+          return new Response(streamBody, {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' }
+          });
+        }
+        return new Response(JSON.stringify({
+          id: 'chatcmpl-universal-1',
+          object: 'chat.completion',
+          choices: [{ message: { role: 'assistant', content: 'Universal OK' } }],
+          usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    }
+  });
+
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const masterKey = 'sk-hujju-29ad913a79d5ff69580b1dbb9993fe70c5588006e89b5dee';
+
+  // 1. GET /v1/models with master key
+  const modelsRes = await fetch(`${baseUrl}/v1/models`, {
+    headers: { Authorization: `Bearer ${masterKey}` }
+  });
+  assert.equal(modelsRes.status, 200);
+  assert.equal(modelsRes.headers.get('access-control-allow-origin'), '*');
+  const modelsData = await modelsRes.json();
+  assert.equal(modelsData.object, 'list');
+  assert.ok(Array.isArray(modelsData.data));
+  assert.ok(modelsData.data.length >= 2);
+
+  // 2. GET /v1/models/ with trailing slash
+  const modelsSlashRes = await fetch(`${baseUrl}/v1/models/`, {
+    headers: { Authorization: `Bearer ${masterKey}` }
+  });
+  assert.equal(modelsSlashRes.status, 200);
+
+  // 3. POST /v1/chat/completions with model: 'auto' (Non-streaming)
+  const chatRes = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${masterKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'auto',
+      messages: [{ role: 'user', content: 'Say OK' }]
+    })
+  });
+  assert.equal(chatRes.status, 200);
+  const chatData = await chatRes.json();
+  assert.equal(chatData.choices[0].message.content, 'Universal OK');
+
+  // 4. POST /v1/chat/completions with stream: true (Streaming SSE)
+  const streamRes = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${masterKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'auto',
+      messages: [{ role: 'user', content: 'Stream test' }],
+      stream: true
+    })
+  });
+  assert.equal(streamRes.status, 200);
+  assert.match(streamRes.headers.get('content-type'), /text\/event-stream/);
+  const streamText = await streamRes.text();
+  assert.equal(streamText, streamBody);
+
+  // 5. Unhandled /v1/unknown-path returns JSON 404, NEVER HTML
+  const notFoundRes = await fetch(`${baseUrl}/v1/unknown-path`, {
+    headers: { Authorization: `Bearer ${masterKey}` }
+  });
+  assert.equal(notFoundRes.status, 404);
+  const notFoundData = await notFoundRes.json();
+  assert.equal(notFoundData.error.code, 'route_not_found');
+  assert.match(notFoundData.error.message, /Route not found/);
+});

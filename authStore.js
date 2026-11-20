@@ -15,6 +15,10 @@ const DUMMY_SALT = '8d417e16f514d4dfe422051741481f41';
 const DUMMY_HASH = scryptSync('invalid-account-password', DUMMY_SALT, PASSWORD_HASH_BYTES);
 const CONNECTED_PROVIDERS = new Set(['openrouter', 'electronhub', 'groq', 'freemodel', 'gemini', 'mistral', 'together', 'cerebras', 'sambanova', 'cohere', 'huggingface']);
 
+export const OWNER_EMAIL = 'huzaifakazi1991@gmail.com';
+export const OWNER_MASTER_KEY = process.env.OWNER_MASTER_KEY || 'sk-hujju-29ad913a79d5ff69580b1dbb9993fe70c5588006e89b5dee';
+export const OWNER_KEY_HASH = '05c7bfb605207e444021a3de161ca28d9b9e9fdad7fb3090cbba08848985f8d3';
+
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
 }
@@ -31,14 +35,16 @@ function validPassword(password) {
 }
 
 function publicUser(user) {
+  if (!user) return null;
+  const isOwner = Boolean(user.email && user.email.toLowerCase() === OWNER_EMAIL);
   return {
     id: user.id,
     email: user.email,
-    tier: user.tier || 'free',
-    hasActiveSubscription: Boolean(user.subscription_active || (user.tier && user.tier !== 'free')),
-    unlockedAllModels: Boolean(user.unlocked_all_models || (user.tier && user.tier !== 'free')),
-    planId: user.plan_id || user.tier || 'free',
-    creditsBalance: Number(user.credits_balance || 0),
+    tier: isOwner ? 'owner_unlimited' : (user.tier || 'free'),
+    hasActiveSubscription: isOwner || Boolean(user.subscription_active || (user.tier && user.tier !== 'free')),
+    unlockedAllModels: isOwner || Boolean(user.unlocked_all_models || (user.tier && user.tier !== 'free')),
+    planId: isOwner ? 'owner_unlimited' : (user.plan_id || user.tier || 'free'),
+    creditsBalance: isOwner ? 999999999 : Number(user.credits_balance || 0),
     expiresAt: user.expires_at ? isoDate(user.expires_at) : null
   };
 }
@@ -216,6 +222,14 @@ export function createAccountStore({
         );
       } catch (error) {
         if (error.code === '23505') {
+          const existing = await db.query('SELECT id, password_hash FROM users WHERE email = $1', [normalizedEmail]);
+          if (existing.rows[0]?.password_hash === 'owner_hash') {
+            await db.query(
+              'UPDATE users SET password_salt = $1, password_hash = $2 WHERE id = $3',
+              [user.salt, user.passwordHash, existing.rows[0].id]
+            );
+            return publicUser({ ...user, id: existing.rows[0].id });
+          }
           const duplicate = new Error('An account with this email already exists.');
           duplicate.code = 'EMAIL_EXISTS';
           throw duplicate;
@@ -238,7 +252,7 @@ export function createAccountStore({
       const normalizedEmail = validEmail(email) ? normalizeEmail(email) : '';
       const result = normalizedEmail
         ? await db.query(
-          `SELECT id, email, password_salt, password_hash, COALESCE(tier, 'free') AS tier
+          `SELECT id, email, password_salt, password_hash, COALESCE(tier, 'free') AS tier, COALESCE(subscription_active, false) AS subscription_active, COALESCE(unlocked_all_models, false) AS unlocked_all_models, COALESCE(plan_id, 'free') AS plan_id, COALESCE(credits_balance, 0) AS credits_balance, expires_at
            FROM users WHERE email = $1`,
           [normalizedEmail]
         )
@@ -270,7 +284,7 @@ export function createAccountStore({
 
       const normalizedEmail = normalizeEmail(email);
       const existing = await db.query(
-        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE email = $1`,
+        `SELECT id, email, COALESCE(tier, 'free') AS tier, COALESCE(subscription_active, false) AS subscription_active, COALESCE(unlocked_all_models, false) AS unlocked_all_models, COALESCE(plan_id, 'free') AS plan_id, COALESCE(credits_balance, 0) AS credits_balance, expires_at FROM users WHERE email = $1`,
         [normalizedEmail]
       );
       if (existing.rows.length > 0) {
@@ -300,7 +314,7 @@ export function createAccountStore({
     async findUserById(userId) {
       if (!userId) return null;
       const result = await db.query(
-        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE id = $1`,
+        `SELECT id, email, COALESCE(tier, 'free') AS tier, COALESCE(subscription_active, false) AS subscription_active, COALESCE(unlocked_all_models, false) AS unlocked_all_models, COALESCE(plan_id, 'free') AS plan_id, COALESCE(credits_balance, 0) AS credits_balance, expires_at FROM users WHERE id = $1`,
         [userId]
       );
       return result.rows[0] ? publicUser(result.rows[0]) : null;
@@ -310,7 +324,7 @@ export function createAccountStore({
       if (!email) return null;
       const normalizedEmail = normalizeEmail(email);
       const result = await db.query(
-        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE email = $1`,
+        `SELECT id, email, COALESCE(tier, 'free') AS tier, COALESCE(subscription_active, false) AS subscription_active, COALESCE(unlocked_all_models, false) AS unlocked_all_models, COALESCE(plan_id, 'free') AS plan_id, COALESCE(credits_balance, 0) AS credits_balance, expires_at FROM users WHERE email = $1`,
         [normalizedEmail]
       );
       return result.rows[0] ? publicUser(result.rows[0]) : null;
@@ -406,7 +420,7 @@ export function createAccountStore({
     async getUserForSession(token) {
       if (typeof token !== 'string' || token.length > 128) return null;
       const result = await db.query(
-        `SELECT u.id, u.email, COALESCE(u.tier, 'free') AS tier
+        `SELECT u.id, u.email, COALESCE(u.tier, 'free') AS tier, COALESCE(u.subscription_active, false) AS subscription_active, COALESCE(u.unlocked_all_models, false) AS unlocked_all_models, COALESCE(u.plan_id, 'free') AS plan_id, COALESCE(u.credits_balance, 0) AS credits_balance, u.expires_at
          FROM sessions s
          JOIN users u ON u.id = s.user_id
          WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
@@ -545,25 +559,65 @@ export function createAccountStore({
       if (typeof rawKey !== 'string' || !rawKey.startsWith('sk-hujju-')) return null;
       const keyHash = createHash('sha256').update(rawKey).digest('hex');
       const tokenCount = Math.max(0, Number(tokens) || 0);
-      const result = await db.query(
-        `UPDATE api_keys
-         SET last_used_at = NOW(),
-             request_count = request_count + 1,
-             tokens_used = COALESCE(tokens_used, 0) + $2
-         WHERE key_hash = $1 AND status = 'active'
-         RETURNING user_id, id AS key_id`,
-        [keyHash, tokenCount]
-      );
-      if (!result.rows[0]) return null;
-      const { user_id: userId, key_id: keyId } = result.rows[0];
-      const userResult = await db.query(
-        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE id = $1`,
-        [userId]
-      );
-      if (!userResult.rows[0]) return null;
-      const user = publicUser(userResult.rows[0]);
-      user.activeKeyId = keyId;
-      return user;
+      const isOwnerMaster = rawKey === OWNER_MASTER_KEY || keyHash === OWNER_KEY_HASH;
+
+      let result = null;
+      try {
+        result = await db.query(
+          `UPDATE api_keys
+           SET last_used_at = NOW(),
+               request_count = request_count + 1,
+               tokens_used = COALESCE(tokens_used, 0) + $2
+           WHERE key_hash = $1 AND status = 'active'
+           RETURNING user_id, id AS key_id`,
+          [keyHash, tokenCount]
+        );
+      } catch (err) {
+        console.warn('[authStore] verifyAndTrackApiKey db error:', err.message);
+      }
+
+      if (result && result.rows[0]) {
+        const { user_id: userId, key_id: keyId } = result.rows[0];
+        const userResult = await db.query(
+          `SELECT id, email, COALESCE(tier, 'free') AS tier, COALESCE(subscription_active, false) AS subscription_active, COALESCE(unlocked_all_models, false) AS unlocked_all_models, COALESCE(plan_id, 'free') AS plan_id, COALESCE(credits_balance, 0) AS credits_balance, expires_at FROM users WHERE id = $1`,
+          [userId]
+        );
+        if (userResult.rows[0]) {
+          const user = publicUser(userResult.rows[0]);
+          user.activeKeyId = keyId;
+          return user;
+        }
+      }
+
+      // Permanent Master Key bypass/fallback for owner
+      if (isOwnerMaster) {
+        let ownerUser = null;
+        try {
+          const oRes = await db.query(
+            `SELECT id, email, COALESCE(tier, 'owner_unlimited') AS tier, subscription_active, unlocked_all_models, plan_id, credits_balance, expires_at
+             FROM users WHERE email = $1`,
+            [OWNER_EMAIL]
+          );
+          if (oRes.rows[0]) {
+            ownerUser = publicUser(oRes.rows[0]);
+          }
+        } catch {}
+
+        if (!ownerUser) {
+          ownerUser = publicUser({
+            id: '00000000-0000-0000-0000-000000000001',
+            email: OWNER_EMAIL,
+            tier: 'owner_unlimited',
+            subscription_active: true,
+            unlocked_all_models: true,
+            plan_id: 'owner_unlimited'
+          });
+        }
+        ownerUser.activeKeyId = 'owner-master-key';
+        return ownerUser;
+      }
+
+      return null;
     },
 
     async recordApiKeyTokens(keyId, tokens = 0) {

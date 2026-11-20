@@ -216,41 +216,170 @@ export function computeFallbackChain(provider, modelId) {
 }
 
 // Model Target Resolver
-export function resolveModelTarget(modelName) {
-  if (typeof modelName !== 'string') {
-    return { provider: 'freellmapi', sourceModel: '', fallbackChain: [] };
+export function resolveModelTarget(modelName, { keyPool = null } = {}) {
+  if (typeof modelName !== 'string' || !modelName.trim()) {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'openrouter/free',
+      fallbackChain: [
+        { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' },
+        { provider: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+        { provider: 'freellmapi', model: 'auto' }
+      ]
+    };
   }
 
+  const trimmed = modelName.trim();
+  const norm = trimmed.toLowerCase();
+
+  // 1. Universal aliases: auto, default, free
+  if (norm === 'auto' || norm === 'default' || norm === 'free') {
+    if (keyPool && keyPool.hasKeys('freellmapi') && !keyPool.hasKeys('openrouter')) {
+      return {
+        provider: 'freellmapi',
+        sourceModel: 'auto',
+        fallbackChain: [
+          { provider: 'openrouter', model: 'openrouter/free' },
+          { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' }
+        ]
+      };
+    }
+
+    return {
+      provider: 'openrouter',
+      sourceModel: 'openrouter/free',
+      fallbackChain: [
+        { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' },
+        { provider: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+        { provider: 'freellmapi', model: 'auto' }
+      ]
+    };
+  }
+
+  // 2. OpenRouter explicit prefix: openrouter:model_id
+  if (trimmed.startsWith('openrouter:')) {
+    const sourceModel = trimmed.slice('openrouter:'.length);
+    return {
+      provider: 'openrouter',
+      sourceModel,
+      fallbackChain: computeFallbackChain('openrouter', sourceModel)
+    };
+  }
+
+  // 3. Other provider prefixes: provider:model_id or provider/model_id
   for (const p of Object.keys(PROVIDERS)) {
-    if (modelName.startsWith(`${p}:`)) {
-      const sourceModel = modelName.slice(`${p}:`.length);
-      return { provider: p, sourceModel, fallbackChain: computeFallbackChain(p, sourceModel) };
+    if (p === 'openrouter') continue;
+    if (trimmed.startsWith(`${p}:`)) {
+      const sourceModel = trimmed.slice(`${p}:`.length);
+      return {
+        provider: p,
+        sourceModel,
+        fallbackChain: computeFallbackChain(p, sourceModel)
+      };
     }
-    if (modelName.startsWith(`${p}/`)) {
-      const sourceModel = modelName.slice(`${p}/`.length);
-      return { provider: p, sourceModel, fallbackChain: computeFallbackChain(p, sourceModel) };
+    if (trimmed.startsWith(`${p}/`)) {
+      const sourceModel = trimmed.slice(`${p}/`.length);
+      return {
+        provider: p,
+        sourceModel,
+        fallbackChain: computeFallbackChain(p, sourceModel)
+      };
     }
   }
 
-  // Handle direct clean slugs
-  const norm = modelName.toLowerCase();
-  if (norm === 'llama-3.3-70b' || norm === 'llama-3.3-70b-versatile') {
-    return { provider: 'groq', sourceModel: 'llama-3.3-70b-versatile', fallbackChain: computeFallbackChain('groq', 'llama-3.3-70b-versatile') };
-  }
-  if (norm === 'deepseek-r1') {
-    return { provider: 'openrouter', sourceModel: 'deepseek/deepseek-r1:free', fallbackChain: computeFallbackChain('openrouter', 'deepseek/deepseek-r1:free') };
-  }
-  if (norm === 'gemini-2.5-flash' || norm === 'gemini-2.0-flash') {
-    return { provider: 'gemini', sourceModel: norm, fallbackChain: computeFallbackChain('gemini', norm) };
-  }
-  if (norm === 'gpt-4o-mini') {
-    return { provider: 'electronhub', sourceModel: 'gpt-4o-mini', fallbackChain: computeFallbackChain('electronhub', 'gpt-4o-mini') };
+  // 4. Clean slugs / Popular Model Aliases
+  if (norm === 'deepseek-r1' || norm === 'deepseek-reasoner' || norm === 'deepseek/deepseek-r1') {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'deepseek/deepseek-r1:free',
+      fallbackChain: [
+        { provider: 'groq', model: 'deepseek-r1-distill-llama-70b' },
+        { provider: 'openrouter', model: 'openrouter/free' }
+      ]
+    };
   }
 
+  if (norm === 'llama-3.3-70b' || norm === 'llama-3.3-70b-versatile' || norm === 'meta-llama/llama-3.3-70b') {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'meta-llama/llama-3.3-70b-instruct:free',
+      fallbackChain: [
+        { provider: 'groq', model: 'llama-3.3-70b-versatile' },
+        { provider: 'openrouter', model: 'openrouter/free' }
+      ]
+    };
+  }
+
+  if (norm === 'gpt-4o' || norm === 'openai/gpt-4o') {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'openai/gpt-4o',
+      fallbackChain: [
+        { provider: 'openrouter', model: 'openai/gpt-4o-mini' },
+        { provider: 'electronhub', model: 'gpt-4o' }
+      ]
+    };
+  }
+
+  if (norm === 'gpt-4o-mini' || norm === 'openai/gpt-4o-mini') {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'openai/gpt-4o-mini',
+      fallbackChain: [
+        { provider: 'electronhub', model: 'gpt-4o-mini' },
+        { provider: 'openrouter', model: 'openrouter/free' }
+      ]
+    };
+  }
+
+  if (norm.startsWith('gemini-2.5-flash') || norm.startsWith('gemini-2.0-flash') || norm.startsWith('google/gemini-2.5-flash')) {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'google/gemini-2.5-flash:free',
+      fallbackChain: [
+        { provider: 'gemini', model: 'gemini-2.5-flash' },
+        { provider: 'openrouter', model: 'openrouter/free' }
+      ]
+    };
+  }
+
+  if (norm.includes('claude-3-7-sonnet') || norm.includes('claude-3.7-sonnet')) {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'anthropic/claude-3.7-sonnet',
+      fallbackChain: [
+        { provider: 'openrouter', model: 'anthropic/claude-3.5-haiku' }
+      ]
+    };
+  }
+
+  if (norm.includes('claude-3-5-haiku') || norm.includes('claude-3.5-haiku')) {
+    return {
+      provider: 'openrouter',
+      sourceModel: 'anthropic/claude-3.5-haiku',
+      fallbackChain: [
+        { provider: 'electronhub', model: 'claude-3-5-haiku' }
+      ]
+    };
+  }
+
+  // 5. Any model ID containing '/' is treated as an OpenRouter-hosted model
+  if (trimmed.includes('/')) {
+    return {
+      provider: 'openrouter',
+      sourceModel: trimmed,
+      fallbackChain: computeFallbackChain('openrouter', trimmed)
+    };
+  }
+
+  // 6. Resilient fallback
   return {
-    provider: 'freellmapi',
-    sourceModel: modelName,
-    fallbackChain: computeFallbackChain('freellmapi', modelName)
+    provider: 'openrouter',
+    sourceModel: trimmed,
+    fallbackChain: [
+      { provider: 'openrouter', model: 'openrouter/free' },
+      { provider: 'freellmapi', model: trimmed }
+    ]
   };
 }
 
