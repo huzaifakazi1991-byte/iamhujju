@@ -3,7 +3,6 @@ import AccountMenu from './AccountMenu.jsx';
 import DocsModal from './DocsModal.jsx';
 import ContactModal from './ContactModal.jsx';
 import AboutModal from './AboutModal.jsx';
-import LiveSupportWidget from './LiveSupportWidget.jsx';
 import PaymentModal from './PaymentModal.jsx';
 import { resolvePlan } from './pricingConfig.js';
 import { signInWithGoogle, syncUserProfile } from './firebase.js';
@@ -352,7 +351,8 @@ function HomePage({
   onOpenSkills,
   onOpenSavedChats,
   onOpenPricing,
-  onOpenCheckout: propOnOpenCheckout
+  onOpenCheckout: propOnOpenCheckout,
+  onOpenLiveSupport
 }) {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('chat');
@@ -365,7 +365,6 @@ function HomePage({
   const [refreshNotice, setRefreshNotice] = useState('');
   const [docsOpen, setDocsOpen] = useState(false);
   const [docsTab, setDocsTab] = useState('quickstart');
-  const [liveSupportOpen, setLiveSupportOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -754,7 +753,7 @@ function HomePage({
                       role="menuitem"
                       onClick={() => {
                         setActiveDropdown(null);
-                        setLiveSupportOpen(true);
+                        if (onOpenLiveSupport) onOpenLiveSupport();
                       }}
                     >
                       <div className="dropdown-item-icon icon-rose">
@@ -2114,34 +2113,6 @@ function HomePage({
           </div>
         </div>
       </footer>
-
-      {/* Live AI Copilot & Interactive Assistant Widget */}
-      <LiveSupportWidget
-        isOpen={liveSupportOpen}
-        onToggle={() => setLiveSupportOpen(prev => !prev)}
-        onOpenFullChat={(modelId) => openChat(modelId || selectedModel)}
-        onOpenModels={() => onOpenModels()}
-        onOpenSkills={onOpenSkills}
-        onOpenSavedChats={onOpenSavedChats}
-        onOpenDocs={(tab) => {
-          setDocsTab(tab || 'quickstart');
-          setDocsOpen(true);
-        }}
-        onOpenAuth={(mode = 'login') => {
-          setAuthMode(mode);
-          setAuthError('');
-          setPendingModelId(null);
-          setAuthOpen(true);
-        }}
-        onOpenContact={() => setContactOpen(true)}
-        onOpenAbout={() => setAboutOpen(true)}
-        onOpenCheckout={handleOpenCheckout}
-        onScrollTo={(id) => scrollToSection(id)}
-        selectedModel={selectedModel}
-        connected={connected}
-        currentUser={currentUser}
-        models={models}
-      />
 
       {/* Storage and Toast Notifications */}
       {storageError && (

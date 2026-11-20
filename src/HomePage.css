@@ -4019,12 +4019,6 @@
   .any-hero-mascot-card {
     max-width: 200px !important;
   }
-  .any-floating-chat-bubble {
-    bottom: 16px !important;
-    right: 16px !important;
-    width: 48px !important;
-    height: 48px !important;
-  }
 }
 
 /* ==========================================================================

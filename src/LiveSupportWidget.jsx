@@ -282,6 +282,36 @@ What would you like to explore or do right now?
 [[action:models|🚀 Open Model Hub]] [[action:chat|⚡ Open AnyChat Playground]] [[action:pricing|💰 View Pricing]] [[action:docs:quickstart|📖 API Docs]]`;
 }
 
+const STORAGE_KEY = 'iamhujju_copilot_pos';
+const PADDING = 14;
+const SIZE = 60;
+
+function getDefaultPosition() {
+  if (typeof window === 'undefined') return { x: 24, y: 24 };
+  const maxX = Math.max(PADDING, window.innerWidth - SIZE - PADDING);
+  const maxY = Math.max(PADDING, window.innerHeight - SIZE - PADDING);
+  return { x: maxX, y: maxY };
+}
+
+function getInitialPosition() {
+  if (typeof window === 'undefined') return { x: 24, y: 24 };
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+        const maxX = Math.max(PADDING, window.innerWidth - SIZE - PADDING);
+        const maxY = Math.max(PADDING, window.innerHeight - SIZE - PADDING);
+        return {
+          x: Math.max(PADDING, Math.min(maxX, parsed.x)),
+          y: Math.max(PADDING, Math.min(maxY, parsed.y))
+        };
+      }
+    }
+  } catch (_) {}
+  return getDefaultPosition();
+}
+
 export default function LiveSupportWidget({
   isOpen,
   onToggle,
@@ -317,6 +347,67 @@ Ask me any question or tell me where you'd like to navigate!
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Movable, playable, and draggable state
+  const [pos, setPos] = useState(getInitialPosition);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLanding, setIsLanding] = useState(false);
+  const [isDoingTrick, setIsDoingTrick] = useState(false);
+  const [activeSparkles, setActiveSparkles] = useState(false);
+  const [tilt, setTilt] = useState(0);
+  const [playfulText, setPlayfulText] = useState('Ask Me Anything!');
+
+  const dragInfoRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    originX: 0,
+    originY: 0,
+    lastX: 0,
+    lastY: 0,
+    lastTime: 0,
+    hasMoved: false
+  });
+  const lastTapRef = useRef(0);
+  const landingTimeoutRef = useRef(null);
+  const trickTimeoutRef = useRef(null);
+  const promptCycleRef = useRef(null);
+
+  const IDLE_PROMPTS = [
+    'Ask Me Anything! 👋',
+    'Drag & pull me anywhere! 🛸',
+    '400+ Free Models ⚡',
+    'Double-click for a flip! 🌀',
+    'Need help? Ask Copilot! 💡',
+    'I can follow you everywhere! ✨'
+  ];
+
+  // Idle playful speech bubble cycle
+  useEffect(() => {
+    if (isOpen || isDragging) return;
+    let index = 0;
+    promptCycleRef.current = setInterval(() => {
+      index = (index + 1) % IDLE_PROMPTS.length;
+      setPlayfulText(IDLE_PROMPTS[index]);
+    }, 9000);
+    return () => clearInterval(promptCycleRef.current);
+  }, [isOpen, isDragging]);
+
+  // Window resize viewport clamping
+  useEffect(() => {
+    function handleResize() {
+      setPos(prev => {
+        const maxX = Math.max(PADDING, window.innerWidth - SIZE - PADDING);
+        const maxY = Math.max(PADDING, window.innerHeight - SIZE - PADDING);
+        return {
+          x: Math.max(PADDING, Math.min(maxX, prev.x)),
+          y: Math.max(PADDING, Math.min(maxY, prev.y))
+        };
+      });
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const quickPrompts = [
     { label: '🚀 Which models are 100% free?', query: 'Which models are 100% free?' },
     { label: '💰 How does pricing work?', query: 'How does pricing work?' },
@@ -332,6 +423,194 @@ Ask me any question or tell me where you'd like to navigate!
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
+
+  // Trigger playful backflip trick
+  function triggerTrick() {
+    if (isDoingTrick) return;
+    setIsDoingTrick(true);
+    setActiveSparkles(true);
+    setPlayfulText('Woooohoo! 🌀✨');
+    if (trickTimeoutRef.current) clearTimeout(trickTimeoutRef.current);
+    trickTimeoutRef.current = setTimeout(() => {
+      setIsDoingTrick(false);
+      setActiveSparkles(false);
+      setPlayfulText('Ask Me Anything!');
+    }, 750);
+  }
+
+  // Pointer drag gestures
+  function handlePointerDown(e) {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    // Check double tap on mobile
+    const now = Date.now();
+    if (now - lastTapRef.current < 320) {
+      triggerTrick();
+      lastTapRef.current = 0;
+      return;
+    }
+    lastTapRef.current = now;
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    dragInfoRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: pos.x,
+      originY: pos.y,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      lastTime: now,
+      hasMoved: false
+    };
+
+    setIsDragging(true);
+    setIsLanding(false);
+  }
+
+  function handlePointerMove(e) {
+    if (!isDragging || dragInfoRef.current.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - dragInfoRef.current.startX;
+    const dy = e.clientY - dragInfoRef.current.startY;
+
+    if (!dragInfoRef.current.hasMoved && Math.hypot(dx, dy) > 5) {
+      dragInfoRef.current.hasMoved = true;
+      const dragPhrases = ['Wheee! 🎈', 'Hold on! 🚀', 'Pulling through! ✨', 'Taking flight! 🛸'];
+      setPlayfulText(dragPhrases[Math.floor(Math.random() * dragPhrases.length)]);
+    }
+
+    if (dragInfoRef.current.hasMoved) {
+      const maxX = Math.max(PADDING, window.innerWidth - SIZE - PADDING);
+      const maxY = Math.max(PADDING, window.innerHeight - SIZE - PADDING);
+      const nextX = Math.max(PADDING, Math.min(maxX, dragInfoRef.current.originX + dx));
+      const nextY = Math.max(PADDING, Math.min(maxY, dragInfoRef.current.originY + dy));
+
+      // Calculate tilt angle based on horizontal drag velocity
+      const now = Date.now();
+      const dt = Math.max(1, now - dragInfoRef.current.lastTime);
+      const vx = (e.clientX - dragInfoRef.current.lastX) / dt;
+      const targetTilt = Math.max(-25, Math.min(25, vx * 18));
+
+      dragInfoRef.current.lastX = e.clientX;
+      dragInfoRef.current.lastY = e.clientY;
+      dragInfoRef.current.lastTime = now;
+
+      setPos({ x: nextX, y: nextY });
+      setTilt(targetTilt);
+    }
+  }
+
+  function handlePointerUp(e) {
+    if (dragInfoRef.current.pointerId !== e.pointerId) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    setIsDragging(false);
+    setTilt(0);
+
+    if (dragInfoRef.current.hasMoved) {
+      // Landed after dragging
+      setIsLanding(true);
+      if (landingTimeoutRef.current) clearTimeout(landingTimeoutRef.current);
+      landingTimeoutRef.current = setTimeout(() => setIsLanding(false), 450);
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+      } catch (_) {}
+
+      const landingPhrases = ['Nice spot! 🎯', 'Ready here! ⚡', 'Cozy spot! ✨', 'Landed safely! 🛸'];
+      setPlayfulText(landingPhrases[Math.floor(Math.random() * landingPhrases.length)]);
+      setTimeout(() => {
+        setPlayfulText('Ask Me Anything!');
+      }, 2500);
+    } else {
+      // Clean click / tap without dragging -> toggle open/close
+      if (onToggle) onToggle();
+    }
+
+    dragInfoRef.current.pointerId = null;
+  }
+
+  function handlePointerCancel(e) {
+    handlePointerUp(e);
+  }
+
+  function handleDoubleClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerTrick();
+  }
+
+  function handleResetPosition(e) {
+    if (e) e.stopPropagation();
+    const def = getDefaultPosition();
+    setPos(def);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(def));
+    } catch (_) {}
+    setIsLanding(true);
+    setTimeout(() => setIsLanding(false), 450);
+    setPlayfulText('Back home! 🏠');
+    setTimeout(() => setPlayfulText('Ask Me Anything!'), 2000);
+  }
+
+  // Calculate intelligent placement for chat window anchored to the draggable bubble
+  function getChatWindowStyle() {
+    if (typeof window === 'undefined') return {};
+    const isMobile = window.innerWidth <= 480;
+    if (isMobile) {
+      return {
+        position: 'fixed',
+        bottom: '12px',
+        left: '12px',
+        right: '12px',
+        width: 'auto',
+        maxHeight: 'calc(100vh - 84px)',
+        zIndex: 10002
+      };
+    }
+
+    const windowWidth = 380;
+    const pad = 14;
+
+    const style = {
+      position: 'fixed',
+      zIndex: 10002,
+      width: `${windowWidth}px`,
+      maxHeight: `calc(100vh - ${pad * 2}px)`
+    };
+
+    // Vertical placement:
+    if (pos.y > window.innerHeight / 2) {
+      const bottomSpace = window.innerHeight - pos.y + 12;
+      style.bottom = `${bottomSpace}px`;
+      style.top = 'auto';
+    } else {
+      style.top = `${pos.y + SIZE + 10}px`;
+      style.bottom = 'auto';
+    }
+
+    // Horizontal placement:
+    if (pos.x > window.innerWidth / 2) {
+      const rightOffset = Math.max(pad, window.innerWidth - (pos.x + SIZE));
+      const safeRight = Math.min(rightOffset, window.innerWidth - windowWidth - pad);
+      style.right = `${Math.max(pad, safeRight)}px`;
+      style.left = 'auto';
+    } else {
+      const leftOffset = Math.max(pad, pos.x);
+      const safeLeft = Math.min(leftOffset, window.innerWidth - windowWidth - pad);
+      style.left = `${Math.max(pad, safeLeft)}px`;
+      style.right = 'auto';
+    }
+
+    return style;
+  }
 
   function executeAction(actionType) {
     if (!actionType) return;
@@ -435,7 +714,6 @@ Ask me any question or tell me where you'd like to navigate!
     const textToSend = promptText || input.trim();
     if (!textToSend || loading) return;
 
-    // Detect if user asked for a direct navigation action
     detectAutoNavigation(textToSend);
 
     const userMessage = {
@@ -475,7 +753,6 @@ Ask me any question or tell me where you'd like to navigate!
       }
       throw new Error('Fallback to local knowledge');
     } catch {
-      // Local Knowledge Engine fallback
       const localReply = getClientKnowledgeReply(textToSend, { models, currentUser });
       setMessages(prev => [
         ...prev,
@@ -516,6 +793,7 @@ Ask me any question or tell me where you'd like to navigate!
           className="live-support-window"
           role="complementary"
           aria-label="iamhujju Live Support Copilot"
+          style={getChatWindowStyle()}
         >
           {/* Header */}
           <header className="live-support-header">
@@ -531,6 +809,15 @@ Ask me any question or tell me where you'd like to navigate!
             </div>
 
             <div className="live-support-header-actions">
+              <button
+                type="button"
+                className="live-support-icon-btn"
+                onClick={handleResetPosition}
+                title="Reset assistant position to corner"
+                aria-label="Reset position"
+              >
+                🎯
+              </button>
               <button
                 type="button"
                 className="live-support-icon-btn"
@@ -639,22 +926,57 @@ Ask me any question or tell me where you'd like to navigate!
         </aside>
       )}
 
-      {/* Floating Launcher Button */}
-      <button
-        type="button"
-        className={`any-floating-chat-bubble ${isOpen ? 'is-active' : ''}`}
-        onClick={onToggle}
+      {/* Floating Movable, Playable, and Draggable Launcher Avatar Button */}
+      <div
+        className={`any-floating-chat-bubble-container ${isDragging ? 'is-dragging' : ''} ${isLanding ? 'is-landing' : ''} ${isDoingTrick ? 'is-doing-trick' : ''} ${isOpen ? 'is-open' : ''}`}
+        style={{
+          left: `${pos.x}px`,
+          top: `${pos.y}px`,
+          transform: isDragging
+            ? `scale(1.16, 0.94) rotate(${tilt}deg)`
+            : undefined
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onDoubleClick={handleDoubleClick}
+        title="iamhujju AI Companion · Drag me anywhere, double-click for a flip!"
+        role="button"
+        tabIndex={0}
         aria-label={isOpen ? 'Close Live AI Support' : 'Open Live AI Support'}
-        title="Live AI Copilot · Ask Me Anything!"
       >
-        <img src="/copilot.jpg" alt="iamhujju copilot" className="any-floating-mascot-img" />
-        <span className="any-floating-online-dot" />
-        {!isOpen && (
-          <span className="any-floating-label">
-            Ask Me Anything!
-          </span>
-        )}
-      </button>
+        <div className="any-floating-chat-bubble-inner">
+          <img
+            src="/copilot.jpg"
+            alt="iamhujju copilot"
+            className="any-floating-mascot-img"
+            draggable={false}
+          />
+          <span className="any-floating-online-dot" />
+
+          {/* Playful Trick Sparkles */}
+          {activeSparkles && (
+            <div className="assistant-trick-sparkles" aria-hidden="true">
+              <span className="assistant-sparkle-ring ring-1" />
+              <span className="assistant-sparkle-ring ring-2" />
+              <span className="assistant-sparkle-particle p1">✨</span>
+              <span className="assistant-sparkle-particle p2">⭐</span>
+              <span className="assistant-sparkle-particle p3">💫</span>
+              <span className="assistant-sparkle-particle p4">✨</span>
+            </div>
+          )}
+
+          {/* Playful Interactive Speech Bubble */}
+          {!isOpen && (
+            <span
+              className={`any-floating-label ${pos.x < 150 ? 'label-right' : 'label-left'} ${isDragging ? 'is-dragging-label' : ''}`}
+            >
+              {playfulText}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

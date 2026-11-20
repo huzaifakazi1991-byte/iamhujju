@@ -12,6 +12,7 @@ import ModelsPage from './ModelsPage.jsx';
 import SkillsPage from './SkillsPage.jsx';
 import PricingPage from './PricingPage.jsx';
 import AccountMenu from './AccountMenu.jsx';
+import LiveSupportWidget from './LiveSupportWidget.jsx';
 import { sanitizeMarkdown } from './safeMarkdown.js';
 import {
   clearChatState,
@@ -175,6 +176,7 @@ function App() {
   const [legacyImportNotice, setLegacyImportNotice] = useState('');
   const [modelsLoading, setModelsLoading] = useState(false);
   const [currentView, setCurrentView] = useState('home');
+  const [liveSupportOpen, setLiveSupportOpen] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [authRestoreError, setAuthRestoreError] = useState('');
@@ -1213,8 +1215,39 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-  if (currentView === 'home') {
-    return (
+  const renderLiveSupportWidget = () => (
+    <LiveSupportWidget
+      isOpen={liveSupportOpen}
+      onToggle={() => setLiveSupportOpen(prev => !prev)}
+      onOpenFullChat={(modelId) => openChatFromHome(modelId || selectedModel)}
+      onOpenModels={openModels}
+      onOpenSkills={openSkills}
+      onOpenSavedChats={openSavedChats}
+      onOpenPricing={openPricing}
+      onOpenApiKeys={openApiKeys}
+      onOpenIntegrations={openIntegrations}
+      onScrollTo={(id) => {
+        if (currentView !== 'home') {
+          navigateToView('home');
+          setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }, 150);
+        } else {
+          const el = document.getElementById(id);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }}
+      selectedModel={selectedModel}
+      connected={connected}
+      currentUser={currentUser}
+      models={models}
+    />
+  );
+
+  return (
+    <>
+      {currentView === 'home' && (
       <HomePage
         models={models}
         modelsLoading={modelsLoading}
@@ -1247,12 +1280,11 @@ function App() {
         onOpenSavedChats={openSavedChats}
         onOpenPricing={openPricing}
         onOpenCheckout={openPricing}
+        onOpenLiveSupport={() => setLiveSupportOpen(true)}
       />
-    );
-  }
+      )}
 
-  if (currentView === 'models') {
-    return (
+      {currentView === 'models' && (
       <ModelsPage
         key={modelsInitialQuery}
         models={models}
@@ -1273,11 +1305,9 @@ function App() {
         onOpenSkills={openSkills}
         onOpenPricing={openPricing}
       />
-    );
-  }
+      )}
 
-  if (currentView === 'skills') {
-    return (
+      {currentView === 'skills' && (
       <SkillsPage
         currentUser={currentUser}
         connected={connected}
@@ -1294,11 +1324,9 @@ function App() {
         onOpenSavedChats={openSavedChats}
         onOpenPricing={openPricing}
       />
-    );
-  }
+      )}
 
-  if (currentView === 'saved-chats') {
-    return (
+      {currentView === 'saved-chats' && (
       <SavedChatsPage
         chats={chats}
         activeChatId={activeChatId}
@@ -1326,11 +1354,9 @@ function App() {
         onOpenPricing={openPricing}
         onLogout={handleLogout}
       />
-    );
-  }
+      )}
 
-  if (currentView === 'api-keys') {
-    return (
+      {currentView === 'api-keys' && (
       <ApiKeysPage
         user={currentUser}
         connected={connected}
@@ -1345,11 +1371,9 @@ function App() {
         onOpenPricing={openPricing}
         onModelsChanged={() => loadModels()}
       />
-    );
-  }
+      )}
 
-  if (currentView === 'integrations') {
-    return (
+      {currentView === 'integrations' && (
       <IntegrationsPage
         user={currentUser}
         connected={connected}
@@ -1364,11 +1388,9 @@ function App() {
         onOpenPricing={openPricing}
         onModelsChanged={() => loadModels()}
       />
-    );
-  }
+      )}
 
-  if (currentView === 'pricing') {
-    return (
+      {currentView === 'pricing' && (
       <PricingPage
         user={currentUser}
         connected={connected}
@@ -1382,11 +1404,10 @@ function App() {
         onOpenSavedChats={openSavedChats}
         onAuthenticated={handleAuthenticated}
       />
-    );
-  }
+      )}
 
-  return (
-    <div className="app-shell">
+      {(currentView === 'chat' || (currentView !== 'home' && currentView !== 'models' && currentView !== 'skills' && currentView !== 'saved-chats' && currentView !== 'api-keys' && currentView !== 'integrations' && currentView !== 'pricing')) && (
+        <div className="app-shell">
 
       <aside className="sidebar">
         <button
@@ -1837,7 +1858,11 @@ function App() {
           </div>
         )}
       </main>
-    </div>
+        </div>
+      )}
+
+      {renderLiveSupportWidget()}
+    </>
   );
 }
 
