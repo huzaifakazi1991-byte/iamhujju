@@ -288,13 +288,13 @@ export function resolveModelTarget(modelName, { keyPool = null } = {}) {
   }
 
   // 4. Clean slugs / Popular Model Aliases
-  if (norm === 'deepseek-r1' || norm === 'deepseek-reasoner' || norm === 'deepseek/deepseek-r1') {
+  if (norm === 'deepseek-r1' || norm === 'deepseek-reasoner' || norm === 'deepseek/deepseek-r1' || norm === 'deepseek') {
     return {
       provider: 'openrouter',
-      sourceModel: 'deepseek/deepseek-r1:free',
+      sourceModel: 'deepseek/deepseek-chat',
       fallbackChain: [
-        { provider: 'groq', model: 'deepseek-r1-distill-llama-70b' },
-        { provider: 'openrouter', model: 'openrouter/free' }
+        { provider: 'openrouter', model: 'openrouter/free' },
+        { provider: 'groq', model: 'deepseek-r1-distill-llama-70b' }
       ]
     };
   }

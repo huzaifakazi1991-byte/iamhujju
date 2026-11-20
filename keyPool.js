@@ -256,6 +256,10 @@ export class KeyPool {
             if (i < attempts - 1) {
               continue;
             }
+          } else if (response.status === 404) {
+            lastResponse = response;
+            console.log(`[KeyPool Failover] Model returned HTTP 404 on ${providerId}. Failing over to next model in fallback chain...`);
+            break;
           } else {
             if (!candidate.isUserKey) {
               this.markKeySuccess(providerId, key);
@@ -278,7 +282,7 @@ export class KeyPool {
         const fbProvider = typeof fallback === 'string' ? fallback : fallback.provider;
         const fbModel = typeof fallback === 'string' ? null : fallback.model;
 
-        if (!fbProvider || fbProvider === providerId) continue;
+        if (!fbProvider || (fbProvider === providerId && !fbModel)) continue;
         const fbCandidates = this.getKeyCandidates(fbProvider);
         const fbKey = fbCandidates.find(c => Date.now() >= c.cooldownUntil)?.key;
 
