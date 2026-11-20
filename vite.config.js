@@ -9,13 +9,14 @@ export default defineConfig(({ mode }) => {
     'Content-Security-Policy': [
       "default-src 'self'",
       "base-uri 'self'",
-      "connect-src 'self'" + (development ? ' ws: wss:' : ''),
+      "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com" + (development ? ' ws: wss:' : ''),
       "font-src 'self' https://fonts.gstatic.com data:",
       "form-action 'self'",
       "frame-ancestors 'none'",
-      "img-src 'self' data: blob:",
+      "frame-src 'self' https://api.razorpay.com https://iamhujju-680e8.firebaseapp.com https://*.firebaseapp.com https://accounts.google.com",
+      "img-src 'self' data: blob: https://api.qrserver.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
       "object-src 'none'",
-      "script-src 'self'" + (development ? " 'unsafe-inline'" : ''),
+      "script-src 'self' https://checkout.razorpay.com https://apis.google.com" + (development ? " 'unsafe-inline'" : ''),
       "script-src-attr 'none'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"
     ].join('; '),
