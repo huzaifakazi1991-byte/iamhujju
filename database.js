@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 let sharedPool;
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -192,6 +192,37 @@ export async function migrateDatabase(pool = getDatabasePool(), { skipVector = f
       await client.query(
         'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
         [4]
+      );
+    }
+
+    if (currentVersion < 5) {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS payments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          order_id TEXT NOT NULL UNIQUE,
+          payment_id TEXT UNIQUE,
+          user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          email TEXT NOT NULL,
+          plan_id TEXT NOT NULL,
+          billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+          amount_paise INTEGER NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'INR',
+          status TEXT NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'captured', 'failed', 'failed_verification', 'refunded')),
+          receipt TEXT NOT NULL,
+          signature TEXT,
+          failure_reason TEXT,
+          metadata JSONB,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS payments_order_id_idx ON payments (order_id);
+        CREATE INDEX IF NOT EXISTS payments_payment_id_idx ON payments (payment_id);
+        CREATE INDEX IF NOT EXISTS payments_user_id_idx ON payments (user_id);
+        CREATE INDEX IF NOT EXISTS payments_status_idx ON payments (status);
+      `);
+      await client.query(
+        'INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())',
+        [5]
       );
     }
 

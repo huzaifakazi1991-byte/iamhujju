@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { createAccountStore, sessionMaxAgeSeconds } from './authStore.js';
 import { closeDatabase, getDatabasePool, migrateDatabase } from './database.js';
 import { createConversationStore } from './conversationStore.js';
+import Razorpay from 'razorpay';
 
 dotenv.config();
 
@@ -228,10 +229,12 @@ export function createApp({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
   conversationStore = createConversationStore(),
-  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '',
+  razorpayKeyId = process.env.RAZORPAY_KEY_ID || '',
   razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || '',
+  razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || '',
   officialUpiId = process.env.OFFICIAL_UPI_ID || '9975649957@mbk',
   razorpayAccountName = process.env.RAZORPAY_ACCOUNT_NAME || 'iamhujju',
+  razorpayInstance = null,
   rateLimits = {},
   allowedOrigins = process.env.APP_ORIGIN
     ? [process.env.APP_ORIGIN]
@@ -351,7 +354,12 @@ export function createApp({
 
     next();
   });
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({
+    limit: '1mb',
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    }
+  }));
 
   async function getCurrentUser(req) {
     const token = getSessionToken(req);
@@ -1455,6 +1463,24 @@ What would you like to explore or do right now?
     }
   };
 
+  // Official Razorpay instance if keys are provided or mock instance injected
+  const rzpClient = razorpayInstance || (razorpayKeyId && razorpayKeySecret
+    ? new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret })
+    : null);
+
+  function verifyHmacSha256(data, signature, secret) {
+    if (!data || !signature || !secret || typeof signature !== 'string') return false;
+    try {
+      const expected = crypto.createHmac('sha256', secret).update(data).digest('hex');
+      const expectedBuffer = Buffer.from(expected, 'utf8');
+      const signatureBuffer = Buffer.from(signature, 'utf8');
+      if (expectedBuffer.length !== signatureBuffer.length) return false;
+      return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+    } catch {
+      return false;
+    }
+  }
+
   app.get('/api/payment/config', (req, res) => {
     res.set('Cache-Control', 'no-store').json({
       keyId: razorpayKeyId,
@@ -1472,7 +1498,7 @@ What would you like to explore or do right now?
     email: z.string().trim().email().optional().default('')
   });
 
-  app.post('/api/payment/create-order', chatRateLimiter, async (req, res) => {
+  async function handleCreateOrder(req, res) {
     const body = validatedBody(
       createOrderSchema,
       req,
@@ -1486,71 +1512,75 @@ What would you like to explore or do right now?
       return res.status(400).json({ error: { message: 'Unknown plan selected.' } });
     }
 
-    let amountPaise = 0;
+    // Strictly server-calculated integer in paise using Math.round
     let amountInr = 0;
-
     if (body.planId === 'payg') {
-      amountPaise = plan.amountPaise;
       amountInr = plan.amountInr;
     } else if (body.billingCycle === 'annual') {
-      amountPaise = plan.amountPaiseAnnual;
       amountInr = plan.amountInrAnnual;
     } else {
-      amountPaise = plan.amountPaiseMonthly;
       amountInr = plan.amountInrMonthly;
     }
+    const amountPaise = Math.round(amountInr * 100);
 
-    const receipt = `rcpt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const currentUser = await getCurrentUser(req);
+    const customerEmail = currentUser?.email || body.email;
+    const customerUid = currentUser?.id || '';
 
-    // If live Razorpay API keys are configured, create real order with Razorpay
-    if (razorpayKeyId && razorpayKeySecret) {
+    // Deterministic unique receipt
+    const receiptUid = customerUid ? customerUid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : 'guest';
+    const receipt = `rcpt_${receiptUid}_${Date.now()}`;
+
+    let razorpayOrderId = '';
+    const notes = {
+      uid: customerUid,
+      email: customerEmail,
+      planId: body.planId,
+      billingCycle: body.billingCycle,
+      source: 'iamhujju.com'
+    };
+
+    if (rzpClient) {
       try {
-        const authHeader = 'Basic ' + Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
-        const rzpResponse = await fetchImpl('https://api.razorpay.com/v1/orders', {
-          method: 'POST',
-          headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            amount: amountPaise,
-            currency: 'INR',
-            receipt,
-            notes: {
-              planId: body.planId,
-              billingCycle: body.billingCycle,
-              email: body.email
-            }
-          })
+        const order = await rzpClient.orders.create({
+          amount: amountPaise,
+          currency: 'INR',
+          receipt,
+          notes
         });
-
-        if (rzpResponse.ok) {
-          const rzpOrder = await rzpResponse.json();
-          return res.json({
-            success: true,
-            orderId: rzpOrder.id,
-            amount: rzpOrder.amount,
-            amountInr,
-            currency: 'INR',
-            keyId: razorpayKeyId,
-            planId: body.planId,
-            planName: plan.name,
-            billingCycle: body.billingCycle,
-            upiId: officialUpiId,
-            accountName: razorpayAccountName,
-            receipt
-          });
-        }
+        razorpayOrderId = order?.id;
       } catch (rzpErr) {
-        console.error('[Razorpay Order Creation Failed, falling back to direct checkout]', rzpErr?.message);
+        console.error('[Razorpay Order Creation Error]', rzpErr?.message || rzpErr);
       }
     }
 
-    // Direct / Sandbox Order Fallback
-    const simulatedOrderId = `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    if (!razorpayOrderId) {
+      // Deterministic fallback for test sandbox / direct UPI checkout
+      razorpayOrderId = `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    // Save pending payment record in PostgreSQL ledger table before returning to client
+    if (typeof accountStore.recordPaymentOrder === 'function') {
+      try {
+        await accountStore.recordPaymentOrder({
+          orderId: razorpayOrderId,
+          userId: customerUid || null,
+          email: customerEmail || 'guest@iamhujju.com',
+          planId: body.planId,
+          billingCycle: body.billingCycle,
+          amountPaise,
+          currency: 'INR',
+          receipt,
+          metadata: { notes }
+        });
+      } catch (dbErr) {
+        console.warn('[Payments Ledger Warning: could not record pending order]', dbErr?.message);
+      }
+    }
+
     return res.json({
       success: true,
-      orderId: simulatedOrderId,
+      orderId: razorpayOrderId,
       amount: amountPaise,
       amountInr,
       currency: 'INR',
@@ -1563,7 +1593,10 @@ What would you like to explore or do right now?
       receipt,
       fallbackToDirectUpi: !razorpayKeySecret
     });
-  });
+  }
+
+  app.post('/api/payments/razorpay/create-order', chatRateLimiter, handleCreateOrder);
+  app.post('/api/payment/create-order', chatRateLimiter, handleCreateOrder);
 
   const verifyPaymentSchema = z.object({
     planId: z.enum(['payg', 'developer', 'pro', 'enterprise']),
@@ -1575,7 +1608,7 @@ What would you like to explore or do right now?
     email: z.string().trim().email().optional()
   });
 
-  app.post('/api/payment/verify', chatRateLimiter, async (req, res) => {
+  async function handleVerifyPayment(req, res) {
     const body = validatedBody(
       verifyPaymentSchema,
       req,
@@ -1584,42 +1617,63 @@ What would you like to explore or do right now?
     );
     if (!body) return;
 
-    let verified = false;
-    let paymentRef = '';
-
-    // Check Razorpay signature if provided
-    if (body.razorpay_order_id && body.razorpay_payment_id && body.razorpay_signature) {
-      paymentRef = body.razorpay_payment_id;
-      if (razorpayKeySecret) {
-        const expectedSignature = crypto
-          .createHmac('sha256', razorpayKeySecret)
-          .update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`)
-          .digest('hex');
-
-        if (expectedSignature === body.razorpay_signature) {
-          verified = true;
-        } else {
-          return res.status(400).json({ error: { message: 'Invalid payment signature. Verification failed.' } });
-        }
-      } else {
-        // In sandbox / testing mode without live secret
-        verified = true;
-      }
-    } else if (body.upi_ref) {
-      paymentRef = body.upi_ref;
-      if (body.upi_ref.trim().length >= 6) {
-        verified = true;
-      } else {
-        return res.status(400).json({ error: { message: 'Please enter a valid UPI reference (UTR) number.' } });
-      }
-    } else {
-      return res.status(400).json({ error: { message: 'Payment reference or signature is required.' } });
+    const plan = PLAN_CATALOG[body.planId];
+    let user = await getCurrentUser(req);
+    if (!user && body.email && typeof accountStore.findUserByEmail === 'function') {
+      user = await accountStore.findUserByEmail(body.email);
     }
 
-    if (verified) {
-      let user = await getCurrentUser(req);
-      if (!user && body.email && typeof accountStore.findUserByEmail === 'function') {
-        user = await accountStore.findUserByEmail(body.email);
+    // 1. Razorpay signature verification
+    if (body.razorpay_order_id && body.razorpay_payment_id && body.razorpay_signature) {
+      if (razorpayKeySecret) {
+        const payload = `${body.razorpay_order_id}|${body.razorpay_payment_id}`;
+        const isValid = verifyHmacSha256(payload, body.razorpay_signature, razorpayKeySecret);
+
+        if (!isValid) {
+          if (typeof accountStore.markPaymentFailed === 'function') {
+            await accountStore.markPaymentFailed({
+              orderId: body.razorpay_order_id,
+              paymentId: body.razorpay_payment_id,
+              failureReason: 'Invalid payment signature (HMAC SHA-256 mismatch)',
+              status: 'failed_verification'
+            }).catch(() => {});
+          }
+          return res.status(400).json({ error: { message: 'Invalid payment signature. Verification failed.' } });
+        }
+      }
+
+      // Idempotent capture & plan activation
+      let captureResult = null;
+      if (typeof accountStore.markPaymentCaptured === 'function') {
+        captureResult = await accountStore.markPaymentCaptured({
+          orderId: body.razorpay_order_id,
+          paymentId: body.razorpay_payment_id,
+          signature: body.razorpay_signature,
+          userId: user?.id,
+          planId: body.planId
+        });
+      }
+
+      let updatedUser = captureResult?.user || user;
+      if (!updatedUser && user && typeof accountStore.updateUserTier === 'function') {
+        updatedUser = await accountStore.updateUserTier(user.id, body.planId);
+      }
+
+      return res.json({
+        success: true,
+        alreadyCaptured: Boolean(captureResult?.alreadyCaptured),
+        tier: body.planId,
+        paymentRef: body.razorpay_payment_id,
+        message: `Payment verified successfully! Your ${plan?.name || 'Plan'} is now active.`,
+        user: updatedUser
+      });
+    }
+
+    // 2. Direct UPI fallback
+    if (body.upi_ref) {
+      const cleanUtr = body.upi_ref.trim();
+      if (cleanUtr.length < 6) {
+        return res.status(400).json({ error: { message: 'Please enter a valid UPI reference (UTR) number.' } });
       }
 
       let updatedUser = null;
@@ -1627,24 +1681,83 @@ What would you like to explore or do right now?
         updatedUser = await accountStore.updateUserTier(user.id, body.planId);
       }
 
-      console.log('[Payment Verified]', {
-        planId: body.planId,
-        billingCycle: body.billingCycle,
-        paymentRef,
-        userId: user?.id,
-        email: user?.email || body.email
-      });
-
       return res.json({
         success: true,
         tier: body.planId,
-        paymentRef,
-        message: `Payment verified successfully! Your ${PLAN_CATALOG[body.planId]?.name || 'Plan'} is now active.`,
-        user: updatedUser || user || null
+        paymentRef: cleanUtr,
+        message: `UPI Reference received! Your ${plan?.name || 'Plan'} is now active.`,
+        user: updatedUser || user
       });
     }
 
-    return res.status(400).json({ error: { message: 'Payment verification could not be confirmed.' } });
+    return res.status(400).json({ error: { message: 'Payment reference or signature is required.' } });
+  }
+
+  app.post('/api/payments/razorpay/verify', chatRateLimiter, handleVerifyPayment);
+  app.post('/api/payment/verify', chatRateLimiter, handleVerifyPayment);
+
+  // Dedicated Webhook Failsafe
+  app.post('/api/webhooks/razorpay', async (req, res) => {
+    const signature = req.headers['x-razorpay-signature'];
+    if (!signature) {
+      return res.status(400).json({ error: { message: 'Missing x-razorpay-signature header.' } });
+    }
+
+    if (!razorpayWebhookSecret) {
+      console.warn('[Razorpay Webhook] RAZORPAY_WEBHOOK_SECRET is not configured on server.');
+      return res.status(503).json({ error: { message: 'Webhook secret is not configured.' } });
+    }
+
+    const rawBodyBuffer = req.rawBody || Buffer.from(JSON.stringify(req.body || {}), 'utf8');
+    const isValid = verifyHmacSha256(rawBodyBuffer, signature, razorpayWebhookSecret);
+
+    if (!isValid) {
+      console.error('[Razorpay Webhook] Signature verification failed.');
+      return res.status(400).json({ error: { message: 'Invalid webhook signature.' } });
+    }
+
+    const event = req.body?.event;
+    const payload = req.body?.payload || {};
+
+    try {
+      if (event === 'payment.captured' || event === 'order.paid') {
+        const paymentEntity = payload.payment?.entity;
+        const orderEntity = payload.order?.entity;
+        const orderId = paymentEntity?.order_id || orderEntity?.id;
+        const paymentId = paymentEntity?.id;
+        const notes = paymentEntity?.notes || orderEntity?.notes || {};
+        const userId = notes.uid;
+        const planId = notes.planId;
+
+        if (orderId && typeof accountStore.markPaymentCaptured === 'function') {
+          await accountStore.markPaymentCaptured({
+            orderId,
+            paymentId,
+            signature,
+            userId,
+            planId
+          });
+        }
+      } else if (event === 'payment.failed') {
+        const paymentEntity = payload.payment?.entity;
+        const orderId = paymentEntity?.order_id;
+        const paymentId = paymentEntity?.id;
+        const failureReason = paymentEntity?.error_description || paymentEntity?.error_reason || 'Payment failed';
+
+        if (orderId && typeof accountStore.markPaymentFailed === 'function') {
+          await accountStore.markPaymentFailed({
+            orderId,
+            paymentId,
+            failureReason
+          });
+        }
+      }
+
+      return res.status(200).json({ status: 'ok' });
+    } catch (err) {
+      console.error('[Razorpay Webhook Error]', err);
+      return res.status(500).json({ error: { message: 'Failed to process webhook event.' } });
+    }
   });
 
   app.get('/api/subscription/status', async (req, res) => {

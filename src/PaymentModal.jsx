@@ -1,19 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import './PaymentModal.css';
 
-function loadRazorpayScript() {
-  return new Promise((resolve) => {
-    if (typeof window !== 'undefined' && window.Razorpay) {
-      resolve(true);
-      return;
+async function loadRazorpayScript(retries = 2) {
+  if (typeof window !== 'undefined' && window.Razorpay) {
+    return true;
+  }
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const loaded = await new Promise((resolve) => {
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript) existingScript.remove();
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+    if (loaded && window.Razorpay) return true;
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
     }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
+  }
+  return false;
 }
 
 export default function PaymentModal({
@@ -82,8 +90,8 @@ export default function PaymentModal({
     }
 
     try {
-      // 1. Create order on backend
-      const orderRes = await fetch('/api/payment/create-order', {
+      // 1. Create order on backend (preferring canonical /api/payments/razorpay/create-order)
+      let orderRes = await fetch('/api/payments/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,13 +101,25 @@ export default function PaymentModal({
         })
       });
 
+      if (!orderRes.ok && orderRes.status === 404) {
+        orderRes = await fetch('/api/payment/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: currentPlan.planId,
+            billingCycle: currentPlan.billingCycle || 'monthly',
+            email: customerEmail
+          })
+        });
+      }
+
       if (!orderRes.ok) {
         const errData = await orderRes.json().catch(() => ({}));
         throw new Error(errData?.error?.message || 'Failed to initiate order.');
       }
 
       const orderData = await orderRes.json();
-      const isScriptLoaded = await loadRazorpayScript();
+      const isScriptLoaded = await loadRazorpayScript(2);
 
       // If Razorpay SDK is ready and live Key ID is returned, launch native checkout
       if (isScriptLoaded && window.Razorpay && orderData.keyId) {
@@ -107,22 +127,22 @@ export default function PaymentModal({
           key: orderData.keyId,
           amount: orderData.amount,
           currency: 'INR',
-          name: 'iamhujju AI Workspace',
+          name: 'iamhujju',
           description: `${currentPlan.name} Subscription`,
           image: '/mascot.jpg',
-          order_id: orderData.orderId.startsWith('order_') && !orderData.orderId.includes('direct')
-            ? orderData.orderId
-            : undefined,
+          order_id: orderData.orderId,
           prefill: {
-            email: customerEmail
+            name: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+            email: customerEmail,
+            contact: ''
           },
           theme: {
-            color: '#06b6d4'
+            color: '#09090B'
           },
           handler: async function (response) {
             setLoading(true);
             try {
-              const verifyRes = await fetch('/api/payment/verify', {
+              let verifyRes = await fetch('/api/payments/razorpay/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -134,6 +154,21 @@ export default function PaymentModal({
                   email: customerEmail
                 })
               });
+
+              if (!verifyRes.ok && verifyRes.status === 404) {
+                verifyRes = await fetch('/api/payment/verify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    planId: currentPlan.planId,
+                    billingCycle: currentPlan.billingCycle || 'monthly',
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                    email: customerEmail
+                  })
+                });
+              }
 
               const verifyData = await verifyRes.json();
               if (verifyRes.ok && verifyData.success) {
@@ -151,13 +186,15 @@ export default function PaymentModal({
           modal: {
             ondismiss: function () {
               setLoading(false);
+              setError('Checkout closed. You can retry at any time or use direct UPI payment below.');
             }
           }
         };
 
         const rzp = new window.Razorpay(options);
         rzp.on('payment.failed', function (resp) {
-          setError(resp.error?.description || 'Payment was unsuccessful.');
+          const reason = resp.error?.description || resp.error?.reason || 'Payment was unsuccessful.';
+          setError(`Payment failed: ${reason}. Please retry or choose another payment method.`);
           setLoading(false);
         });
         rzp.open();
@@ -192,7 +229,7 @@ export default function PaymentModal({
     setError('');
 
     try {
-      const res = await fetch('/api/payment/verify', {
+      let res = await fetch('/api/payments/razorpay/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -202,6 +239,19 @@ export default function PaymentModal({
           email: customerEmail
         })
       });
+
+      if (!res.ok && res.status === 404) {
+        res = await fetch('/api/payment/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: currentPlan.planId,
+            billingCycle: currentPlan.billingCycle || 'monthly',
+            upi_ref: cleanUtr,
+            email: customerEmail
+          })
+        });
+      }
 
       const data = await res.json();
       if (res.ok && data.success) {

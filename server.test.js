@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHmac } from 'node:crypto';
 import test from 'node:test';
 import { DataType, newDb } from 'pg-mem';
 import { createAccountStore } from './authStore.js';
@@ -875,6 +875,337 @@ test('payment endpoints support Razorpay config, order creation, UPI verificatio
   assert.equal(statusData.tier, 'pro');
   assert.equal(statusData.isPro, true);
 });
+
+test('Razorpay order creation records pending order in database ledger with exact integer paise', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('razorpay-buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = 'iamhujju_session=' + session.token;
+
+  const mockRazorpay = {
+    orders: {
+      create: async (params) => ({
+        id: 'order_rzp_mock_12345',
+        amount: params.amount,
+        currency: params.currency,
+        receipt: params.receipt,
+        notes: params.notes
+      })
+    }
+  };
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: 'rzp_test_key123',
+    razorpayKeySecret: 'rzp_test_secret_abc',
+    razorpayWebhookSecret: 'rzp_wh_secret_xyz',
+    razorpayInstance: mockRazorpay,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(baseUrl + '/api/payments/razorpay/create-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ planId: 'pro', billingCycle: 'monthly', email: 'razorpay-buyer@example.com' })
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.orderId, 'order_rzp_mock_12345');
+  assert.equal(data.amount, 819900);
+  assert.equal(data.currency, 'INR');
+  assert.equal(data.keyId, 'rzp_test_key123');
+
+  const paymentRecord = await accountStore.getPaymentByOrderId('order_rzp_mock_12345');
+  assert.ok(paymentRecord, 'Payment record must be persisted in database');
+  assert.equal(paymentRecord.status, 'created');
+  assert.equal(paymentRecord.amount_paise, 819900);
+  assert.equal(paymentRecord.plan_id, 'pro');
+  assert.equal(paymentRecord.email, 'razorpay-buyer@example.com');
+});
+
+test('Razorpay payment verification validates HMAC SHA-256 signature, activates user tier, and enforces idempotency', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('verified-buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = 'iamhujju_session=' + session.token;
+
+  const orderId = 'order_rzp_verif_777';
+  const paymentId = 'pay_rzp_verif_888';
+  const keySecret = 'rzp_test_secret_abc';
+
+  await accountStore.recordPaymentOrder({
+    orderId,
+    userId: user.id,
+    email: user.email,
+    planId: 'pro',
+    billingCycle: 'monthly',
+    amountPaise: 819900,
+    receipt: 'rcpt_test_123'
+  });
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: 'rzp_test_key123',
+    razorpayKeySecret: keySecret,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const validSignature = createHmac('sha256', keySecret)
+    .update(orderId + '|' + paymentId)
+    .digest('hex');
+
+  // 1. Initial verification call
+  const verifyRes = await fetch(baseUrl + '/api/payments/razorpay/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      planId: 'pro',
+      billingCycle: 'monthly',
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: validSignature,
+      email: user.email
+    })
+  });
+  assert.equal(verifyRes.status, 200);
+  const verifyData = await verifyRes.json();
+  assert.equal(verifyData.success, true);
+  assert.equal(verifyData.alreadyCaptured, false);
+  assert.equal(verifyData.tier, 'pro');
+
+  const paymentRecord = await accountStore.getPaymentByOrderId(orderId);
+  assert.equal(paymentRecord.status, 'captured');
+  assert.equal(paymentRecord.payment_id, paymentId);
+  assert.equal(paymentRecord.signature, validSignature);
+
+  const statusRes = await fetch(baseUrl + '/api/subscription/status', {
+    headers: { Cookie: cookie }
+  });
+  const statusData = await statusRes.json();
+  assert.equal(statusData.tier, 'pro');
+  assert.equal(statusData.isPro, true);
+
+  // 2. Idempotency check: duplicate call must return success without double mutation
+  const duplicateRes = await fetch(baseUrl + '/api/payments/razorpay/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      planId: 'pro',
+      billingCycle: 'monthly',
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: validSignature,
+      email: user.email
+    })
+  });
+  assert.equal(duplicateRes.status, 200);
+  const duplicateData = await duplicateRes.json();
+  assert.equal(duplicateData.success, true);
+  assert.equal(duplicateData.alreadyCaptured, true);
+});
+
+test('Razorpay payment verification rejects forged/tampered signature and records failed_verification', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('tamper-buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = 'iamhujju_session=' + session.token;
+
+  const orderId = 'order_rzp_tamper_111';
+  const paymentId = 'pay_rzp_tamper_222';
+  const keySecret = 'rzp_test_secret_abc';
+
+  await accountStore.recordPaymentOrder({
+    orderId,
+    userId: user.id,
+    email: user.email,
+    planId: 'pro',
+    billingCycle: 'monthly',
+    amountPaise: 819900,
+    receipt: 'rcpt_tamper_111'
+  });
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: 'rzp_test_key123',
+    razorpayKeySecret: keySecret,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const forgedSignature = 'forged_signature_00000000000000000000000000000000000000000000000000000000';
+  const res = await fetch(baseUrl + '/api/payments/razorpay/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      planId: 'pro',
+      billingCycle: 'monthly',
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: forgedSignature,
+      email: user.email
+    })
+  });
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.ok(data.error?.message?.includes('signature'));
+
+  const paymentRecord = await accountStore.getPaymentByOrderId(orderId);
+  assert.equal(paymentRecord.status, 'failed_verification');
+});
+
+test('Razorpay webhook failsafe verifies x-razorpay-signature and captures payment idempotently', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('webhook-buyer@example.com', 'secure-password-1234');
+
+  const orderId = 'order_wh_live_555';
+  const paymentId = 'pay_wh_live_666';
+  const webhookSecret = 'wh_secret_secure_999';
+
+  await accountStore.recordPaymentOrder({
+    orderId,
+    userId: user.id,
+    email: user.email,
+    planId: 'pro',
+    billingCycle: 'monthly',
+    amountPaise: 819900,
+    receipt: 'rcpt_wh_555'
+  });
+
+  const app = createApp({
+    accountStore,
+    razorpayWebhookSecret: webhookSecret,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const webhookBody = JSON.stringify({
+    event: 'payment.captured',
+    payload: {
+      payment: {
+        entity: {
+          id: paymentId,
+          order_id: orderId,
+          amount: 819900,
+          currency: 'INR',
+          status: 'captured',
+          notes: {
+            uid: user.id,
+            planId: 'pro'
+          }
+        }
+      }
+    }
+  });
+
+  const validSignature = createHmac('sha256', webhookSecret)
+    .update(webhookBody)
+    .digest('hex');
+
+  // 1. Missing signature rejection
+  const missingSigRes = await fetch(baseUrl + '/api/webhooks/razorpay', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: webhookBody
+  });
+  assert.equal(missingSigRes.status, 400);
+
+  // 2. Bad signature rejection
+  const badSigRes = await fetch(baseUrl + '/api/webhooks/razorpay', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-razorpay-signature': 'bad_tampered_signature_1234567890abcdef'
+    },
+    body: webhookBody
+  });
+  assert.equal(badSigRes.status, 400);
+
+  // 3. Valid signature acceptance and processing
+  const validWhRes = await fetch(baseUrl + '/api/webhooks/razorpay', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-razorpay-signature': validSignature
+    },
+    body: webhookBody
+  });
+  assert.equal(validWhRes.status, 200);
+  const validWhData = await validWhRes.json();
+  assert.equal(validWhData.status, 'ok');
+
+  const paymentRecord = await accountStore.getPaymentByOrderId(orderId);
+  assert.equal(paymentRecord.status, 'captured');
+  assert.equal(paymentRecord.payment_id, paymentId);
+
+  const updatedUser = await accountStore.findUserById(user.id);
+  assert.equal(updatedUser.tier, 'pro');
+});
+
+test('Razorpay webhook handles payment.failed event and marks ledger status failed', async (t) => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('failed-buyer@example.com', 'secure-password-1234');
+
+  const orderId = 'order_wh_fail_444';
+  const paymentId = 'pay_wh_fail_555';
+  const webhookSecret = 'wh_secret_secure_999';
+
+  await accountStore.recordPaymentOrder({
+    orderId,
+    userId: user.id,
+    email: user.email,
+    planId: 'pro',
+    billingCycle: 'monthly',
+    amountPaise: 819900,
+    receipt: 'rcpt_fail_444'
+  });
+
+  const app = createApp({
+    accountStore,
+    razorpayWebhookSecret: webhookSecret,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const webhookBody = JSON.stringify({
+    event: 'payment.failed',
+    payload: {
+      payment: {
+        entity: {
+          id: paymentId,
+          order_id: orderId,
+          error_description: 'Payment failed at issuing bank'
+        }
+      }
+    }
+  });
+
+  const validSignature = createHmac('sha256', webhookSecret)
+    .update(webhookBody)
+    .digest('hex');
+
+  const res = await fetch(baseUrl + '/api/webhooks/razorpay', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-razorpay-signature': validSignature
+    },
+    body: webhookBody
+  });
+  assert.equal(res.status, 200);
+
+  const paymentRecord = await accountStore.getPaymentByOrderId(orderId);
+  assert.equal(paymentRecord.status, 'failed');
+  assert.equal(paymentRecord.failure_reason, 'Payment failed at issuing bank');
+});
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // API Key Management + OpenAI-compatible Gateway tests

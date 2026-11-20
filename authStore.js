@@ -288,6 +288,25 @@ export function createAccountStore({
       return publicUser(user);
     },
 
+    async findUserById(userId) {
+      if (!userId) return null;
+      const result = await db.query(
+        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE id = $1`,
+        [userId]
+      );
+      return result.rows[0] ? publicUser(result.rows[0]) : null;
+    },
+
+    async findUserByEmail(email) {
+      if (!email) return null;
+      const normalizedEmail = normalizeEmail(email);
+      const result = await db.query(
+        `SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE email = $1`,
+        [normalizedEmail]
+      );
+      return result.rows[0] ? publicUser(result.rows[0]) : null;
+    },
+
     async getApiKey(userId) {
       const encrypted = await getCredential(userId, 'freellmapi');
       return encrypted ? decryptCredential(encrypted) : null;
@@ -529,6 +548,124 @@ export function createAccountStore({
         [userId]
       );
       return userResult.rows[0] ? publicUser(userResult.rows[0]) : null;
+    },
+
+    async recordPaymentOrder({ orderId, userId = null, email, planId, billingCycle = 'monthly', amountPaise, currency = 'INR', receipt, metadata = {} }) {
+      if (!orderId || !email || !planId || !amountPaise) {
+        throw new Error('Order creation requires orderId, email, planId, and amountPaise.');
+      }
+      const result = await db.query(
+        `INSERT INTO payments (order_id, user_id, email, plan_id, billing_cycle, amount_paise, currency, status, receipt, metadata, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'created', $8, $9, NOW(), NOW())
+         RETURNING id, order_id, user_id, email, plan_id, billing_cycle, amount_paise, currency, status, receipt, created_at`,
+        [orderId, userId || null, email, planId, billingCycle, amountPaise, currency, receipt, JSON.stringify(metadata)]
+      );
+      return result.rows[0] || null;
+    },
+
+    async getPaymentByOrderId(orderId) {
+      if (!orderId) return null;
+      const result = await db.query(
+        `SELECT * FROM payments WHERE order_id = $1`,
+        [orderId]
+      );
+      return result.rows[0] || null;
+    },
+
+    async getPaymentByPaymentId(paymentId) {
+      if (!paymentId) return null;
+      const result = await db.query(
+        `SELECT * FROM payments WHERE payment_id = $1`,
+        [paymentId]
+      );
+      return result.rows[0] || null;
+    },
+
+    async markPaymentCaptured({ orderId, paymentId, signature, userId = null, planId = null }) {
+      if (!orderId) throw new Error('orderId is required to capture payment.');
+
+      // Check existing status for idempotency guard
+      const existing = await db.query(`SELECT * FROM payments WHERE order_id = $1`, [orderId]);
+      const payment = existing.rows[0];
+
+      if (payment && payment.status === 'captured') {
+        // Idempotent: already captured, do not double-activate or double-mutate
+        const userResult = payment.user_id
+          ? await db.query(`SELECT id, email, COALESCE(tier, 'free') AS tier FROM users WHERE id = $1`, [payment.user_id])
+          : { rows: [] };
+        return {
+          alreadyCaptured: true,
+          payment,
+          user: userResult.rows[0] ? publicUser(userResult.rows[0]) : null
+        };
+      }
+
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
+
+        // Atomically update payment record
+        const updatePaymentRes = await client.query(
+          `UPDATE payments
+           SET status = 'captured',
+               payment_id = COALESCE($1, payment_id),
+               signature = COALESCE($2, signature),
+               updated_at = NOW()
+           WHERE order_id = $3
+           RETURNING *`,
+          [paymentId || null, signature || null, orderId]
+        );
+        const updatedPayment = updatePaymentRes.rows[0] || payment;
+
+        const effectivePlanId = planId || updatedPayment?.plan_id;
+        const targetUserId = userId || updatedPayment?.user_id;
+        let updatedUser = null;
+
+        if (targetUserId && effectivePlanId) {
+          const userRes = await client.query(
+            `UPDATE users SET tier = $1 WHERE id = $2 RETURNING id, email, COALESCE(tier, $1) AS tier`,
+            [effectivePlanId, targetUserId]
+          );
+          if (userRes.rows[0]) {
+            updatedUser = publicUser(userRes.rows[0]);
+          }
+        } else if (updatedPayment?.email && effectivePlanId) {
+          const userRes = await client.query(
+            `UPDATE users SET tier = $1 WHERE email = $2 RETURNING id, email, COALESCE(tier, $1) AS tier`,
+            [effectivePlanId, updatedPayment.email]
+          );
+          if (userRes.rows[0]) {
+            updatedUser = publicUser(userRes.rows[0]);
+          }
+        }
+
+        await client.query('COMMIT');
+        return {
+          alreadyCaptured: false,
+          payment: updatedPayment,
+          user: updatedUser
+        };
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+      } finally {
+        client.release();
+      }
+    },
+
+    async markPaymentFailed({ orderId, paymentId = null, failureReason = 'Payment failed', status = 'failed' }) {
+      if (!orderId) return null;
+      const result = await db.query(
+        `UPDATE payments
+         SET status = $1,
+             payment_id = COALESCE($2, payment_id),
+             failure_reason = $3,
+             updated_at = NOW()
+         WHERE order_id = $4
+         RETURNING *`,
+        [status, paymentId || null, failureReason, orderId]
+      );
+      return result.rows[0] || null;
     }
   };
 }
