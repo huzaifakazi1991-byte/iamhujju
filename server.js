@@ -1549,6 +1549,16 @@ What would you like to explore or do right now?
         razorpayOrderId = order?.id;
       } catch (rzpErr) {
         console.error('[Razorpay Order Creation Error]', rzpErr?.message || rzpErr);
+        const isAuthError = rzpErr?.statusCode === 401 ||
+          (rzpErr?.error?.code === 'BAD_REQUEST_ERROR' && /auth/i.test(rzpErr?.error?.description || ''));
+        if (isAuthError) {
+          return res.status(401).json({ error: { message: 'Razorpay authentication failed. Verify API credentials.' } });
+        }
+        return res.status(500).json({
+          error: {
+            message: rzpErr?.error?.description || rzpErr?.message || 'Failed to create order with Razorpay.'
+          }
+        });
       }
     }
 

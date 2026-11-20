@@ -944,8 +944,8 @@ test('Razorpay Standard Checkout endpoints POST /api/create-order and POST /api/
     }
   };
 
-  const keyId = 'rzp_test_U2FpOqKo9wLlAI';
-  const keySecret = 'jXSUEbMLTvm9pFX1FeTLHX7S';
+  const keyId = 'rzp_test_U2Gc0If5PQlYDa';
+  const keySecret = 'rNceyP9BPqckZebTqtI5t5jJ';
 
   const app = createApp({
     accountStore,
@@ -1022,6 +1022,72 @@ test('Razorpay Standard Checkout endpoints POST /api/create-order and POST /api/
   assert.equal(validData.success, true);
   assert.equal(validData.order_id, 'order_std_test_99999');
   assert.equal(validData.payment_id, 'pay_std_test_11111');
+});
+
+test('Razorpay order creation handles auth failures (401) and API errors (500)', async (t) => {
+  const { accountStore } = await createTestStores(t);
+
+  // 1. Auth failure mock (returns 401)
+  const authFailRazorpay = {
+    orders: {
+      create: async () => {
+        const err = new Error('Authentication failed');
+        err.statusCode = 401;
+        err.error = { code: 'BAD_REQUEST_ERROR', description: 'Authentication failed' };
+        throw err;
+      }
+    }
+  };
+
+  const appAuthFail = createApp({
+    accountStore,
+    razorpayKeyId: 'invalid_key',
+    razorpayKeySecret: 'invalid_secret',
+    razorpayInstance: authFailRazorpay,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server: server1, baseUrl: baseUrl1 } = await listen(appAuthFail);
+  t.after(() => close(server1));
+
+  const authFailRes = await fetch(baseUrl1 + '/api/create-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: 10000, currency: 'INR' })
+  });
+  assert.equal(authFailRes.status, 401);
+  const authFailData = await authFailRes.json();
+  assert.ok(authFailData.error?.message?.includes('authentication'));
+
+  // 2. Gateway API error mock (returns 500)
+  const apiErrorRazorpay = {
+    orders: {
+      create: async () => {
+        const err = new Error('Gateway timeout or internal error');
+        err.statusCode = 500;
+        err.error = { code: 'GATEWAY_ERROR', description: 'Razorpay server unavailable' };
+        throw err;
+      }
+    }
+  };
+
+  const appApiError = createApp({
+    accountStore,
+    razorpayKeyId: 'key_123',
+    razorpayKeySecret: 'secret_123',
+    razorpayInstance: apiErrorRazorpay,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server: server2, baseUrl: baseUrl2 } = await listen(appApiError);
+  t.after(() => close(server2));
+
+  const apiErrorRes = await fetch(baseUrl2 + '/api/create-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: 10000, currency: 'INR' })
+  });
+  assert.equal(apiErrorRes.status, 500);
+  const apiErrorData = await apiErrorRes.json();
+  assert.ok(apiErrorData.error?.message?.includes('unavailable') || apiErrorData.error?.message?.includes('Failed'));
 });
 
 test('Razorpay payment verification validates HMAC SHA-256 signature, activates user tier, and enforces idempotency', async (t) => {

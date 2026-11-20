@@ -78,8 +78,8 @@ export function useRazorpayCheckout({
     setActivePlanId(plan.planId);
 
     try {
-      // 2. Create Order on Backend
-      let orderRes = await fetch('/api/payments/razorpay/create-order', {
+      // 2. Create Order on Backend (POST /api/create-order)
+      let orderRes = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,7 +91,7 @@ export function useRazorpayCheckout({
       });
 
       if (!orderRes.ok && orderRes.status === 404) {
-        orderRes = await fetch('/api/create-order', {
+        orderRes = await fetch('/api/payments/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -141,7 +141,8 @@ export function useRazorpayCheckout({
             setLoading(true);
             setVerifying(true);
             try {
-              let verifyRes = await fetch('/api/payments/razorpay/verify', {
+              // Send razorpay_payment_id, razorpay_order_id, razorpay_signature to verify endpoint
+              let verifyRes = await fetch('/api/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -158,13 +159,16 @@ export function useRazorpayCheckout({
               });
 
               if (!verifyRes.ok && verifyRes.status === 404) {
-                verifyRes = await fetch('/api/verify-payment', {
+                verifyRes = await fetch('/api/payments/razorpay/verify', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     order_id: response.razorpay_order_id,
                     payment_id: response.razorpay_payment_id,
                     signature: response.razorpay_signature,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
                     planId: plan.planId,
                     billingCycle: plan.billingCycle || billingCycle,
                     email: currentUser.email
