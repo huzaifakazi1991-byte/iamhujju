@@ -8,7 +8,7 @@ Use your existing Neon project or create one at https://neon.tech (free tier is 
 
 1. Create a project, choose the region closest to `oregon`.
 2. Copy the pooled connection string (starts with `postgresql://...neon.tech/...?sslmode=require`).
-3. The platform migrations are applied automatically on every deploy start (`prisma migrate deploy` in the start command).
+3. The platform migrations are applied automatically on every deploy start (`prisma migrate deploy` inside `scripts/deploy-start.sh`, with retries if the database is cold-starting).
 
 ## 2. Create the Render web service (one-time)
 
@@ -26,7 +26,7 @@ Option B - Manual web service, exact settings if you prefer the dashboard:
 | Runtime | Node |
 | Root Directory | `platform` |
 | Build Command | `npm ci && npx prisma generate && npm run build` |
-| Start Command | `npx prisma migrate deploy && npm run start` |
+| Start Command | `bash scripts/deploy-start.sh` (runs `prisma migrate deploy` and seed with automatic retries — Neon cold starts can briefly exceed Prisma's 10 s advisory-lock timeout and cause P1002; the script retries at 20 s and 40 s instead of failing the deploy) |
 | Health Check Path | `/api/health` |
 | Node version | 22 |
 
