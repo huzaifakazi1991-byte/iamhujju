@@ -76,7 +76,16 @@ Update DNS at your registrar (as Render instructs):
 2. Copy the signing secret -> Render env `STRIPE_WEBHOOK_SECRET`.
 3. Without Stripe keys, `/billing` runs the built-in mock checkout (upgrade flow works end-to-end for testing).
 
-## 7. Verify the deployment
+## 7. Enable Google sign-in (optional, ~5 minutes)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) -> create (or pick) a project.
+2. **APIs & Services -> OAuth consent screen** -> External -> fill app name (`IamHujju`) + your support email -> save. Add your own account as a test user while the app is in Testing mode.
+3. **APIs & Services -> Credentials -> Create credentials -> OAuth client ID** -> Application type **Web application**:
+   - Authorized redirect URI: `https://iamhujju.com/api/auth/google/callback`
+4. Copy the **Client ID** and **Client secret** -> Render service -> Environment -> set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` -> save (service redeploys automatically).
+5. "Continue with Google" on `/login` and `/signup` now works instantly — no code changes, no manual deploy. Until then, clicking it politely redirects back with a "not configured yet" message.
+
+## 8. Verify the deployment
 
 `GET https://iamhujju.com/api/health` must return `{"status":"ok","db":"up"}` — e.g. open it in a browser, or
 `node -e "fetch('https://iamhujju.com/api/health').then(r=>r.json()).then(console.log)"`.

@@ -2,7 +2,10 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
 import { issueSession, accessCookieName, refreshCookieName } from '@/lib/auth';
-import { fail } from '@/lib/api';
+
+function oauthError(reason: string): Response {
+  return new Response(null, { status: 302, headers: { Location: `${env.appUrl}/login?error=${reason}` } });
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -10,8 +13,8 @@ export async function GET(req: Request) {
   const state = url.searchParams.get('state');
   const store = await cookies();
   const expected = store.get('oauth_state')?.value;
-  if (!code || !state || !expected || state !== expected) return fail(400, 'Invalid OAuth state.');
-  if (!env.googleClientId || !env.googleClientSecret) return fail(501, 'Google sign-in is not configured.');
+  if (!code || !state || !expected || state !== expected) return oauthError('oauth_state');
+  if (!env.googleClientId || !env.googleClientSecret) return oauthError('google_not_configured');
 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -24,16 +27,16 @@ export async function GET(req: Request) {
       grant_type: 'authorization_code',
     }),
   });
-  if (!tokenRes.ok) return fail(502, 'Google token exchange failed.');
+  if (!tokenRes.ok) return oauthError('google_failed');
   const { access_token } = (await tokenRes.json()) as { access_token?: string };
-  if (!access_token) return fail(502, 'Google did not return an access token.');
+  if (!access_token) return oauthError('google_failed');
 
   const profileRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
     headers: { Authorization: `Bearer ${access_token}` },
   });
-  if (!profileRes.ok) return fail(502, 'Could not load Google profile.');
+  if (!profileRes.ok) return oauthError('google_failed');
   const profile = (await profileRes.json()) as { sub: string; email?: string; name?: string; email_verified?: boolean };
-  if (!profile.email) return fail(400, 'Google account has no email.');
+  if (!profile.email) return oauthError('google_failed');
 
   const email = profile.email.toLowerCase();
   let user = await prisma.user.findUnique({ where: { email } });

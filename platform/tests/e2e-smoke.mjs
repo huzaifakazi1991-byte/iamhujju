@@ -36,6 +36,16 @@ for (const p of ['/', '/pricing', '/login', '/signup', '/dashboard', '/playgroun
   ok(r.status === 200 || r.status === 307 || r.status === 302, `page ${p} -> ${r.status}`);
 }
 
+// google sign-in UI present + graceful flow when unconfigured
+const lp = await fetch(BASE + '/login');
+ok((await lp.text()).includes('Continue with Google'), 'login page shows Google button');
+const spg = await fetch(BASE + '/signup');
+ok((await spg.text()).includes('Sign up with Google'), 'signup page shows Google button');
+const gs = await fetch(BASE + '/api/auth/google/start', { redirect: 'manual' });
+ok(gs.status === 302 || gs.status === 307, 'google start redirects gracefully', String(gs.status));
+const gsLoc = gs.headers.get('location') ?? '';
+ok(gsLoc.includes('accounts.google.com') || gsLoc.includes('error=google_not_configured'), 'google start redirects to Google or friendly error', gsLoc);
+
 // signup new user
 const su = await req('/api/auth/signup', { method: 'POST', body: { email: e2eEmail, password: 'supersecret123', name: 'E2E User' } });
 ok(su.status === 200 || su.status === 201, 'signup', JSON.stringify(su.data));

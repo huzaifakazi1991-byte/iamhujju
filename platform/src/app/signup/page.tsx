@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Nav } from '@/components/nav';
 import { useToast } from '@/components/toast';
+import { GoogleButton } from '@/components/google-button';
 import { api } from '@/lib/client';
 
 export default function SignupPage() {
@@ -51,6 +52,12 @@ export default function SignupPage() {
               <input className="input mt-1.5" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" autoComplete="new-password" />
             </label>
             <button className="btn-primary mt-2 py-2.5 text-sm" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
+            <div className="mt-3 flex items-center gap-3 text-xs uppercase tracking-wide text-ink-soft dark:text-white/40">
+              <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
+              or
+              <span className="h-px flex-1 bg-black/10 dark:bg-white/10" />
+            </div>
+            <GoogleButton label="Sign up with Google" />
           </div>
           <p className="mt-6 text-center text-sm text-ink-soft dark:text-white/60">
             Already registered? <Link href="/login" className="font-semibold text-agent-deep hover:underline dark:text-agent">Sign in</Link>
