@@ -1,7 +1,7 @@
 import { fail, handleError, readJson, requireUser } from '@/lib/api';
 import { z } from 'zod';
 import { fetchOrder, razorpayConfigured, verifyPaymentSignature } from '@/lib/razorpay';
-import { upgradeFromOrderNotes } from '@/lib/billing';
+import { completeFromOrderNotes } from '@/lib/billing';
 
 const schema = z.object({
   razorpay_order_id: z.string().min(3).max(80),
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       return fail(400, 'Payment signature verification failed. No charge was applied.');
     }
     const order = await fetchOrder(body.razorpay_order_id);
-    return await upgradeFromOrderNotes(order.notes ?? {}, body.razorpay_order_id, body.razorpay_payment_id, actor.id);
+    return await completeFromOrderNotes(order.notes ?? {}, body.razorpay_order_id, body.razorpay_payment_id, actor.id);
   } catch (err) {
     return handleError(err);
   }

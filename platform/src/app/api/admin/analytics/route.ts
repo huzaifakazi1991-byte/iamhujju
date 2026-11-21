@@ -11,10 +11,12 @@ export async function GET(req: Request) {
       SELECT date_trunc('day', "createdAt") AS day, SUM("totalTokens") AS tokens, COUNT(*) AS requests
       FROM "UsageRecord" WHERE "createdAt" >= ${since}
       GROUP BY 1 ORDER BY 1 ASC`;
-    const perModel = await prisma.$queryRaw<{ "modelId": string; tokens: bigint; requests: bigint }[]>`
-      SELECT "modelId", SUM("totalTokens") AS tokens, COUNT(*) AS requests
-      FROM "UsageRecord" WHERE "createdAt" >= ${since}
-      GROUP BY "modelId" ORDER BY tokens DESC LIMIT 20`;
+    const perModel = await prisma.$queryRaw<{ "modelId": string; slug: string; displayName: string; tokens: bigint; requests: bigint }[]>`
+      SELECT u."modelId", m.slug, m."displayName", u.tokens, u.requests FROM (
+        SELECT "modelId", SUM("totalTokens") AS tokens, COUNT(*) AS requests
+        FROM "UsageRecord" WHERE "createdAt" >= ${since}
+        GROUP BY "modelId" ORDER BY tokens DESC LIMIT 20
+      ) u JOIN "Model" m ON m.id = u."modelId"`;
     const perUser = await prisma.$queryRaw<{ "userId": string; email: string; tokens: bigint; requests: bigint }[]>`
       SELECT u."userId", us.email, u.tokens, u.requests FROM (
         SELECT "userId", SUM("totalTokens") AS tokens, COUNT(*) AS requests
@@ -24,12 +26,16 @@ export async function GET(req: Request) {
     const totals = await prisma.usageRecord.aggregate({ _sum: { totalTokens: true, cost: true }, _count: true, where: { createdAt: { gte: since } } });
     const userCount = await prisma.user.count();
     const paidSubs = await prisma.subscription.count({ where: { status: { in: ['active', 'trialing'] }, Plan: { isFree: false } } });
+    const paymentAgg = await prisma.payment.aggregate({
+      _sum: { amount: true }, _count: true,
+      where: { status: 'succeeded', createdAt: { gte: since } },
+    });
 
     return ok({
       days,
-      totals: { tokens: Number(totals._sum.totalTokens ?? 0), cost: String(totals._sum.cost ?? 0), requests: totals._count, userCount, paidSubs },
+      totals: { tokens: Number(totals._sum.totalTokens ?? 0), cost: String(totals._sum.cost ?? 0), requests: totals._count, userCount, paidSubs, revenueInrPaise: Number(paymentAgg._sum.amount ?? 0), payments: paymentAgg._count },
       perDay: perDay.map((d) => ({ day: d.day.toISOString().slice(0, 10), tokens: Number(d.tokens), requests: Number(d.requests) })),
-      perModel: perModel.map((m) => ({ modelId: m.modelId, tokens: Number(m.tokens), requests: Number(m.requests) })),
+      perModel: perModel.map((m) => ({ modelId: m.modelId, slug: m.slug, displayName: m.displayName, tokens: Number(m.tokens), requests: Number(m.requests) })),
       perUser: perUser.map((u) => ({ userId: u.userId, email: u.email, tokens: Number(u.tokens), requests: Number(u.requests) })),
     });
   } catch (err) { return handleError(err); }
