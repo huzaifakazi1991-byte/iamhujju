@@ -3,7 +3,7 @@ import { jwtVerify } from 'jose';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-only-insecure-jwt-secret-change-me-please-32ch';
 
-const USER_PAGES = ['/playground', '/dashboard', '/settings', '/billing', '/keys'];
+const USER_PAGES = ['/playground', '/dashboard', '/settings', '/billing', '/keys', '/profile'];
 const ADMIN_PAGES = ['/admin'];
 
 function secret() { return new TextEncoder().encode(JWT_SECRET); }
