@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
@@ -6,8 +5,8 @@ import { hashPassword, issueSession, accessCookieName, refreshCookieName } from 
 import { signupSchema } from '@/lib/validation';
 import { handleError, ok, fail, readJson } from '@/lib/api';
 import { checkIpLimit } from '@/lib/rate-limit';
-import { sha256 } from '@/lib/crypto';
-import { sendMail } from '@/lib/mail';
+import { issueOtp } from '@/lib/otp';
+import { mailConfigured } from '@/lib/mail';
 
 export async function POST(req: Request) {
   try {
@@ -28,21 +27,19 @@ export async function POST(req: Request) {
     });
     await prisma.tokenBalance.create({ data: { userId: user.id } });
 
-    const smtpConfigured = Boolean(env.smtpUrl);
-    let devVerificationUrl: string | null = null;
-    if (smtpConfigured) {
-      const token = randomBytes(32).toString('base64url');
-      await prisma.verificationToken.create({
-        data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 24 * 3600 * 1000) },
-      });
-      devVerificationUrl = `${env.appUrl}/verify?token=${token}`;
-      await sendMail({ to: email, subject: 'Verify your email', text: `Welcome! Verify your email: ${devVerificationUrl}` });
+    const mailReady = mailConfigured();
+    if (mailReady) {
+      await prisma.user.update({ where: { id: user.id }, data: { emailVerified: null } });
+      await issueOtp(user.id, user.email, user.name);
     } else {
       await prisma.user.update({ where: { id: user.id }, data: { emailVerified: new Date() } });
     }
 
     const session = await issueSession({ id: user.id, email: user.email, role: user.role });
-    const res = ok({ user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: !smtpConfigured }, devVerificationUrl });
+    const res = ok({
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerified: !mailReady },
+      needsVerification: mailReady,
+    });
     const secure = env.isProd;
     res.cookies.set(accessCookieName(), session.accessToken, { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: session.accessMaxAge });
     res.cookies.set(refreshCookieName(), session.refreshPlain, { httpOnly: true, sameSite: 'lax', secure, path: '/api/auth', maxAge: session.refreshMaxAge });

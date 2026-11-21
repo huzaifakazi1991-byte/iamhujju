@@ -14,7 +14,12 @@ export async function api<T>(path: string, init?: RequestInit & { retry?: boolea
     if (refresh.ok) return api<T>(path, { ...init, retry: true });
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
+  if (!res.ok) {
+    if (res.status === 403 && data.error?.toLowerCase().includes('verify your email') && typeof window !== 'undefined' && !window.location.pathname.startsWith('/verify')) {
+      window.location.href = '/verify';
+    }
+    throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
+  }
   return data;
 }
 

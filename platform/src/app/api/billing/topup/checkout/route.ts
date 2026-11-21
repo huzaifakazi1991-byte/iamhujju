@@ -24,6 +24,9 @@ export async function POST(req: Request) {
       return ok({ mock: false, razorpay: true, keyId: env.razorpayKeyId, orderId: order.id, amountPaise: pack.inrPaise, currency: 'INR', packId });
     }
 
+    if (actor.role !== 'ADMIN') {
+      return fail(503, 'Payments are not configured yet on this site — top-ups will unlock as soon as the owner adds Razorpay or Stripe keys.');
+    }
     return ok({ mock: true, orderId: `mock_${randomToken(12)}`, packId, tokens: pack.tokens });
   } catch (err) {
     return handleError(err);

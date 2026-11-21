@@ -9,6 +9,9 @@ const schema = z.object({ orderId: z.string().min(3).max(80), planSlug: z.enum([
 export async function POST(req: Request) {
   try {
     const actor = await requireUser();
+    if (actor.role !== 'ADMIN') {
+      return fail(403, 'Mock checkout is only available to the administrator for testing. Real payments require Razorpay/Stripe keys.');
+    }
     const body = await readJson(req, schema);
 
     const existing = await prisma.payment.findFirst({ where: { razorpayOrderId: body.orderId } });

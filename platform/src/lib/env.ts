@@ -13,5 +13,8 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   smtpUrl: process.env.SMTP_URL ?? '',
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  brevoApiKey: process.env.BREVO_API_KEY ?? '',
+  mailFrom: process.env.MAIL_FROM ?? 'IamHujju AI <onboarding@resend.dev>',
   isProd: process.env.NODE_ENV === 'production',
 };

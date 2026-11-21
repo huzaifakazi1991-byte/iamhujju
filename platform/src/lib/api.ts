@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import { getActor, type Actor } from '@/lib/session';
+import { mailConfigured } from '@/lib/mail';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -32,6 +33,9 @@ export function handleError(err: unknown) {
 export async function requireUser(): Promise<Actor> {
   const actor = await getActor();
   if (!actor) throw new HttpError(401, 'You must be signed in.');
+  if (!actor.emailVerified && mailConfigured() && actor.role !== 'ADMIN') {
+    throw new HttpError(403, 'Verify your email to continue — we sent a 6-digit code to your inbox.');
+  }
   return actor;
 }
 

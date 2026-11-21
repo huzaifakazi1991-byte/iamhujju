@@ -36,7 +36,8 @@ Add env vars:
 - `KEY_ENCRYPTION_SECRET` - `openssl rand -hex 32` (encrypts provider API keys; changing it later invalidates stored keys, so save it somewhere safe)
 - `APP_URL` - `https://iamhujju.com`
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` - read by the seed script
-- Optional: `REDIS_URL` (Upstash) for shared rate limiting, `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `SMTP_URL` (e.g. Resend SMTP)
+- Optional: `REDIS_URL` (Upstash) for shared rate limiting, `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+- Email (enables real 6-digit OTP email verification for every signup): `RESEND_API_KEY` (Resend, free 100/day) **or** `BREVO_API_KEY` (Brevo, free 300/day) + `MAIL_FROM` e.g. `IamHujju AI <noreply@iamhujju.com>`. When no mail provider is set, accounts are auto-verified and verification OTP is not enforced.
 
 ## 3. Seed plans, models & the admin user (automatic)
 

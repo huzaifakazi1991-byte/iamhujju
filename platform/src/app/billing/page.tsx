@@ -204,7 +204,7 @@ function BillingInner() {
           </div>
 
           <p className="mt-8 text-center text-xs text-ink-soft dark:text-white/45">
-            Payments are processed securely by Razorpay (UPI, cards, netbanking) in INR. Without keys configured, mock checkout lets you test the full upgrade flow safely.
+            Payments are processed securely by Razorpay (UPI, cards, netbanking) in INR. Plans only activate after a real, verified payment — mock checkout is restricted to the administrator for testing.
           </p>
         </div>
       </main>
