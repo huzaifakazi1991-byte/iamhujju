@@ -1,8 +1,9 @@
 import { env } from '@/lib/env';
-import { fail } from '@/lib/api';
 
 export async function GET(req: Request) {
-  if (!env.googleClientId || !env.googleClientSecret) return fail(501, 'Google sign-in is not configured yet.');
+  if (!env.googleClientId || !env.googleClientSecret) {
+    return new Response(null, { status: 302, headers: { Location: `${env.appUrl}/login?error=google_not_configured` } });
+  }
   const redirectUri = `${env.appUrl}/api/auth/google/callback`;
   const state = crypto.randomUUID();
   const params = new URLSearchParams({
