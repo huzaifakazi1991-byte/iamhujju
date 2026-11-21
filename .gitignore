@@ -46,3 +46,7 @@ new_database.js
 update-server.js
 neon.ts
 temp
+
+# Next.js build output (platform)
+.next/
+platform/.next/
