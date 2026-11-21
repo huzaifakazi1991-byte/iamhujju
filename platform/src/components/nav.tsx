@@ -7,7 +7,12 @@ import { motion } from 'framer-motion';
 import { api } from '@/lib/client';
 import { Wordmark } from '@/components/ui/logo';
 
-type Me = { user: { id: string; email: string; name: string | null; role: string } | null };
+type Me = { user: { id: string; email: string; name: string | null; role: string; avatarUrl?: string | null } | null };
+
+function initialsFor(name: string | null, email: string) {
+  const source = name?.trim() || email;
+  return source.slice(0, 2).toUpperCase();
+}
 
 function SunIcon() {
   return (
@@ -95,7 +100,20 @@ export function Nav() {
           </button>
           {loaded && me ? (
             <>
-              <span className="max-w-[140px] truncate text-xs text-body-soft">{me.email}</span>
+              <Link
+                href="/profile"
+                title={`${me.name?.trim() || me.email} — profile`}
+                className="group flex items-center gap-2 rounded-full border border-forest/10 py-1 pl-1 pr-3 transition-colors hover:border-leaf/40 dark:border-white/10"
+              >
+                {me.avatarUrl ? (
+                  <img src={me.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-leaf/40" />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-leaf-deep to-leaf text-[10px] font-bold text-cream ring-1 ring-leaf/40">
+                    {initialsFor(me.name, me.email)}
+                  </span>
+                )}
+                <span className="max-w-[110px] truncate text-xs font-medium">{me.name?.trim() || me.email}</span>
+              </Link>
               <button onClick={signOut} className="btn-ghost px-4 py-1.5 text-sm">Sign out</button>
             </>
           ) : loaded ? (
@@ -116,9 +134,13 @@ export function Nav() {
               <Link key={l.href} href={l.href} className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-leaf/8 dark:hover:bg-leaf/10">{l.label}</Link>
             ))}
             {me?.role === 'ADMIN' && <Link href="/admin" className="rounded-lg px-3 py-2 text-sm font-medium text-leaf-deep dark:text-leaf">Admin</Link>}
+            {me && <Link href="/profile" className="rounded-lg px-3 py-2 text-sm font-medium">Profile</Link>}
             <div className="mt-2 flex gap-2">
               {me ? (
-                <button onClick={signOut} className="btn-ghost flex-1 px-4 py-2 text-sm">Sign out</button>
+                <>
+                  <Link href="/profile" className="btn-leaf flex-1 px-4 py-2 text-center text-sm">Profile</Link>
+                  <button onClick={signOut} className="btn-ghost flex-1 px-4 py-2 text-sm">Sign out</button>
+                </>
               ) : (
                 <>
                   <Link href="/login" className="btn-ghost flex-1 px-4 py-2 text-center text-sm">Sign in</Link>

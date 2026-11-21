@@ -282,6 +282,14 @@ const dispId = du2.data.users?.[0]?.id;
 if (dispId) {
   const fl = await req('/api/admin/users/' + dispId, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { forceLogout: true } });
   ok(fl.status === 200 && fl.data?.loggedOut === true, 'admin force logout terminates sessions', JSON.stringify(fl.data));
+  const term = await req('/api/admin/users/' + dispId, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { suspended: true, forceLogout: true } });
+  ok(term.status === 200 && term.data?.user?.suspended === true, 'admin terminate suspends + revokes access', JSON.stringify(term.data));
+  const blockedLogin = await req('/api/auth/login', { method: 'POST', body: { email: dispEmail, password: 'password123' } });
+  ok(blockedLogin.status === 403, 'terminated user cannot sign in', String(blockedLogin.status));
+  const restore = await req('/api/admin/users/' + dispId, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { suspended: false } });
+  ok(restore.status === 200 && restore.data?.user?.suspended === false, 'admin restore re-enables the user', JSON.stringify(restore.data));
+  const unblocked = await req('/api/auth/login', { method: 'POST', body: { email: dispEmail, password: 'password123' } });
+  ok(unblocked.status === 200, 'restored user can sign in again', String(unblocked.status));
   const del = await req('/api/admin/users/' + dispId, { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt });
   ok(del.status === 200 && del.data?.deleted === dispEmail, 'admin permanently deletes user', JSON.stringify(del.data));
   const gone = await req('/api/auth/login', { method: 'POST', body: { email: dispEmail, password: 'password123' } });
@@ -293,6 +301,39 @@ if (dispId) {
     ok(delSelf.status === 400, 'admin cannot delete own account', String(delSelf.status));
   }
 } else { failures++; console.log('FAIL disposable admin lookup'); }
+
+// ═══ Profile page: account API, editable fields, avatar ═══
+const acc = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+const accShape = typeof acc.data?.tokens?.available === 'number' && typeof acc.data?.tokens?.lifetimeUsed === 'number' && !!acc.data?.plan && Array.isArray(acc.data?.payments);
+ok(acc.status === 200 && acc.data?.profile?.email === e2eEmail && accShape, 'account API returns profile, plan, tokens, payments', JSON.stringify(acc.data).slice(0, 200));
+const tinyAvatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const accPatch = await req('/api/account', { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { name: 'E2E Renamed', birthday: '1990-01-31', country: 'India', bio: 'I test the platform.', avatarUrl: tinyAvatar } });
+const patched = accPatch.data?.user ?? {};
+ok(accPatch.status === 200 && patched.name === 'E2E Renamed' && patched.country === 'India' && patched.bio === 'I test the platform.' && (patched.avatarUrl ?? '').startsWith('data:image/png') && !!patched.birthday, 'profile update saves name/birthday/country/bio/avatar', JSON.stringify(accPatch.data).slice(0, 250));
+const accGet2 = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(accGet2.data?.profile?.country === 'India' && !!accGet2.data?.profile?.birthday && !!accGet2.data?.profile?.memberSince, 'profile edits persist in account API', JSON.stringify(accGet2.data?.profile).slice(0, 250));
+const meNav = await req('/api/auth/me', { auth: userC.at + '; ' + userC.rt });
+ok(meNav.status === 200 && (meNav.data?.user?.avatarUrl ?? '').startsWith('data:image/png'), 'header /api/auth/me returns avatarUrl for nav', JSON.stringify(meNav.data?.user).slice(0, 200));
+const badAvatar = await req('/api/account', { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { avatarUrl: 'http://evil.example/x.png' } });
+ok(badAvatar.status === 400 || badAvatar.status === 422, 'profile rejects non-data-URL avatar', String(badAvatar.status));
+const badBirthday = await req('/api/account', { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { birthday: 'not-a-date' } });
+ok(badBirthday.status === 400 || badBirthday.status === 422, 'profile validates birthday format', String(badBirthday.status));
+const profPage = await fetch(BASE + '/profile', { redirect: 'manual', headers: { Cookie: userC.at + '; ' + userC.rt } });
+ok(profPage.status === 200, 'profile page renders for signed-in user', String(profPage.status));
+const profAnon = await fetch(BASE + '/profile', { redirect: 'manual' });
+ok(profAnon.status === 307 || profAnon.status === 302, 'profile page redirects anonymous users', String(profAnon.status));
+
+// ═══ Sign-out actually signs the user out ═══
+const lo = await req('/api/auth/logout', { method: 'POST', auth: userC.at + '; ' + userC.rt });
+const loCookies = lo.setCookie.join(' ');
+ok(lo.status === 200, 'logout endpoint ok', String(lo.status));
+ok(/iam_access=;[^]*max-age=0/i.test(loCookies) || /iam_access=;[^]*Max-Age=0/.test(loCookies), 'logout clears the access cookie (sign-out persists)', loCookies.slice(0, 400));
+ok(/iam_refresh=;[^]*max-age=0/i.test(loCookies) || /iam_refresh=;[^]*Max-Age=0/.test(loCookies), 'logout clears the refresh cookie', loCookies.slice(0, 400));
+const refTry = await fetch(BASE + '/api/auth/refresh', { method: 'POST', headers: { Cookie: userC.rt } });
+ok(refTry.status === 401, 'revoked session cannot refresh after sign-out', String(refTry.status));
+const reLo = await req('/api/auth/login', { method: 'POST', body: { email: e2eEmail, password: 'supersecret123' } });
+ok(reLo.status === 200 && reLo.data?.otpRequired === false, 're-login after sign-out asks for credentials again', JSON.stringify(reLo.data));
+collect(reLo, userC);
 
 console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
 process.exit(failures === 0 ? 0 : 1);

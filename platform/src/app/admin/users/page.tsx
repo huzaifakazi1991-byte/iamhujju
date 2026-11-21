@@ -45,11 +45,20 @@ export default function AdminUsersPage() {
     } catch (err) { toast(err instanceof Error ? err.message : 'Grant failed', 'error'); }
   }
 
-  async function forceLogout(u: UserRow) {
+  async function terminate(u: UserRow) {
     try {
-      await api(`/api/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ forceLogout: true }) });
-      toast(`${u.email} signed out everywhere.`, 'success');
-    } catch (err) { toast(err instanceof Error ? err.message : 'Force logout failed', 'error'); }
+      await api(`/api/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ suspended: true, forceLogout: true }) });
+      toast(`${u.email} terminated — signed out everywhere and blocked from signing back in.`, 'success');
+      await load(q);
+    } catch (err) { toast(err instanceof Error ? err.message : 'Terminate failed', 'error'); }
+  }
+
+  async function restore(u: UserRow) {
+    try {
+      await api(`/api/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ suspended: false }) });
+      toast(`${u.email} restored — they can sign in again.`, 'success');
+      await load(q);
+    } catch (err) { toast(err instanceof Error ? err.message : 'Restore failed', 'error'); }
   }
 
   async function removeUser(u: UserRow) {
@@ -89,7 +98,7 @@ export default function AdminUsersPage() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-black/5 last:border-0 dark:border-white/5">
+                <tr key={u.id} className={`border-b border-black/5 last:border-0 dark:border-white/5 ${u.suspended ? 'opacity-70' : ''}`}>
                   <td className="px-5 py-3">{u.email}</td>
                   <td className="px-5 py-3">{u.planName}</td>
                   <td className="px-5 py-3">{u.available.toLocaleString()}</td>
@@ -98,8 +107,8 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-5 py-3">
                     {u.suspended
-                      ? <button className="pill pill-danger" onClick={() => patch(u, { suspended: false })}>suspended</button>
-                      : <button className="pill pill-active" onClick={() => patch(u, { suspended: true })}>active</button>}
+                      ? <button className="pill pill-danger" onClick={() => void restore(u)} title="Click to restore access">terminated</button>
+                      : <button className="pill pill-active" onClick={() => void terminate(u)} title="Click to terminate access">active</button>}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex gap-1.5">
@@ -111,8 +120,8 @@ export default function AdminUsersPage() {
                     <div className="flex items-center justify-end gap-2 text-xs">
                       <span className="hidden text-ink-soft dark:text-white/50 sm:inline">lifetime {u.lifetimeUsed.toLocaleString()}</span>
                       <Link className="btn-ghost px-3 py-1 text-xs" href={`/admin/logs?q=${encodeURIComponent(u.email)}`}>Chats</Link>
-                      <button className="btn-ghost px-3 py-1 text-xs" onClick={() => void forceLogout(u)}>Terminate</button>
-                      {!u.suspended && <button className="btn-ghost px-3 py-1 text-xs text-red-500" onClick={() => void removeUser(u)}>{armDelete === u.id ? 'Confirm delete' : 'Delete'}</button>}
+                      {!u.suspended && <button className="btn-ghost px-3 py-1 text-xs" onClick={() => void terminate(u)}>Terminate</button>}
+                      <button className="btn-ghost px-3 py-1 text-xs text-red-500" onClick={() => void removeUser(u)}>{armDelete === u.id ? 'Confirm delete' : 'Delete'}</button>
                     </div>
                   </td>
                 </tr>
