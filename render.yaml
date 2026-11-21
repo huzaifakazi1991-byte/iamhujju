@@ -11,7 +11,7 @@ services:
     branch: main
     rootDir: platform
     buildCommand: npm ci && npx prisma generate && npm run build
-    startCommand: npx prisma migrate deploy && npm run db:seed && npm run start
+    startCommand: bash scripts/deploy-start.sh
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
