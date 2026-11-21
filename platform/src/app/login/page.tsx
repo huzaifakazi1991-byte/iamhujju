@@ -33,7 +33,7 @@ function LoginForm() {
 
   return (
     <form onSubmit={submit} className="card mx-auto w-full max-w-md p-8">
-      <h1 className="text-2xl font-extrabold tracking-tight">Sign in</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
       <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Welcome back to IamHujju.</p>
       <div className="flex flex-col gap-4">
         <label className="block text-sm font-medium">

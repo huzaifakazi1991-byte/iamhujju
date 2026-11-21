@@ -53,7 +53,7 @@ function BillingInner() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight">Billing</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Billing</h1>
               <p className="mt-1 text-sm text-ink-soft dark:text-white/60">
                 Current plan: <strong>{usage?.plan?.name ?? '…'}</strong> · Balance: <strong>{usage?.available.toLocaleString() ?? '…'} tokens</strong>
               </p>
@@ -77,7 +77,7 @@ function BillingInner() {
                 <div key={p.slug} className={`card flex flex-col p-7 ${p.slug === 'pro' ? 'ring-2 ring-agent' : ''}`}>
                   <h2 className="text-lg font-bold">{p.name}</h2>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="text-3xl font-extrabold">{fmt(price)}</span>
+                    <span className="text-3xl font-bold">{fmt(price)}</span>
                     <span className="text-xs text-ink-soft dark:text-white/55">/{interval === 'yearly' ? 'year' : 'mo'}</span>
                   </div>
                   <ul className="mt-5 flex-1 space-y-2 text-sm text-ink-soft dark:text-white/70">

@@ -76,7 +76,7 @@ export default function AdminProvidersPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Providers</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Providers</h1>
       <p className="mt-1 mb-8 text-sm text-ink-soft dark:text-white/60">
         Keys are AES-256-GCM encrypted server-side and never sent to the browser. A provider goes live the moment its key is saved.
       </p>
