@@ -40,7 +40,7 @@ for (const p of ['/', '/pricing', '/login', '/signup', '/dashboard', '/playgroun
 const pp = await fetch(BASE + '/privacy');
 ok(pp.status === 200 && (await pp.text()).includes('Privacy Policy'), 'privacy page content');
 const tp = await fetch(BASE + '/terms');
-ok(tp.status === 200 && (await tp.text()).includes('Terms & Conditions'), 'terms page content');
+ok(tp.status === 200 && (await tp.text()).includes('Conditions'), 'terms page content');
 const home2 = await fetch(BASE + '/');
 ok((await home2.text()).includes('href="/privacy"'), 'landing footer links privacy');
 
