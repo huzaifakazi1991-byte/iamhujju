@@ -83,7 +83,7 @@ ok(mm.status === 200 && Array.isArray(mm.data?.models) && mm.data.models.length 
 const chat = await fetch(BASE + '/api/chat', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Cookie: userC.at + '; ' + userC.rt },
-  body: JSON.stringify({ model: 'mock-small', messages: [{ role: 'user', content: 'hello gateway' }], persist: true }),
+  body: JSON.stringify({ model: 'mock-small', messages: [{ role: 'user', content: 'hello gateway\n\n--- Attached file: notes.txt ---\nThe daily token grant is generous.\n--- End of notes.txt ---' }], persist: true }),
 });
 ok(chat.status === 200, 'chat stream 200', String(chat.status));
 const text = await chat.text();
@@ -97,8 +97,14 @@ ok(us.status === 200 && typeof us.data?.available === 'number' && us.data.availa
 const conv = await req('/api/conversations', { auth: userC.at + '; ' + userC.rt });
 ok(conv.status === 200 && conv.data?.conversations?.length >= 1, 'conversation persisted', JSON.stringify(conv.data).slice(0, 200));
 
-// conversation truncate API (edit / undo backend)
-const convId1 = conv.data.conversations[0].id;
+// conversation truncate API (edit / undo backend) — on a dedicated throwaway chat
+await fetch(BASE + '/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Cookie: userC.at + '; ' + userC.rt },
+  body: JSON.stringify({ model: 'mock-small', messages: [{ role: 'user', content: 'truncate me please' }] }),
+});
+const convListTr = await req('/api/conversations', { auth: userC.at + '; ' + userC.rt });
+const convId1 = convListTr.data.conversations[0].id;
 const det1 = await req('/api/conversations/' + convId1, { auth: userC.at + '; ' + userC.rt });
 const beforeCount = det1.data?.conversation?.messages?.length ?? 0;
 const trunc = await req('/api/conversations/' + convId1, { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { keepCount: Math.max(0, beforeCount - 2) } });
@@ -249,6 +255,44 @@ ok(rbac.status === 403, 'RBAC blocks non-admin', String(rbac.status));
 // admin users list
 const du = await req('/api/admin/users', { auth: adminC.at + '; ' + adminC.rt });
 ok(du.status === 200 && du.data.users.some(u => u.email === e2eEmail), 'admin user list shows e2e user', JSON.stringify(du.data).slice(0, 200));
+
+// ═══ Admin powers: chat logs, force logout, delete user ═══
+const logsUserTry = await req('/api/admin/conversations', { auth: userC.at + '; ' + userC.rt });
+ok(logsUserTry.status === 403, 'non-admin blocked from chat logs', String(logsUserTry.status));
+const logs = await req('/api/admin/conversations?q=' + encodeURIComponent(e2eEmail), { auth: adminC.at + '; ' + adminC.rt });
+ok(logs.status === 200 && logs.data.conversations?.length >= 1, 'admin chat logs list e2e conversation', JSON.stringify(logs.data).slice(0, 200));
+const targetConv = (logs.data.conversations ?? []).find(c => (c.title ?? '').includes('hello gateway')) ?? (logs.data.conversations ?? [])[0];
+if (targetConv) {
+  const logDetail = await req('/api/admin/conversations/' + targetConv.id, { auth: adminC.at + '; ' + adminC.rt });
+  const allContent = JSON.stringify(logDetail.data?.conversation?.messages ?? []);
+  ok(logDetail.status === 200 && logDetail.data.conversation.messages.length >= 2, 'admin can open full transcript', String(logDetail.status));
+  ok(allContent.includes('hello gateway'), 'transcript contains user message text');
+  ok(allContent.includes('--- Attached file: notes.txt ---'), 'transcript contains attachment contents');
+} else { failures++; console.log('FAIL admin chat logs list e2e conversation (none)'); }
+
+// disposable user: force logout + permanent delete
+const dispEmail = 'disp-' + Date.now() + '@test.dev';
+const dispC = {};
+const dispSignup = await req('/api/auth/signup', { method: 'POST', body: { email: dispEmail, password: 'password123', name: 'Disposable' } });
+ok(dispSignup.status === 200, 'disposable user signup', JSON.stringify(dispSignup.data).slice(0, 120));
+collect(dispSignup, dispC);
+const dispUser = du.data.users.find(u => u.email === dispEmail) ?? null;
+const du2 = await req('/api/admin/users?q=' + encodeURIComponent(dispEmail), { auth: adminC.at + '; ' + adminC.rt });
+const dispId = du2.data.users?.[0]?.id;
+if (dispId) {
+  const fl = await req('/api/admin/users/' + dispId, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { forceLogout: true } });
+  ok(fl.status === 200 && fl.data?.loggedOut === true, 'admin force logout terminates sessions', JSON.stringify(fl.data));
+  const del = await req('/api/admin/users/' + dispId, { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt });
+  ok(del.status === 200 && del.data?.deleted === dispEmail, 'admin permanently deletes user', JSON.stringify(del.data));
+  const gone = await req('/api/auth/login', { method: 'POST', body: { email: dispEmail, password: 'password123' } });
+  ok(gone.status === 401, 'deleted user cannot sign in', String(gone.status));
+  const delSelfTry = await req('/api/admin/users', { auth: adminC.at + '; ' + adminC.rt });
+  const adminId = delSelfTry.data.users.find(u => u.role === 'ADMIN')?.id;
+  if (adminId) {
+    const delSelf = await req('/api/admin/users/' + adminId, { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt });
+    ok(delSelf.status === 400, 'admin cannot delete own account', String(delSelf.status));
+  }
+} else { failures++; console.log('FAIL disposable admin lookup'); }
 
 console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
 process.exit(failures === 0 ? 0 : 1);
