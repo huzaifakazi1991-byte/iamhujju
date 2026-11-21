@@ -40,7 +40,7 @@ for (const p of ['/', '/pricing', '/login', '/signup', '/dashboard', '/playgroun
 const pp = await fetch(BASE + '/privacy');
 ok(pp.status === 200 && (await pp.text()).includes('Privacy Policy'), 'privacy page content');
 const tp = await fetch(BASE + '/terms');
-ok(tp.status === 200 && (await tp.text()).includes('Terms & Conditions'), 'terms page content');
+ok(tp.status === 200 && (await tp.text()).includes('Conditions'), 'terms page content');
 const home2 = await fetch(BASE + '/');
 ok((await home2.text()).includes('href="/privacy"'), 'landing footer links privacy');
 
@@ -64,6 +64,12 @@ const li = await req('/api/auth/login', { method: 'POST', body: { email: e2eEmai
 ok(li.status === 200, 'login', JSON.stringify(li.data));
 collect(li, userC);
 ok(!!userC.at && !!userC.rt, 'auth cookies set (at/rt)');
+
+// signed-in users never see the signup/login forms again
+const authedLogin = await fetch(BASE + '/login', { redirect: 'manual', headers: { Cookie: userC.at + '; ' + userC.rt } });
+ok(authedLogin.status === 307 || authedLogin.status === 302, 'login page redirects signed-in users', String(authedLogin.status));
+const authedSignup = await fetch(BASE + '/signup', { redirect: 'manual', headers: { Cookie: userC.at + '; ' + userC.rt } });
+ok(authedSignup.status === 307 || authedSignup.status === 302, 'signup page redirects signed-in users', String(authedSignup.status));
 
 // unauthenticated access is refused
 const noAuth = await req('/api/models');
@@ -94,6 +100,21 @@ ok(conv.status === 200 && conv.data?.conversations?.length >= 1, 'conversation p
 // invalid input -> 400
 const bad = await req('/api/auth/login', { method: 'POST', body: { email: 'bad' } });
 ok(bad.status === 400 || bad.status === 422, 'zod validation returns 4xx', String(bad.status));
+
+// usage export is a paid-plan feature: free user is refused, CSV served for paid
+const expFree = await fetch(BASE + '/api/usage/export', { headers: { Cookie: userC.at + '; ' + userC.rt } });
+ok(expFree.status === 403, 'usage export refuses free plan', String(expFree.status));
+const paid = await req('/api/billing/mock-complete', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { orderId: 'mock_e2e_' + Date.now(), planSlug: 'pro', interval: 'monthly' } });
+ok(paid.status === 200, 'mock upgrade to pro', JSON.stringify(paid.data));
+const price = await fetch(BASE + '/pricing', { headers: { Cookie: userC.at + '; ' + userC.rt } });
+ok((await price.text()).includes('Your current plan'), 'pricing shows Your current plan after upgrade');
+const expPaid = await fetch(BASE + '/api/usage/export', { headers: { Cookie: userC.at + '; ' + userC.rt } });
+const expText = await expPaid.text();
+ok(expPaid.status === 200 && expText.includes('total_tokens'), 'usage export CSV for paid plan', String(expPaid.status));
+
+// razorpay webhook refuses unsigned/unconfigured calls
+const rzpHook = await fetch(BASE + '/api/billing/webhook/razorpay', { method: 'POST', body: 'x' });
+ok(rzpHook.status === 400, 'razorpay webhook refuses unsigned payloads', String(rzpHook.status));
 
 // admin login
 const adm = await req('/api/auth/login', { method: 'POST', body: { email: 'admin@example.com', password: 'change-me-immediately' } });

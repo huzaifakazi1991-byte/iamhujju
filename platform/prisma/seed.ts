@@ -7,9 +7,9 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@example.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'change-me-immediately';
 
 const PLANS = [
-  { slug: 'free', name: 'Free', priceMonthly: 0, priceYearly: null, dailyTokens: 10000, monthlyTokens: 100000, tokensPerMinute: 6000, requestsPerMin: 10, allowedModels: [] as string[], isFree: true },
-  { slug: 'pro', name: 'Pro', priceMonthly: 2000, priceYearly: 20000, dailyTokens: 200000, monthlyTokens: 4000000, tokensPerMinute: 60000, requestsPerMin: 60, allowedModels: [] as string[], isFree: false },
-  { slug: 'business', name: 'Business', priceMonthly: 10000, priceYearly: 100000, dailyTokens: 2000000, monthlyTokens: 40000000, tokensPerMinute: 250000, requestsPerMin: 300, allowedModels: [] as string[], isFree: false },
+  { slug: 'free', name: 'Free', priceMonthly: 0, priceYearly: null, priceMonthlyInrPaise: 0, priceYearlyInrPaise: null, dailyTokens: 10000, monthlyTokens: 100000, tokensPerMinute: 6000, requestsPerMin: 10, allowedModels: [] as string[], isFree: true },
+  { slug: 'pro', name: 'Pro', priceMonthly: 1476, priceYearly: 15942, priceMonthlyInrPaise: 129900, priceYearlyInrPaise: 1402900, dailyTokens: 200000, monthlyTokens: 4000000, tokensPerMinute: 60000, requestsPerMin: 60, allowedModels: [] as string[], isFree: false },
+  { slug: 'business', name: 'Business', priceMonthly: 10226, priceYearly: 110442, priceMonthlyInrPaise: 899900, priceYearlyInrPaise: 9718900, dailyTokens: 2000000, monthlyTokens: 40000000, tokensPerMinute: 250000, requestsPerMin: 300, allowedModels: [] as string[], isFree: false },
 ];
 
 const MOCK_MODELS = [

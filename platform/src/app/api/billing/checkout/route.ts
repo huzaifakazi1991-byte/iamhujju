@@ -3,6 +3,7 @@ import { env } from '@/lib/env';
 import { handleError, ok, fail, readJson, requireUser } from '@/lib/api';
 import { checkoutSchema } from '@/lib/validation';
 import { randomToken } from '@/lib/crypto';
+import { createOrder, razorpayConfigured, usdCentsToInrPaise } from '@/lib/razorpay';
 
 export async function POST(req: Request) {
   try {
@@ -10,6 +11,18 @@ export async function POST(req: Request) {
     const { planSlug, interval } = await readJson(req, checkoutSchema);
     const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
     if (!plan || !plan.isActive) return fail(404, 'Plan not available.');
+
+    if (razorpayConfigured()) {
+      const amountPaise = interval === 'yearly'
+        ? (plan.priceYearlyInrPaise ?? usdCentsToInrPaise(plan.priceYearly ?? plan.priceMonthly))
+        : (plan.priceMonthlyInrPaise ?? usdCentsToInrPaise(plan.priceMonthly));
+      const order = await createOrder({
+        amountPaise,
+        receipt: `iamhujju_${planSlug}_${interval}_${randomToken(6)}`,
+        notes: { userId: actor.id, planSlug, interval },
+      });
+      return ok({ mock: false, razorpay: true, keyId: env.razorpayKeyId, orderId: order.id, amountPaise, currency: 'INR', planSlug, interval });
+    }
 
     if (!env.stripeSecretKey) {
       const orderId = `mock_${randomToken(12)}`;

@@ -45,7 +45,12 @@ export default function DashboardPage() {
             <h1 className="text-h1">Dashboard</h1>
             <p className="text-body-soft mt-1 text-sm">Your usage, balance and plan.</p>
           </div>
-          <Link href="/playground" className="btn-primary px-5 py-2.5 text-sm">Open playground</Link>
+          <div className="flex items-center gap-3">
+            {usage?.plan && !usage.plan.isFree && (
+              <a href="/api/usage/export" className="btn-ghost px-5 py-2.5 text-sm">⬇ Export CSV</a>
+            )}
+            <Link href="/playground" className="btn-primary px-5 py-2.5 text-sm">Open playground</Link>
+          </div>
         </div>
 
         {error && <div className="card mb-6 border-red-400/40 bg-red-500/8 p-6 text-sm text-red-700 dark:text-red-300">⚠️ {error}</div>}

@@ -7,7 +7,28 @@ import { useToast } from '@/components/toast';
 import { api } from '@/lib/client';
 
 type Usage = { available: number; plan: { name: string; slug: string; isFree: boolean } | null };
-type PlanRow = { slug: string; name: string; priceMonthly: number; dailyTokens: number; monthlyTokens: number; tokensPerMinute: number; requestsPerMin: number; isFree: boolean; isActive: boolean };
+type PlanRow = { slug: string; name: string; priceMonthly: number; priceYearly: number | null; priceMonthlyInrPaise: number | null; priceYearlyInrPaise: number | null; dailyTokens: number; monthlyTokens: number; tokensPerMinute: number; requestsPerMin: number; isFree: boolean; isActive: boolean };
+type CheckoutRes = { mock: boolean; razorpay?: boolean; keyId?: string; orderId?: string; amountPaise?: number; currency?: string; url?: string; planSlug?: string; interval?: string; amount?: number };
+
+declare global {
+  interface Window { Razorpay?: new (opts: Record<string, unknown>) => { open: () => void } }
+}
+
+function loadRazorpayScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
+  if (window.Razorpay) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Could not load the Razorpay checkout. Check your connection and retry.'));
+    document.body.appendChild(s);
+  });
+}
+
+function usdToInrPaise(cents: number): number {
+  return Math.round(cents * 4.1);
+}
 
 function BillingInner() {
   const { toast } = useToast();
@@ -25,10 +46,36 @@ function BillingInner() {
   async function upgrade(planSlug: string) {
     setBusy(planSlug);
     try {
-      const res = await api<{ mock: boolean; orderId?: string; url?: string; planSlug?: string; interval?: string; amount?: number }>('/api/billing/checkout', {
+      const res = await api<CheckoutRes>('/api/billing/checkout', {
         method: 'POST',
         body: JSON.stringify({ planSlug, interval }),
       });
+      if (res.razorpay && res.orderId && res.keyId) {
+        await loadRazorpayScript();
+        await new Promise<void>((resolve, reject) => {
+          const rzp = new window.Razorpay!({
+            key: res.keyId,
+            order_id: res.orderId,
+            amount: res.amountPaise,
+            currency: res.currency ?? 'INR',
+            name: 'IamHujju',
+            description: `${planSlug} plan (${interval})`,
+            theme: { color: '#2f8f4e' },
+            handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+              api('/api/billing/razorpay/verify', {
+                method: 'POST',
+                body: JSON.stringify(response),
+              }).then(() => resolve()).catch(reject);
+            },
+            modal: { ondismiss: () => reject(new Error('Payment cancelled.')) },
+          });
+          rzp.open();
+        });
+        toast(`Upgraded to ${planSlug}! Receipt emailed.`, 'success');
+        const u = await api<Usage>('/api/usage');
+        setUsage(u);
+        return;
+      }
       if (!res.mock && res.url) {
         window.location.href = res.url;
         return;
@@ -44,7 +91,7 @@ function BillingInner() {
     }
   }
 
-  const fmt = (cents: number) => `$${(cents / 100).toLocaleString()}`;
+  const fmt = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN')}`;
 
   return (
     <div className="min-h-screen">
@@ -71,7 +118,9 @@ function BillingInner() {
 
           <div className="grid gap-6 md:grid-cols-3">
             {plans.map((p) => {
-              const price = interval === 'yearly' ? (p.slug === 'free' ? 0 : (p.slug === 'pro' ? 20000 : 100000)) : p.priceMonthly;
+              const price = interval === 'yearly'
+                ? (p.priceYearlyInrPaise ?? (p.priceYearly ? usdToInrPaise(p.priceYearly) : 0))
+                : (p.priceMonthlyInrPaise ?? usdToInrPaise(p.priceMonthly));
               const isCurrent = usage?.plan?.slug === p.slug;
               return (
                 <div key={p.slug} className={`card flex flex-col p-7 ${p.slug === 'pro' ? 'ring-2 ring-agent' : ''}`}>
@@ -92,7 +141,7 @@ function BillingInner() {
                     <span className="mt-6 rounded-full bg-green-100 px-4 py-2 text-center text-sm font-semibold text-green-700 dark:bg-green-900 dark:text-green-200">Current plan</span>
                   ) : (
                     <button className="btn-primary mt-6 py-2.5 text-sm" disabled={busy === p.slug} onClick={() => upgrade(p.slug)}>
-                      {busy === p.slug ? 'Redirecting…' : `Upgrade to ${p.name}`}
+                      {busy === p.slug ? 'Opening checkout…' : `Upgrade to ${p.name}`}
                     </button>
                   )}
                 </div>
@@ -101,7 +150,7 @@ function BillingInner() {
           </div>
 
           <p className="mt-8 text-center text-xs text-ink-soft dark:text-white/45">
-            Payments run through Stripe Checkout when configured. Without keys, mock checkout lets you test the full upgrade flow safely.
+            Payments are processed securely by Razorpay (UPI, cards, netbanking) in INR. Without keys configured, mock checkout lets you test the full upgrade flow safely.
           </p>
         </div>
       </main>
