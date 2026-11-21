@@ -1,0 +1,36 @@
+name: platform-ci
+
+on:
+  push:
+    branches: [main]
+    paths: [platform/**, .github/workflows/platform-ci.yml]
+  pull_request:
+    paths: [platform/**, .github/workflows/platform-ci.yml]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: platform
+      - name: Prisma generate
+        run: npx prisma generate
+        working-directory: platform
+      - name: Typecheck
+        run: npx tsc --noEmit
+        working-directory: platform
+      - name: Unit tests
+        run: npx vitest run
+        working-directory: platform
+      - name: Build
+        run: npm run build
+        working-directory: platform
