@@ -132,12 +132,10 @@ export default function LandingPage() {
       <footer className="border-t border-forest/8 py-8 dark:border-white/10">
         <div className="text-body-soft mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm sm:flex-row sm:px-6">
           <span>© {new Date().getFullYear()} IamHujju — grown, not gated.</span>
-          <div className="flex flex-wrap justify-center gap-5 sm:justify-end">
+          <div className="flex gap-5">
             <Link href="/pricing" className="transition-colors hover:text-leaf">Pricing</Link>
             <Link href="/playground" className="transition-colors hover:text-leaf">Playground</Link>
             <Link href="/dashboard" className="transition-colors hover:text-leaf">Dashboard</Link>
-            <Link href="/privacy" className="transition-colors hover:text-leaf">Privacy</Link>
-            <Link href="/terms" className="transition-colors hover:text-leaf">Terms</Link>
           </div>
         </div>
       </footer>
