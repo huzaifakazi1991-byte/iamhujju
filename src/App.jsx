@@ -1957,6 +1957,7 @@ function App() {
         connected={connected}
         modelCount={models.length}
         onLogout={handleLogout}
+        onRequestSignIn={requestSignInForModel}
         onOpenHome={() => navigateToView('home')}
         onOpenModels={openModels}
         onOpenSkills={openSkills}
@@ -1974,6 +1975,7 @@ function App() {
         connected={connected}
         modelCount={models.length}
         onLogout={handleLogout}
+        onRequestSignIn={requestSignInForModel}
         onOpenHome={() => navigateToView('home')}
         onOpenModels={openModels}
         onOpenSkills={openSkills}

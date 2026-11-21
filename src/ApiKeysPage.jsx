@@ -547,6 +547,7 @@ export default function ApiKeysPage({
   connected,
   modelCount,
   onLogout,
+  onRequestSignIn,
   onOpenHome,
   onOpenModels,
   onOpenSkills,
@@ -757,16 +758,22 @@ export default function ApiKeysPage({
             <span aria-hidden="true" />
             {connected ? 'Gateway online' : 'Gateway offline'}
           </span>
-          <AccountMenu
-            user={user}
-            connected={connected}
-            modelCount={modelCount}
-            onLogout={onLogout}
-            onOpenApiKeys={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            onOpenIntegrations={onOpenIntegrations}
-            onOpenPricing={onOpenPricing}
-            onOpenSavedChats={onOpenSavedChats}
-          />
+          {user ? (
+            <AccountMenu
+              user={user}
+              connected={connected}
+              modelCount={modelCount}
+              onLogout={onLogout}
+              onOpenApiKeys={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              onOpenIntegrations={onOpenIntegrations}
+              onOpenPricing={onOpenPricing}
+              onOpenSavedChats={onOpenSavedChats}
+            />
+          ) : (
+            <button className="ak-btn-ghost" type="button" onClick={() => onRequestSignIn && onRequestSignIn()}>
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 

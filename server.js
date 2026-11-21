@@ -472,7 +472,8 @@ export function createApp({
           'https://*.firebaseapp.com',
           'https://api.razorpay.com',
           'https://lumberjack.razorpay.com',
-          'https://lumberjack-cx.razorpay.com'
+          'https://lumberjack-cx.razorpay.com',
+          'https://cdn.razorpay.com'
         ],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         formAction: ["'self'"],
@@ -494,7 +495,7 @@ export function createApp({
         ],
         mediaSrc: ["'self'", 'blob:', 'data:'],
         objectSrc: ["'none'"],
-        scriptSrc: ["'self'", 'https://apis.google.com', 'https://checkout.razorpay.com'],
+        scriptSrc: ["'self'", 'https://apis.google.com', 'https://checkout.razorpay.com', 'https://cdn.razorpay.com'],
         scriptSrcAttr: ["'none'"],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']
       }

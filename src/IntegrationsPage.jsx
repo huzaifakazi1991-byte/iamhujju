@@ -107,6 +107,7 @@ export default function IntegrationsPage({
   connected,
   modelCount,
   onLogout,
+  onRequestSignIn,
   onOpenHome,
   onOpenModels,
   onOpenSkills,
@@ -421,16 +422,22 @@ export default function IntegrationsPage({
             <span aria-hidden="true" />
             {connected ? 'Gateway online' : 'Gateway offline'}
           </span>
-          <AccountMenu
-            user={user}
-            connected={connected}
-            modelCount={modelCount}
-            onLogout={onLogout}
-            onOpenApiKeys={onOpenApiKeys}
-            onOpenIntegrations={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            onOpenPricing={onOpenPricing}
-            onOpenSavedChats={onOpenSavedChats}
-          />
+          {user ? (
+            <AccountMenu
+              user={user}
+              connected={connected}
+              modelCount={modelCount}
+              onLogout={onLogout}
+              onOpenApiKeys={onOpenApiKeys}
+              onOpenIntegrations={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              onOpenPricing={onOpenPricing}
+              onOpenSavedChats={onOpenSavedChats}
+            />
+          ) : (
+            <button className="ak-btn-ghost" type="button" onClick={() => onRequestSignIn && onRequestSignIn()}>
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 
