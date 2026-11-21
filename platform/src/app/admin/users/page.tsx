@@ -45,7 +45,7 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Users</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Users</h1>
       <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Search, suspend, promote and grant tokens.</p>
 
       <form className="mb-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); load(q); }}>
@@ -56,8 +56,8 @@ export default function AdminUsersPage() {
       {!users && <div className="skeleton h-64" />}
       {users?.length === 0 && <div className="card p-10 text-center text-sm text-ink-soft dark:text-white/60">No users match.</div>}
       {users && users.length > 0 && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="card overflow-x-auto glass">
+          <table className="table-glass">
             <thead>
               <tr className="border-b border-black/5 text-xs uppercase tracking-wide text-ink-soft dark:border-white/10 dark:text-white/50">
                 <th className="px-5 py-3">Email</th><th className="px-5 py-3">Plan</th><th className="px-5 py-3">Balance</th>
@@ -75,8 +75,8 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-5 py-3">
                     {u.suspended
-                      ? <button className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-900 dark:text-red-200" onClick={() => patch(u, { suspended: false })}>suspended</button>
-                      : <button className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 dark:bg-green-900 dark:text-green-200" onClick={() => patch(u, { suspended: true })}>active</button>}
+                      ? <button className="pill pill-danger" onClick={() => patch(u, { suspended: false })}>suspended</button>
+                      : <button className="pill pill-active" onClick={() => patch(u, { suspended: true })}>active</button>}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex gap-1.5">

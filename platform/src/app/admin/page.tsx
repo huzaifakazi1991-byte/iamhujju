@@ -23,7 +23,7 @@ export default function AdminOverview() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Platform overview</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Platform overview</h1>
       <p className="mt-1 text-sm text-ink-soft dark:text-white/60">Last 14 days.</p>
       {error && <div className="card mt-6 border-red-300 p-5 text-sm text-red-600">⚠️ {error}</div>}
       {!data && !error && <div className="skeleton mt-6 h-64" />}
@@ -39,7 +39,7 @@ export default function AdminOverview() {
             ].map(([label, value]) => (
               <div key={label} className="card p-5">
                 <p className="text-xs uppercase tracking-wide text-ink-soft dark:text-white/50">{label}</p>
-                <p className="mt-1.5 text-2xl font-extrabold">{value}</p>
+                <p className="mt-1.5 text-2xl font-bold">{value}</p>
               </div>
             ))}
           </div>

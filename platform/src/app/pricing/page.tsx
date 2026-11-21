@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Nav } from '@/components/nav';
 import { LandingMotion } from '@/components/landing-motion';
+import { GlassCard } from '@/components/ui/glass';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,28 +28,33 @@ export default function PricingPage() {
       <main className="hero-glow min-h-[70vh] px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <LandingMotion>
-            <h1 className="text-center text-4xl font-extrabold tracking-tight sm:text-5xl">Simple, honest pricing.</h1>
-            <p className="mx-auto mt-4 max-w-xl text-center text-ink-soft dark:text-white/65">
+            <h1 className="text-h1 text-center sm:text-display sm:!text-[clamp(2.5rem,5vw,3.5rem)]">Simple, honest pricing.</h1>
+            <p className="text-body-soft mx-auto mt-4 max-w-xl text-center text-lg">
               Pay for tokens, not seats. Upgrade or cancel any time.
             </p>
           </LandingMotion>
-          <div className="mt-12 grid gap-6 lg:grid-cols-3">
+          <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:pt-4">
             {PLANS.map((p, i) => (
               <LandingMotion key={p.slug} delay={i * 0.08}>
-                <div className={`card relative flex h-full flex-col p-8 ${p.featured ? 'ring-2 ring-agent' : ''}`}>
+                <GlassCard
+                  hover
+                  className={`relative flex h-full flex-col p-8 ${p.featured ? 'shadow-[0_0_0_2px_var(--color-amber),0_24px_64px_-24px_rgba(245,178,60,0.5)]' : ''}`}
+                >
                   {p.featured && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-agent px-3 py-1 text-xs font-bold text-white">MOST POPULAR</span>
+                    <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-b from-amber to-amber-deep px-4 py-1 text-xs font-bold tracking-wide text-[#241703] shadow-lg">
+                      MOST POPULAR
+                    </span>
                   )}
-                  <h2 className="text-xl font-bold">{p.name}</h2>
-                  <p className="mt-1 text-sm text-ink-soft dark:text-white/60">{p.tagline}</p>
+                  <h2 className="font-display text-xl font-bold">{p.name}</h2>
+                  <p className="text-body-soft mt-1 text-sm">{p.tagline}</p>
                   <div className="mt-6 flex items-baseline gap-1">
-                    <span className="text-4xl font-extrabold">{p.price}</span>
-                    <span className="text-sm text-ink-soft dark:text-white/60">/ month</span>
+                    <span className="text-num text-4xl">{p.price}</span>
+                    <span className="text-body-soft text-sm">/ month</span>
                   </div>
                   <ul className="mt-6 flex flex-1 flex-col gap-2.5 text-sm">
                     {p.items.map((item) => (
                       <li key={item} className="flex items-start gap-2">
-                        <span className="mt-0.5 text-agent">✓</span>
+                        <span className="mt-0.5 text-leaf" aria-hidden>✓</span>
                         {item}
                       </li>
                     ))}
@@ -59,7 +65,7 @@ export default function PricingPage() {
                   >
                     {p.slug === 'free' ? 'Start free' : `Upgrade to ${p.name}`}
                   </Link>
-                </div>
+                </GlassCard>
               </LandingMotion>
             ))}
           </div>

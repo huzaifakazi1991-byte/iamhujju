@@ -65,7 +65,7 @@ export default function AdminModelsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Models</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Models</h1>
       <p className="mt-1 mb-8 text-sm text-ink-soft dark:text-white/60">
         Register provider model slugs and set pricing multipliers. Disabled models are invisible to users.
       </p>
@@ -110,8 +110,8 @@ export default function AdminModelsPage() {
       {!models && <div className="skeleton h-40" />}
       {models?.length === 0 && <div className="card p-10 text-center text-sm text-ink-soft dark:text-white/60">No models registered yet.</div>}
       {models && models.length > 0 && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="card overflow-x-auto glass">
+          <table className="table-glass">
             <thead>
               <tr className="border-b border-black/5 text-xs uppercase tracking-wide text-ink-soft dark:border-white/10 dark:text-white/50">
                 <th className="px-5 py-3">Slug</th><th className="px-5 py-3">Name</th><th className="px-5 py-3">Provider</th>

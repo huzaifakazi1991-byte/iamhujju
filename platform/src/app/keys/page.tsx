@@ -51,7 +51,7 @@ export default function KeysPage() {
     <div className="min-h-screen">
       <Nav />
       <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        <h1 className="text-3xl font-extrabold tracking-tight">API keys</h1>
+        <h1 className="text-3xl font-bold tracking-tight">API keys</h1>
         <p className="mt-1 mb-8 text-sm text-ink-soft dark:text-white/60">
           Call the gateway programmatically: <code className="rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs dark:bg-white/10">POST /api/v1/chat/completions</code> with <code className="rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs dark:bg-white/10">Authorization: Bearer &lt;key&gt;</code> (OpenAI-compatible).
         </p>
@@ -76,8 +76,8 @@ export default function KeysPage() {
           <div className="card p-10 text-center text-sm text-ink-soft dark:text-white/60">No API keys yet. Create one above.</div>
         )}
         {keys && keys.length > 0 && (
-          <div className="card overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className="card overflow-x-auto glass">
+            <table className="table-glass">
               <thead>
                 <tr className="border-b border-black/5 text-xs uppercase tracking-wide text-ink-soft dark:border-white/10 dark:text-white/50">
                   <th className="px-5 py-3">Name</th>
@@ -95,7 +95,7 @@ export default function KeysPage() {
                     <td className="px-5 py-3 font-mono text-xs">{k.prefix}…</td>
                     <td className="px-5 py-3">{new Date(k.createdAt).toLocaleDateString()}</td>
                     <td className="px-5 py-3">{k.lastUsed ? new Date(k.lastUsed).toLocaleString() : 'never'}</td>
-                    <td className="px-5 py-3">{k.revoked ? <span className="text-red-500">revoked</span> : <span className="text-green-600 dark:text-green-400">active</span>}</td>
+                    <td className="px-5 py-3">{k.revoked ? <span className="pill pill-danger">revoked</span> : <span className="pill pill-active">active</span>}</td>
                     <td className="px-5 py-3 text-right">
                       {!k.revoked && <button className="btn-ghost px-3 py-1 text-xs" onClick={() => revoke(k.id)}>Revoke</button>}
                     </td>

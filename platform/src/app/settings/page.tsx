@@ -42,7 +42,7 @@ export default function SettingsPage() {
     <div className="min-h-screen">
       <Nav />
       <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-3xl font-extrabold tracking-tight">Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="mt-1 mb-8 text-sm text-ink-soft dark:text-white/60">Your account profile.</p>
 
         <div className="glass mb-6 flex items-center justify-between rounded-2xl px-6 py-4 text-sm">
