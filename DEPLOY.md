@@ -38,15 +38,19 @@ Add env vars:
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` - read by the seed script
 - Optional: `REDIS_URL` (Upstash) for shared rate limiting, `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `SMTP_URL` (e.g. Resend SMTP)
 
-## 3. Seed plans, models & the admin user (one-time)
+## 3. Seed plans, models & the admin user (automatic)
 
-From the Render dashboard open **Shell** on the running service and run:
+No Shell needed — the blueprint's start command runs `npm run db:seed` on every boot. It is idempotent (safe upserts) and never resets an existing admin's password.
+
+Seeded content every boot: Free / Pro / Business plans, two mock models (free + paid tier), and your admin user from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+Prefer to seed manually instead? From your own machine (Render free plan blocks Shell):
 
 ```bash
-npm run db:seed
+DATABASE_URL="postgresql://...neon.tech/...?sslmode=require" \
+ADMIN_EMAIL="you@example.com" ADMIN_PASSWORD="your-strong-password" \
+npx tsx prisma/seed.ts   # from inside platform/ after npm ci
 ```
-
-Seeded content: Free / Pro / Business plans, two mock models (free + paid tier), and your admin user from `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Re-running is safe (idempotent upserts).
 
 ## 4. Point the domain
 
