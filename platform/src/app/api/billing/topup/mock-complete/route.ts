@@ -11,6 +11,9 @@ const schema = z.object({ orderId: z.string().min(3).max(80), packId: z.enum(['s
 export async function POST(req: Request) {
   try {
     const actor = await requireUser();
+    if (actor.role !== 'ADMIN') {
+      return fail(403, 'Mock checkout is only available to the administrator for testing.');
+    }
     if (razorpayConfigured()) return fail(400, 'Mock checkout is disabled while real payments are configured.');
     const { orderId, packId } = await readJson(req, schema);
     const pack = findTopupPack(packId);

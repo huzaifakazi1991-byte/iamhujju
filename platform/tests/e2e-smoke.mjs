@@ -114,6 +114,14 @@ ok(truncBad.status === 422 || truncBad.status === 400, 'truncate validates keepC
 const bad = await req('/api/auth/login', { method: 'POST', body: { email: 'bad' } });
 ok(bad.status === 400 || bad.status === 422, 'zod validation returns 4xx', String(bad.status));
 
+// OTP verification endpoints: strict + non-enumerating
+const otpBad = await req('/api/auth/verify', { method: 'POST', body: { email: 'nobody@test.dev', code: '123456' } });
+ok(otpBad.status === 400 || otpBad.status === 422, 'otp verify rejects unknown email/code', String(otpBad.status));
+const otpMalformed = await req('/api/auth/verify', { method: 'POST', body: { email: 'a@b.com', code: '12ab' } });
+ok(otpMalformed.status === 422, 'otp verify rejects non-6-digit codes', String(otpMalformed.status));
+const otpResend = await req('/api/auth/verify/resend', { method: 'POST', body: { email: 'nobody@test.dev' } });
+ok(otpResend.status === 200, 'otp resend never reveals account existence', String(otpResend.status));
+
 // huzaifa.ai support assistant: widget present, answers guests without auth
 const land = await fetch(BASE + '/');
 const landHtml = await land.text();
@@ -187,27 +195,22 @@ ok(asFree.status === 200 && !asFree.data.models.some((m) => m.provider === 'gemi
 const gemTry = await req('/api/chat', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { model: 'gemini-2.5-pro', messages: [{ role: 'user', content: 'hi' }] } });
 ok([403, 404, 503].includes(gemTry.status), 'gemini chat refused without key/payment', JSON.stringify(gemTry.data));
 
-// pay-as-you-go top-up packs: list + mock purchase credits tokens
+// pay-as-you-go top-up packs: list + SECURITY: users cannot self-complete mock purchases
 const packs = await req('/api/billing/topup/packs', { auth: userC.at + '; ' + userC.rt });
 ok(packs.status === 200 && packs.data.packs?.length === 3, 'topup packs listed', JSON.stringify(packs.data).slice(0, 150));
-const beforeTop = await req('/api/usage', { auth: userC.at + '; ' + userC.rt });
 const tk = await req('/api/billing/topup/checkout', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { packId: 'booster' } });
-ok(tk.status === 200 && tk.data?.orderId, 'topup checkout', JSON.stringify(tk.data).slice(0, 150));
-const tkDone = await req('/api/billing/topup/mock-complete', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { orderId: tk.data.orderId, packId: 'booster' } });
-ok(tkDone.status === 200 && tkDone.data?.granted === 500000, 'topup mock-complete grants tokens', JSON.stringify(tkDone.data));
-const afterTop = await req('/api/usage', { auth: userC.at + '; ' + userC.rt });
-ok(afterTop.data.available >= beforeTop.data.available + 500000, 'balance increased after topup', `${beforeTop.data.available} -> ${afterTop.data.available}`);
+ok([503].includes(tk.status), 'topup checkout refuses users while no payment gateway configured', JSON.stringify(tk.data).slice(0, 150));
+const tkDone = await req('/api/billing/topup/mock-complete', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { orderId: 'mock_e2e_' + Date.now(), packId: 'booster' } });
+ok(tkDone.status === 403, 'topup mock-complete blocked for non-admin users', String(tkDone.status));
 
-// usage export is a paid-plan feature: free user is refused, CSV served for paid
+// usage export is a paid-plan feature: free user is refused
 const expFree = await fetch(BASE + '/api/usage/export', { headers: { Cookie: userC.at + '; ' + userC.rt } });
 ok(expFree.status === 403, 'usage export refuses free plan', String(expFree.status));
 const paid = await req('/api/billing/mock-complete', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { orderId: 'mock_e2e_' + Date.now(), planSlug: 'pro', interval: 'monthly' } });
-ok(paid.status === 200, 'mock upgrade to pro', JSON.stringify(paid.data));
-const price = await fetch(BASE + '/pricing', { headers: { Cookie: userC.at + '; ' + userC.rt } });
-ok((await price.text()).includes('Your current plan'), 'pricing shows Your current plan after upgrade');
-const expPaid = await fetch(BASE + '/api/usage/export', { headers: { Cookie: userC.at + '; ' + userC.rt } });
-const expText = await expPaid.text();
-ok(expPaid.status === 200 && expText.includes('total_tokens'), 'usage export CSV for paid plan', String(expPaid.status));
+ok(paid.status === 403, 'SECURITY: mock plan upgrade blocked for non-admin users', String(paid.status));
+const priceFree = await fetch(BASE + '/pricing', { headers: { Cookie: userC.at + '; ' + userC.rt } });
+const priceFreeText = await (await fetch(BASE + '/pricing', { headers: { Cookie: userC.at + '; ' + userC.rt } })).text();
+ok(priceFreeText.includes('Upgrade'), 'free user still sees upgrade CTAs on pricing');
 
 // razorpay webhook refuses unsigned/unconfigured calls
 const rzpHook = await fetch(BASE + '/api/billing/webhook/razorpay', { method: 'POST', body: 'x' });
@@ -218,6 +221,22 @@ const adm = await req('/api/auth/login', { method: 'POST', body: { email: 'admin
 ok(adm.status === 200, 'admin login', JSON.stringify(adm.data).slice(0, 200));
 collect(adm, adminC);
 ok(!!adminC.at, 'admin cookies set');
+
+// admin can still use mock checkout for testing: topup + plan upgrade
+const beforeTopA = await req('/api/usage', { auth: adminC.at + '; ' + adminC.rt });
+const tkA = await req('/api/billing/topup/checkout', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { packId: 'booster' } });
+ok(tkA.status === 200 && tkA.data?.orderId, 'admin topup checkout (mock allowed)', JSON.stringify(tkA.data).slice(0, 150));
+const tkADone = await req('/api/billing/topup/mock-complete', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { orderId: tkA.data.orderId, packId: 'booster' } });
+ok(tkADone.status === 200 && tkADone.data?.granted === 500000, 'admin topup mock-complete grants tokens', JSON.stringify(tkADone.data));
+const afterTopA = await req('/api/usage', { auth: adminC.at + '; ' + adminC.rt });
+ok(afterTopA.data.available > beforeTopA.data.available, 'admin balance increased after topup', `${beforeTopA.data.available} -> ${afterTopA.data.available}`);
+const paidA = await req('/api/billing/mock-complete', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { orderId: 'mock_e2e_' + Math.random().toString(36).slice(2), planSlug: 'pro', interval: 'monthly' } });
+ok(paidA.status === 200, 'admin mock plan upgrade works', JSON.stringify(paidA.data));
+const priceA = await fetch(BASE + '/pricing', { headers: { Cookie: adminC.at + '; ' + adminC.rt } });
+ok((await priceA.text()).includes('Your current plan'), 'pricing shows Your current plan for upgraded admin');
+const expPaid = await fetch(BASE + '/api/usage/export', { headers: { Cookie: adminC.at + '; ' + adminC.rt } });
+const expText = await expPaid.text();
+ok(expPaid.status === 200 && expText.includes('total_tokens'), 'usage export CSV for paid plan', String(expPaid.status));
 
 // admin analytics
 const an = await req('/api/admin/analytics', { auth: adminC.at + '; ' + adminC.rt });

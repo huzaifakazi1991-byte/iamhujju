@@ -25,6 +25,9 @@ export async function POST(req: Request) {
     }
 
     if (!env.stripeSecretKey) {
+      if (actor.role !== 'ADMIN') {
+        return fail(503, 'Payments are not configured yet on this site — upgrades will unlock as soon as the owner adds Razorpay or Stripe keys. No charge can be taken and no plan can be activated until then.');
+      }
       const orderId = `mock_${randomToken(12)}`;
       return ok({ mock: true, orderId, planSlug, interval, amount: interval === 'yearly' ? plan.priceYearly : plan.priceMonthly });
     }

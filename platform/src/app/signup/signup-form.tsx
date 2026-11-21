@@ -20,9 +20,9 @@ export function SignupForm() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api<{ user: { role: string } }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+      const res = await api<{ user: { role: string }; needsVerification?: boolean }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ name, email, password }) });
       toast('Account created. You are on the Free tier!', 'success');
-      router.push('/playground');
+      router.push(res.needsVerification ? `/verify?email=${encodeURIComponent(email)}` : '/playground');
       router.refresh();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Sign-up failed', 'error');

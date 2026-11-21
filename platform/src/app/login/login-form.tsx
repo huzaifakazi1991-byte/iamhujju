@@ -28,7 +28,12 @@ function LoginFormInner() {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await api<{ user: { role: string } }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      const res = await api<{ user: { role: string }; needsVerification?: boolean }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      if (res.needsVerification) {
+        router.push(`/verify?email=${encodeURIComponent(email)}`);
+        router.refresh();
+        return;
+      }
       toast('Signed in. Welcome back!', 'success');
       const next = params.get('next');
       router.push(next ?? (res.user.role === 'ADMIN' ? '/admin' : '/playground'));
