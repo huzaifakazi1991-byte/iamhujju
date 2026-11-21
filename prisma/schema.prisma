@@ -1,0 +1,254 @@
+// ═══════════════════════════════════════════════
+// AI SaaS Platform — Prisma Schema (PostgreSQL)
+// ═══════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Users & Auth ────────────────────────────────
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?                       // null if OAuth-only
+  name          String?
+  role          Role      @default(USER)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]            // OAuth providers
+  sessions      Session[]
+  tokens        TokenLedger[]
+  balance       TokenBalance?
+  subscriptions Subscription[]
+  payments      Payment[]
+  apiKeys       ApiKey[]
+  conversations Conversation[]
+  usage         UsageRecord[]
+  rateLimits    RateLimit[]
+}
+
+model Account {                       // Google OAuth etc.
+  id           String @id @default(cuid())
+  userId       String
+  provider     String                 // "google", "credentials"
+  providerId   String
+  User         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique       // store hash of refresh token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Plans & Billing ────────────────────────────
+model Plan {
+  id               String   @id @default(cuid())
+  name             String                  // "Free", "Pro", "Business"
+  slug             String   @unique
+  priceMonthly     Int      @default(0)    // cents
+  priceYearly      Int?
+  dailyTokens      Int                     // token grant per day
+  monthlyTokens    Int
+  tokensPerMinute  Int                     // rate limit
+  requestsPerMin   Int
+  allowedModels    String[]                // model slugs; empty = all enabled
+  isFree           Boolean  @default(false)
+  stripePriceId    String?  @unique        // links to Stripe price
+  isActive         Boolean  @default(true)
+  subscriptions    Subscription[]
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String
+  planId               String
+  status               String                  // active, trialing, past_due, canceled
+  stripeSubscriptionId String   @unique
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  User                 User     @relation(fields: [userId], references: [id])
+  Plan                 Plan     @relation(fields: [planId], references: [id])
+
+  // ── Razorpay extension (additive; app bills via Razorpay) ──
+  razorpaySubscriptionId String? @unique
+}
+
+model Payment {
+  id                 String   @id @default(cuid())
+  userId             String
+  amount             Int                     // cents
+  currency           String   @default("usd")
+  status             String                  // succeeded, pending, failed, refunded
+  stripePaymentId    String   @unique
+  invoiceUrl         String?
+  tokensGranted      Int?                    // one-time top-up purchases
+  createdAt          DateTime @default(now())
+  User               User     @relation(fields: [userId], references: [id])
+
+  // ── Razorpay extension (additive; app bills via Razorpay) ──
+  razorpayOrderId    String?
+  razorpayPaymentId  String? @unique
+  razorpaySignature  String?
+
+  @@index([razorpayOrderId])
+}
+
+// ── Token Economy (audit-safe) ─────────────────
+model TokenBalance {
+  userId                String  @id
+  available             BigInt  @default(0)  // current spendable balance
+  lifetimeUsed          BigInt  @default(0)
+  reserved              BigInt  @default(0)  // held by in-flight streams
+  lastUpdated           DateTime @updatedAt
+  User                  User    @relation(fields: [userId], references: [id])
+}
+
+model TokenLedger {                     // every balance change, append-only
+  id          String   @id @default(cuid())
+  userId      String
+  delta       BigInt                  // +grant, -usage, -expiry, +purchase
+  reason      String                  // daily_grant, message_usage, admin_grant, purchase, refund
+  referenceId String?                 // usageRecordId / paymentId / admin note id
+  balanceAfter BigInt
+  createdAt   DateTime @default(now())
+  User        User     @relation(fields: [userId], references: [id])
+  @@index([userId, createdAt])
+  @@index([reason, createdAt])
+}
+
+// ── AI Gateway ─────────────────────────────────
+model Provider {
+  id           String  @id @default(cuid())
+  name         String  @unique          // "mistral", "openai", "anthropic"
+  baseUrl      String?
+  encryptedKey String?                  // AES-256-GCM encrypted API key; null = mock mode
+  enabled      Boolean @default(false)  // active only when key is set by admin
+  models       Model[]
+}
+
+model Model {
+  id                String   @id @default(cuid())
+  providerId        String
+  slug              String   @unique      // "mistral-small", "gpt-4o"
+  displayName       String
+  contextWindow     Int      @default(8192)
+  maxOutputTokens   Int      @default(4096)
+  costPer1kInput    Decimal  @default(0)  // internal pricing multiplier
+  costPer1kOutput   Decimal  @default(0)
+  tierRequired      String   @default("free")  // minimum tier slug to use it
+  adminEnabled      Boolean  @default(false)   // visible to users only when true
+  displayOrder      Int      @default(0)
+  Provider          Provider @relation(fields: [providerId], references: [id])
+  conversations     Conversation[]
+  usage             UsageRecord[]
+}
+
+// ── Playground ─────────────────────────────────
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  modelId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Model     Model?   @relation(fields: [modelId], references: [id])
+  messages  Message[]
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String                // system, user, assistant
+  content        String  @db.Text
+  tokensIn       Int?
+  tokensOut      Int?
+  createdAt      DateTime @default(now())
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  usage          UsageRecord[]
+}
+
+model UsageRecord {                     // one per gateway request, success or fail
+  id              String   @id @default(cuid())
+  userId          String
+  modelId         String
+  messageId       String?  @unique
+  promptTokens    Int      @default(0)
+  completionTokens Int     @default(0)
+  totalTokens     Int      @default(0)
+  cost            Decimal  @default(0)  // computed from model multipliers
+  status          String                // streaming, completed, aborted, error, blocked
+  latencyMs       Int?
+  createdAt       DateTime @default(now())
+  User            User     @relation(fields: [userId], references: [id])
+  Model           Model    @relation(fields: [modelId], references: [id])
+  Message         Message? @relation(fields: [messageId], references: [id])
+  @@index([userId, createdAt])
+  @@index([modelId, createdAt])
+}
+
+// ── Access Keys & Limits ───────────────────────
+model ApiKey {                          // for programmatic (non-playground) access
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  keyHash   String   @unique
+  prefix    String                  // shown to user, e.g. "sk-abc1..."
+  lastUsed  DateTime?
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model RateLimit {                       // Redis is primary; this is durable fallback/audit
+  id        String   @id @default(cuid())
+  userId    String
+  minuteKey String                  // "2026-11-21T14:37"
+  requests  Int      @default(0)
+  tokens    Int      @default(0)
+  User      User     @relation(fields: [userId], references: [id])
+  @@unique([userId, minuteKey])
+}
+
+// ── Admin & Ops ────────────────────────────────
+model AdminAction {                     // full audit trail of admin activity
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String                  // grant_tokens, toggle_model, set_key, suspend_user...
+  targetType String?
+  targetId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+}
+
+model PlatformSetting {                 // feature flags, free-tier config, etc.
+  key   String @id
+  value Json
+}
+
+model WebhookEvent {                    // idempotency for Stripe webhooks
+  id          String   @id              // Stripe event id
+  type        String
+  processedAt DateTime @default(now())
+  @@unique([id])
+}

@@ -153,3 +153,16 @@ For a real Neon connection check, create a disposable Neon test branch and set
 ```sh
 npm run test:database
 ```
+
+## Prisma data layer (foundation)
+
+The target data model for upcoming milestones lives in [`prisma/schema.prisma`](prisma/schema.prisma)
+(PostgreSQL). The existing raw-`pg` layer keeps running unchanged; adoption happens per milestone.
+
+- `npm run prisma:generate` — generate the Prisma client
+- `npm run db:migrate:dev` — create/apply migrations during development
+- `npm run db:migrate:deploy` — apply committed migrations (CI/production)
+
+A baseline migration is committed at `prisma/migrations/20261121120000_init/migration.sql`.
+It has **not** been applied to the live database yet; apply it only when a milestone
+switches to Prisma, using `DATABASE_URL` for the target database.
