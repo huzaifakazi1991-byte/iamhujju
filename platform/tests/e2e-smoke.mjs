@@ -101,6 +101,16 @@ ok(conv.status === 200 && conv.data?.conversations?.length >= 1, 'conversation p
 const bad = await req('/api/auth/login', { method: 'POST', body: { email: 'bad' } });
 ok(bad.status === 400 || bad.status === 422, 'zod validation returns 4xx', String(bad.status));
 
+// huzaifa.ai support assistant: widget present, answers guests without auth
+const land = await fetch(BASE + '/');
+const landHtml = await land.text();
+ok(landHtml.includes('huzaifa-ai.jpg'), 'assistant avatar on landing page');
+const ask = await req('/api/assistant', { method: 'POST', body: { messages: [{ role: 'user', content: 'What do the plans include and how much is Pro?' }] } });
+ok(ask.status === 200 && typeof ask.data?.answer === 'string' && ask.data.answer.length > 20, 'assistant answers guests', JSON.stringify(ask.data).slice(0, 200));
+ok((ask.data?.answer ?? '').includes('Pro') || (ask.data?.answer ?? '').includes('₹1,299'), 'assistant answer mentions pricing');
+const badAsk = await req('/api/assistant', { method: 'POST', body: { messages: [] } });
+ok(badAsk.status === 422 || badAsk.status === 400, 'assistant validates empty input', String(badAsk.status));
+
 // usage export is a paid-plan feature: free user is refused, CSV served for paid
 const expFree = await fetch(BASE + '/api/usage/export', { headers: { Cookie: userC.at + '; ' + userC.rt } });
 ok(expFree.status === 403, 'usage export refuses free plan', String(expFree.status));
