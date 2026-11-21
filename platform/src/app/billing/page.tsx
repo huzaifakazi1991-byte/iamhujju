@@ -8,6 +8,7 @@ import { api } from '@/lib/client';
 
 type Usage = { available: number; plan: { name: string; slug: string; isFree: boolean } | null };
 type PlanRow = { slug: string; name: string; priceMonthly: number; priceYearly: number | null; priceMonthlyInrPaise: number | null; priceYearlyInrPaise: number | null; dailyTokens: number; monthlyTokens: number; tokensPerMinute: number; requestsPerMin: number; isFree: boolean; isActive: boolean };
+type PackRow = { id: string; name: string; tagline: string; inrPaise: number; tokens: number };
 type CheckoutRes = { mock: boolean; razorpay?: boolean; keyId?: string; orderId?: string; amountPaise?: number; currency?: string; url?: string; planSlug?: string; interval?: string; amount?: number };
 
 declare global {
@@ -37,11 +38,38 @@ function BillingInner() {
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [packs, setPacks] = useState<PackRow[] | null>(null);
 
   useEffect(() => {
     api<Usage>('/api/usage').then(setUsage).catch(() => undefined);
     api<{ plans: PlanRow[] }>('/api/admin/public-plans').then((d) => setPlans(d.plans.filter((p) => p.isActive))).catch(() => undefined);
+    api<{ packs: PackRow[] }>('/api/billing/topup/packs').then((d) => setPacks(d.packs)).catch(() => undefined);
   }, []);
+
+  type RazorpayCheckout = { keyId: string; orderId: string; amountPaise?: number; currency?: string };
+
+  async function payViaRazorpay(res: RazorpayCheckout, description: string) {
+    await loadRazorpayScript();
+    await new Promise<void>((resolve, reject) => {
+      const rzp = new window.Razorpay!({
+        key: res.keyId,
+        order_id: res.orderId,
+        amount: res.amountPaise,
+        currency: res.currency ?? 'INR',
+        name: 'IamHujju',
+        description,
+        theme: { color: '#2f8f4e' },
+        handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          api('/api/billing/razorpay/verify', {
+            method: 'POST',
+            body: JSON.stringify(response),
+          }).then(() => resolve()).catch(reject);
+        },
+        modal: { ondismiss: () => reject(new Error('Payment cancelled.')) },
+      });
+      rzp.open();
+    });
+  }
 
   async function upgrade(planSlug: string) {
     setBusy(planSlug);
@@ -50,27 +78,9 @@ function BillingInner() {
         method: 'POST',
         body: JSON.stringify({ planSlug, interval }),
       });
-      if (res.razorpay && res.orderId && res.keyId) {
-        await loadRazorpayScript();
-        await new Promise<void>((resolve, reject) => {
-          const rzp = new window.Razorpay!({
-            key: res.keyId,
-            order_id: res.orderId,
-            amount: res.amountPaise,
-            currency: res.currency ?? 'INR',
-            name: 'IamHujju',
-            description: `${planSlug} plan (${interval})`,
-            theme: { color: '#2f8f4e' },
-            handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-              api('/api/billing/razorpay/verify', {
-                method: 'POST',
-                body: JSON.stringify(response),
-              }).then(() => resolve()).catch(reject);
-            },
-            modal: { ondismiss: () => reject(new Error('Payment cancelled.')) },
-          });
-          rzp.open();
-        });
+      const { orderId: upOrderId, keyId: upKeyId, amountPaise: upAmount, currency: upCurrency } = res;
+      if (res.razorpay && upOrderId && upKeyId) {
+        await payViaRazorpay({ keyId: upKeyId, orderId: upOrderId, amountPaise: upAmount, currency: upCurrency }, `${planSlug} plan (${interval})`);
         toast(`Upgraded to ${planSlug}! Receipt emailed.`, 'success');
         const u = await api<Usage>('/api/usage');
         setUsage(u);
@@ -86,6 +96,30 @@ function BillingInner() {
       setUsage(u);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Checkout failed', 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function buyTopup(packId: string) {
+    setBusy(`topup-${packId}`);
+    try {
+      const res = await api<CheckoutRes>('/api/billing/topup/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ packId }),
+      });
+      const { orderId: tkOrderId, keyId: tkKeyId, amountPaise: tkAmount, currency: tkCurrency } = res;
+      if (res.razorpay && tkOrderId && tkKeyId) {
+        await payViaRazorpay({ keyId: tkKeyId, orderId: tkOrderId, amountPaise: tkAmount, currency: tkCurrency }, `Token top-up (${packId})`);
+        toast('Top-up successful — tokens added to your balance!', 'success');
+      } else {
+        await api('/api/billing/topup/mock-complete', { method: 'POST', body: JSON.stringify({ orderId: res.orderId, packId }) });
+        toast('Top-up successful — tokens added to your balance!', 'success');
+      }
+      const u = await api<Usage>('/api/usage');
+      setUsage(u);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Top-up failed', 'error');
     } finally {
       setBusy(null);
     }
@@ -147,6 +181,26 @@ function BillingInner() {
                 </div>
               );
             })}
+          </div>
+
+          <h2 className="mt-12 text-xl font-bold">Pay as you go</h2>
+          <p className="text-body-soft mt-1 text-sm">Need more tokens without changing your plan? Top up instantly — packs stack on your current balance.</p>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            {packs?.map((pack) => (
+              <div key={pack.id} className="card flex flex-col p-6">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="text-base font-bold">{pack.name}</h3>
+                  <span className="text-num text-xl font-semibold">{fmt(pack.inrPaise)}</span>
+                </div>
+                <p className="text-body-soft mt-1 text-xs">{pack.tagline}</p>
+                <p className="mt-3 text-sm font-medium">+ {pack.tokens.toLocaleString('en-IN')} tokens</p>
+                <p className="text-body-soft mt-0.5 text-xs">One-time purchase · never expires</p>
+                <button className="btn-ghost mt-4 py-2 text-sm" disabled={busy === `topup-${pack.id}`} onClick={() => buyTopup(pack.id)}>
+                  {busy === `topup-${pack.id}` ? 'Opening checkout…' : 'Buy tokens'}
+                </button>
+              </div>
+            ))}
+            {!packs && <div className="skeleton h-40 md:col-span-3" />}
           </div>
 
           <p className="mt-8 text-center text-xs text-ink-soft dark:text-white/45">

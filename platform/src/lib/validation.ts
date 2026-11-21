@@ -27,7 +27,7 @@ export const chatSchema = z.object({
 
 export const providerCreateSchema = z.object({
   name: z.string().trim().min(2).max(60).regex(/^[a-z0-9-]+$/, 'Use lowercase letters, numbers and dashes.'),
-  kind: z.enum(['mock', 'mistral', 'openai', 'anthropic', 'groq', 'custom']).default('custom'),
+  kind: z.enum(['mock', 'gemini', 'google', 'mistral', 'openai', 'anthropic', 'groq', 'custom']).default('custom'),
   baseUrl: z.string().trim().url('Base URL must be a valid URL.').max(400).optional().or(z.literal('')),
   apiKey: z.string().trim().max(400).optional().or(z.literal('')),
 });

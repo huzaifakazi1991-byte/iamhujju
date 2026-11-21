@@ -36,7 +36,7 @@ export default async function PricingPage() {
           <LandingMotion>
             <h1 className="text-h1 text-center sm:text-display sm:!text-[clamp(2.5rem,5vw,3.5rem)]">Simple, honest pricing.</h1>
             <p className="text-body-soft mx-auto mt-4 max-w-xl text-center text-lg">
-              Pay for tokens, not seats. Upgrade or cancel any time.
+              Pay for tokens, not seats. Upgrade or cancel any time — plus pay-as-you-go top-ups (from ₹499) whenever you need a bigger balance.
             </p>
           </LandingMotion>
           <div className="mt-14 grid gap-6 lg:grid-cols-3 lg:pt-4">

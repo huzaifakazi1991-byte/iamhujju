@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
 import { fail, ok } from '@/lib/api';
 import { fetchOrder, verifyWebhookSignature } from '@/lib/razorpay';
-import { upgradeFromWebhook } from '@/lib/billing';
+import { completeFromWebhook } from '@/lib/billing';
 
 type RazorpayWebhook = {
   event: string;
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     if (!payment?.order_id || !payment.id) return ok({ ok: true, skipped: 'missing payment reference' });
     try {
       const order = await fetchOrder(payment.order_id);
-      return await upgradeFromWebhook(order.notes ?? {}, payment.order_id, payment.id);
+      return await completeFromWebhook(order.notes ?? {}, payment.order_id, payment.id);
     } catch {
       return ok({ ok: true, skipped: 'order lookup failed' });
     }

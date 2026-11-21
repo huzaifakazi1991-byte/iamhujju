@@ -6,6 +6,8 @@ import type { ProviderAdapter } from '@/lib/gateway/types';
 export function adapterForProvider(kind: string): ProviderAdapter {
   switch (kind) {
     case 'mock': return mockAdapter;
+    case 'gemini':
+    case 'google': return openAICompatAdapter({ kind: 'gemini' });
     case 'anthropic': return anthropicAdapter;
     case 'mistral': return openAICompatAdapter({ kind: 'mistral' });
     case 'groq': return openAICompatAdapter({ kind: 'groq' });
