@@ -31,10 +31,18 @@ const userC = {}, adminC = {};
 // health + public pages
 const h = await req('/api/health');
 ok(h.status === 200 && h.data?.status === 'ok', 'health endpoint', JSON.stringify(h.data));
-for (const p of ['/', '/pricing', '/login', '/signup', '/dashboard', '/playground', '/admin', '/settings', '/keys', '/billing']) {
+for (const p of ['/', '/pricing', '/login', '/signup', '/dashboard', '/playground', '/admin', '/settings', '/keys', '/billing', '/privacy', '/terms']) {
   const r = await fetch(BASE + p, { redirect: 'manual' });
   ok(r.status === 200 || r.status === 307 || r.status === 302, `page ${p} -> ${r.status}`);
 }
+
+// legal pages render with real content + linked from landing footer
+const pp = await fetch(BASE + '/privacy');
+ok(pp.status === 200 && (await pp.text()).includes('Privacy Policy'), 'privacy page content');
+const tp = await fetch(BASE + '/terms');
+ok(tp.status === 200 && (await tp.text()).includes('Terms & Conditions'), 'terms page content');
+const home2 = await fetch(BASE + '/');
+ok((await home2.text()).includes('href="/privacy"'), 'landing footer links privacy');
 
 // google sign-in UI present + graceful flow when unconfigured
 const lp = await fetch(BASE + '/login');
