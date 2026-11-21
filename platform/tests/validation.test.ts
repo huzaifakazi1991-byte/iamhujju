@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatSchema, keyCreateSchema, providerCreateSchema, signupSchema } from '@/lib/validation';
+import { chatSchema, conversationTruncateSchema, keyCreateSchema, providerCreateSchema, signupSchema } from '@/lib/validation';
 
 describe('validation', () => {
   it('accepts a valid signup', () => {
@@ -31,6 +31,14 @@ describe('validation', () => {
     expect(chatSchema.safeParse({ ...base, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] }] }).success).toBe(false);
     expect(chatSchema.safeParse({ ...base, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'http://evil.example/x.png' } }] }] }).success).toBe(false);
     expect(chatSchema.safeParse({ ...base, messages: [{ role: 'user', content: [] }] }).success).toBe(false);
+  });
+
+  it('validates conversation truncation payloads', () => {
+    expect(conversationTruncateSchema.safeParse({ keepCount: 2 }).success).toBe(true);
+    expect(conversationTruncateSchema.safeParse({ keepCount: 0 }).success).toBe(true);
+    expect(conversationTruncateSchema.safeParse({ keepCount: -1 }).success).toBe(false);
+    expect(conversationTruncateSchema.safeParse({ keepCount: 1.5 }).success).toBe(false);
+    expect(conversationTruncateSchema.safeParse({}).success).toBe(false);
   });
 
   it('validates provider creation', () => {

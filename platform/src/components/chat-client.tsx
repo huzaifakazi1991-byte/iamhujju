@@ -9,6 +9,31 @@ import { Markdown } from '@/components/markdown';
 
 import type { StreamContentPart } from '@/lib/client';
 
+function IconCopy() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+function IconEdit() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+function IconUndo() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 7v6h6" />
+      <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+    </svg>
+  );
+}
+
 type Model = { id: string; slug: string; displayName: string; provider: string; tierRequired: string; contextWindow: number; maxOutputTokens: number };
 type Conversation = { id: string; title: string | null; updatedAt: string };
 type Msg = { role: 'user' | 'assistant' | 'system'; content: string; files?: string[] };
@@ -75,9 +100,19 @@ export function ChatClient() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streaming]);
 
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      api<{ models: Model[] }>('/api/models').then((d) => setModels(d.models)).catch(() => undefined);
+      refreshUsage();
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshUsage]);
+
   async function openConversation(id: string) {
     setSidebarOpen(false);
-    if (streaming) return;
+    if (streaming) cancelRun();
     try {
       const d = await api<{ conversation: { id: string; messages: { role: string; content: string }[] } }>(`/api/conversations/${id}`);
       setConversationId(id);
@@ -93,10 +128,37 @@ export function ChatClient() {
     if (conversationId === id) { setConversationId(null); setMessages([]); }
   }
 
-  function stop() {
+  function cancelRun() {
     abortRef.current?.abort();
     abortRef.current = null;
     setStreaming(false);
+  }
+
+  async function copyMessage(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Copied to clipboard', 'success');
+    } catch {
+      toast('Could not copy — select the text manually', 'error');
+    }
+  }
+
+  async function truncateFrom(index: number) {
+    const keep = messagesRef.current.slice(0, index);
+    setMessages(keep);
+    if (!conversationId) return;
+    try {
+      await api(`/api/conversations/${conversationId}`, { method: 'PATCH', body: JSON.stringify({ keepCount: index }) });
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not update conversation', 'error');
+    }
+  }
+
+  function editMessage(index: number, content: string) {
+    if (streaming) return;
+    setInput(content);
+    void truncateFrom(index);
+    document.querySelector<HTMLTextAreaElement>('.composer-textarea')?.focus();
   }
 
   function readAsDataUrl(file: File): Promise<string> {
@@ -263,7 +325,7 @@ export function ChatClient() {
         <div className="flex h-full flex-col p-4 -mt-10 md:mt-0">
           <button
             className="btn-leaf mb-4 py-2 text-sm"
-            onClick={() => { if (!streaming) { setConversationId(null); setMessages([]); setSidebarOpen(false); } }}
+            onClick={() => { if (streaming) cancelRun(); setConversationId(null); setMessages([]); setSidebarOpen(false); }}
           >
             ＋ New chat
           </button>
@@ -306,7 +368,7 @@ export function ChatClient() {
             <select
               className="input w-auto py-1.5 text-sm"
               value={modelSlug}
-              onChange={(e) => setModelSlug(e.target.value)}
+              onChange={(e) => { if (streaming) cancelRun(); setModelSlug(e.target.value); }}
               aria-label="Select model"
             >
               {models.length === 0 && <option value="">No models available</option>}
@@ -337,7 +399,7 @@ export function ChatClient() {
               </GlassCard>
             )}
             {messages.map((m, i) => (
-              <div key={i} className={`mb-5 flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={i} className={`mb-5 flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={`bubble ${m.role === 'user' ? 'bubble-user bg-leaf/14 dark:bg-leaf/16' : `glass bubble-assistant ${streaming && i === messages.length - 1 ? 'stream-caret' : ''}`}`}>
                   {m.role === 'user' ? (
                     <>
@@ -352,6 +414,43 @@ export function ChatClient() {
                     </>
                   ) : <Markdown content={m.content} />}
                 </div>
+                {m.role === 'user' ? (
+                  <div className="mt-1 flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 opacity-55 transition-opacity hover:opacity-100 hover:text-leaf-deep dark:hover:text-leaf"
+                      title="Copy"
+                      aria-label="Copy message"
+                      onClick={() => void copyMessage(m.content)}
+                    ><IconCopy /></button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 opacity-55 transition-opacity hover:opacity-100 hover:text-leaf-deep dark:hover:text-leaf disabled:opacity-25"
+                      title="Edit and resend"
+                      aria-label="Edit and resend message"
+                      disabled={streaming}
+                      onClick={() => editMessage(i, m.content)}
+                    ><IconEdit /></button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 opacity-55 transition-opacity hover:opacity-100 hover:text-red-500 disabled:opacity-25"
+                      title="Undo — remove this message and everything after it"
+                      aria-label="Undo message and replies after it"
+                      disabled={streaming}
+                      onClick={() => void truncateFrom(i)}
+                    ><IconUndo /></button>
+                  </div>
+                ) : (
+                  i < messages.length - 1 && (
+                    <button
+                      type="button"
+                      className="mt-1 rounded-md p-1.5 opacity-0 transition-opacity hover:opacity-100 focus:opacity-100 hover:text-leaf-deep dark:hover:text-leaf"
+                      title="Copy reply"
+                      aria-label="Copy reply"
+                      onClick={() => void copyMessage(m.content)}
+                    ><IconCopy /></button>
+                  )
+                )}
               </div>
             ))}
             {streaming && lastIsUser && (
@@ -406,7 +505,7 @@ export function ChatClient() {
                 <button type="button" className="btn-ghost px-2.5 py-2.5 text-base" title="Read a web page" aria-label="Read a web page" onClick={() => setLinkOpen((v) => !v)} disabled={streaming}>🌐</button>
               </div>
               <textarea
-              className="input max-h-40 min-h-[46px] flex-1 resize-y"
+              className="composer-textarea input max-h-40 min-h-[46px] flex-1 resize-y"
               placeholder={modelSlug ? 'Ask anything… (Enter to send, Shift+Enter for a new line)' : 'Loading models…'}
               value={input}
               rows={1}
@@ -417,7 +516,7 @@ export function ChatClient() {
               }}
             />
             {streaming ? (
-              <button type="button" className="btn-ghost px-5 py-2.5 text-sm" onClick={stop}>Stop</button>
+              <button type="button" className="btn-ghost px-5 py-2.5 text-sm" onClick={cancelRun}>Stop</button>
             ) : (
               <button className="btn-primary px-5 py-2.5 text-sm" disabled={(!input.trim() && attachments.length === 0) || !modelSlug}>Send</button>
             )}

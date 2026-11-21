@@ -4,6 +4,7 @@ import { estimateTokens, minuteKey, nowUtcDayStart } from '@/lib/tokens';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { decryptSecret } from '@/lib/crypto';
 import { adapterForProvider } from '@/lib/gateway/registry';
+import { PLATFORM_SYSTEM_PROMPT } from '@/lib/gateway/system';
 import { GatewayError, messageText, type ChatMessage } from '@/lib/gateway/types';
 
 type PlanRow = {
@@ -298,6 +299,7 @@ export async function executeChat(opts: {
   const usageRecordId = `ur_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   let settled = false;
+  let closed = false;
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -305,32 +307,54 @@ export async function executeChat(opts: {
       let usage: { promptTokens: number; completionTokens: number } | null = null;
       let status: 'completed' | 'aborted' | 'error' = 'completed';
       let collected = '';
-      controller.enqueue(sse({ type: 'meta', conversationId, model: model.slug, usageRecordId }));
+      let timedOut = false;
+
+      const internal = new AbortController();
+      const onOuterAbort = () => internal.abort();
+      if (opts.signal.aborted) internal.abort();
+      else opts.signal.addEventListener('abort', onOuterAbort, { once: true });
+      const firstTokenTimer = setTimeout(() => { timedOut = true; internal.abort(); }, 45_000);
+      const hardTimer = setTimeout(() => { timedOut = true; internal.abort(); }, 240_000);
+
+      const wireMessages: ChatMessage[] = opts.messages.some((m) => m.role === 'system')
+        ? opts.messages
+        : [{ role: 'system', content: PLATFORM_SYSTEM_PROMPT }, ...opts.messages];
+
+      if (!closed) controller.enqueue(sse({ type: 'meta', conversationId, model: model.slug, usageRecordId }));
       try {
         for await (const event of adapter.streamChat(
-          { model: model.slug, messages: opts.messages, maxTokens: opts.maxTokens, temperature: opts.temperature },
+          { model: model.slug, messages: wireMessages, maxTokens: opts.maxTokens, temperature: opts.temperature },
           credential,
-          opts.signal,
+          internal.signal,
         )) {
-          if (opts.signal.aborted) { status = 'aborted'; break; }
+          if (opts.signal.aborted || timedOut) { status = opts.signal.aborted ? 'aborted' : 'error'; break; }
           if (event.type === 'delta') {
+            clearTimeout(firstTokenTimer);
             outputChars += event.text.length;
             collected += event.text;
-            controller.enqueue(sse(event));
+            if (!closed) controller.enqueue(sse(event));
           } else if (event.type === 'usage') {
             usage = { promptTokens: event.promptTokens, completionTokens: event.completionTokens };
           } else if (event.type === 'error') {
             status = 'error';
-            controller.enqueue(sse(event));
+            if (!closed) controller.enqueue(sse(event));
           }
         }
       } catch (err) {
         if (opts.signal.aborted) { status = 'aborted'; }
+        else if (timedOut) {
+          status = 'error';
+          if (!closed) controller.enqueue(sse({ type: 'error', message: 'The provider took too long to respond. Please try again or pick another model.' }));
+        }
         else {
           status = 'error';
           const message = err instanceof Error ? err.message : 'Provider request failed.';
-          controller.enqueue(sse({ type: 'error', message }));
+          if (!closed) controller.enqueue(sse({ type: 'error', message }));
         }
+      } finally {
+        clearTimeout(firstTokenTimer);
+        clearTimeout(hardTimer);
+        opts.signal.removeEventListener('abort', onOuterAbort);
       }
 
       const finalUsage = usage ?? {
@@ -338,7 +362,6 @@ export async function executeChat(opts: {
         completionTokens: Math.max(1, Math.ceil(outputChars / 4)),
       };
       if (status === 'aborted') finalUsage.completionTokens = Math.max(1, Math.ceil(outputChars / 4));
-
       try {
         if (persist && assistantMessageId) {
           await prisma.message.update({ where: { id: assistantMessageId }, data: { content: collected, tokensOut: finalUsage.completionTokens } });
@@ -361,18 +384,23 @@ export async function executeChat(opts: {
       }
 
       const bal = await prisma.tokenBalance.findUnique({ where: { userId: opts.userId } }).catch(() => null);
-      controller.enqueue(
-        sse({
-          type: 'done',
-          status,
-          usage: finalUsage,
-          balance: bal ? Number(bal.available) : null,
-          conversationId,
-        }),
-      );
-      controller.close();
+      try {
+        if (!closed) {
+          controller.enqueue(
+            sse({
+              type: 'done',
+              status,
+              usage: finalUsage,
+              balance: bal ? Number(bal.available) : null,
+              conversationId,
+            }),
+          );
+          controller.close();
+        }
+      } catch { /* stream already torn down by the client */ }
     },
     cancel() {
+      closed = true;
       if (settled) return;
       settled = true;
       void settle({
