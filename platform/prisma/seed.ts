@@ -13,10 +13,15 @@ const PLANS = [
 ];
 
 const GEMINI_MODELS = [
-  { slug: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash-Lite', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 10 },
-  { slug: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 11 },
-  { slug: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 12 },
+  { slug: 'gemini-3.5-flash-lite', displayName: 'Gemini 3.5 Flash-Lite', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 10 },
+  { slug: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 11 },
+  { slug: 'gemini-3.6-flash', displayName: 'Gemini 3.6 Flash', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 12 },
+  { slug: 'gemini-4-neon', displayName: 'Gemini 4 Neon', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 13 },
+  { slug: 'gemini-4-carbon', displayName: 'Gemini 4 Carbon', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'business', displayOrder: 14 },
 ];
+
+// Google retired the 2.5 family for new API keys — keep the rows but hide them.
+const GEMINI_RETIRED = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'];
 
 const MOCK_MODELS = [
   { slug: 'mock-small', displayName: 'Mock Small (free tier)', contextWindow: 8192, maxOutputTokens: 2048, tierRequired: 'free', displayOrder: 0 },
@@ -83,7 +88,12 @@ async function main() {
   for (const slug of ['mock-small', 'mock-large']) {
     console.log(`seeded model ${slug}`);
   }
+  for (const slug of GEMINI_RETIRED) {
+    await prisma.model.updateMany({ where: { slug }, data: { adminEnabled: false } });
+  }
+
   for (const m of GEMINI_MODELS) {
+    await prisma.model.updateMany({ where: { slug: m.slug }, data: { adminEnabled: true } });
     console.log(`seeded model ${m.slug} (gemini, tier ${m.tierRequired}) — paste your Gemini API key in Admin → Providers to activate`);
   }
   console.log(`seeded admin ${ADMIN_EMAIL} and plans free/pro/business (ids: ${Object.values(planIds).join(', ')})`);

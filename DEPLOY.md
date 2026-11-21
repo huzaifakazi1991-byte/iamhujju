@@ -79,7 +79,7 @@ Update DNS at your registrar (as Render instructs):
 ## 7. Enable Google Gemini models (free tier included, ~2 minutes)
 
 1. Get a free API key at <https://aistudio.google.com/apikey> (free quota available; billing optional on Google's side).
-2. Sign in as admin → **Admin → Providers** → the **gemini** provider is pre-created with its models seeded (Gemini 2.5 Flash-Lite and Flash for the Free tier, Gemini 2.5 Pro for Pro/Business tiers). Paste your **Gemini API key** and save — the provider goes live instantly; the key is AES-256-GCM encrypted and never leaves the server.
+2. Sign in as admin → **Admin → Providers** → the **gemini** provider is pre-created with its models seeded (Gemini 3.5 Flash-Lite and 3.8 Flash for the Free tier, 3.6 Flash and 4 Neon for Pro, 4 Carbon for Business — the retired 2.5 family is auto-hidden because Google no longer serves it to new keys). Paste your **Gemini API key** and save — the provider goes live instantly; the key is AES-256-GCM encrypted and never leaves the server.
 3. Every logged-in user can now chat with the free-tier Gemini models, metered against their plan's token balance and rate limits. Server-side gating (login + plan tier + balance + admin-enabled model) runs on every request, so nobody can bypass without login and payment.
 4. Tune anything in **Admin → Models**: enable/disable, rename, set minimum tier (`free`/`pro`/`business`), reorder.
 5. Pay-as-you-go: token top-up packs (Starter ₹499 / Booster ₹999 / Turbo ₹1,699) are available on **/billing** for any logged-in user; owners can also grant tokens per user in **Admin → Users**.

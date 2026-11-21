@@ -17,6 +17,22 @@ describe('validation', () => {
     expect(r.success).toBe(true);
   });
 
+  it('accepts multimodal messages with image parts', () => {
+    const png = 'data:image/png;base64,' + 'A'.repeat(64);
+    const r = chatSchema.safeParse({
+      model: 'gemini-3.5-flash-lite',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'What is in this image?' }, { type: 'image_url', image_url: { url: png } }] }],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects bad multimodal payloads', () => {
+    const base = { model: 'mock-small' };
+    expect(chatSchema.safeParse({ ...base, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] }] }).success).toBe(false);
+    expect(chatSchema.safeParse({ ...base, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'http://evil.example/x.png' } }] }] }).success).toBe(false);
+    expect(chatSchema.safeParse({ ...base, messages: [{ role: 'user', content: [] }] }).success).toBe(false);
+  });
+
   it('validates provider creation', () => {
     expect(providerCreateSchema.safeParse({ name: 'openai', apiKey: 'sk-x' }).success).toBe(true);
     expect(providerCreateSchema.safeParse({ name: 'bad kind!', apiKey: 'sk-x' }).success).toBe(false);
