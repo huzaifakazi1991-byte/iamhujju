@@ -1,12 +1,13 @@
 import type { ChatEvent, ChatParams, ProviderAdapter } from '@/lib/gateway/types';
 
-type ProviderPreset = { kind: 'mistral' | 'openai' | 'groq' | 'custom' };
+type ProviderPreset = { kind: 'mistral' | 'openai' | 'groq' | 'gemini' | 'custom' };
 
 export function openAICompatAdapter(preset: ProviderPreset): ProviderAdapter {
   const defaultBase =
     preset.kind === 'mistral' ? 'https://api.mistral.ai/v1'
     : preset.kind === 'groq' ? 'https://api.groq.com/openai/v1'
     : preset.kind === 'openai' ? 'https://api.openai.com/v1'
+    : preset.kind === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta/openai'
     : '';
 
   async function* stream(params: ChatParams, credential: string | null, baseUrl: string | null, signal?: AbortSignal): AsyncGenerator<ChatEvent> {

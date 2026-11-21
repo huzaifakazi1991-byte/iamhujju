@@ -12,6 +12,12 @@ const PLANS = [
   { slug: 'business', name: 'Business', priceMonthly: 10226, priceYearly: 110442, priceMonthlyInrPaise: 899900, priceYearlyInrPaise: 9718900, dailyTokens: 2000000, monthlyTokens: 40000000, tokensPerMinute: 250000, requestsPerMin: 300, allowedModels: [] as string[], isFree: false },
 ];
 
+const GEMINI_MODELS = [
+  { slug: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash-Lite', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 10 },
+  { slug: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 11 },
+  { slug: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 12 },
+];
+
 const MOCK_MODELS = [
   { slug: 'mock-small', displayName: 'Mock Small (free tier)', contextWindow: 8192, maxOutputTokens: 2048, tierRequired: 'free', displayOrder: 0 },
   { slug: 'mock-large', displayName: 'Mock Large (paid tier)', contextWindow: 32768, maxOutputTokens: 8192, tierRequired: 'pro', displayOrder: 1 },
@@ -60,8 +66,25 @@ async function main() {
     });
   }
 
+  const geminiProvider = await prisma.provider.upsert({
+    where: { name: 'gemini' },
+    update: {},
+    create: { name: 'gemini', enabled: false },
+  });
+
+  for (const m of GEMINI_MODELS) {
+    await prisma.model.upsert({
+      where: { slug: m.slug },
+      update: { providerId: geminiProvider.id, displayName: m.displayName, contextWindow: m.contextWindow, maxOutputTokens: m.maxOutputTokens, tierRequired: m.tierRequired },
+      create: { ...m, providerId: geminiProvider.id, adminEnabled: true },
+    });
+  }
+
   for (const slug of ['mock-small', 'mock-large']) {
     console.log(`seeded model ${slug}`);
+  }
+  for (const m of GEMINI_MODELS) {
+    console.log(`seeded model ${m.slug} (gemini, tier ${m.tierRequired}) — paste your Gemini API key in Admin → Providers to activate`);
   }
   console.log(`seeded admin ${ADMIN_EMAIL} and plans free/pro/business (ids: ${Object.values(planIds).join(', ')})`);
   void Prisma;

@@ -10,8 +10,9 @@ type Provider = {
   models: { id: string; slug: string; displayName: string; adminEnabled: boolean }[];
 };
 
-const KINDS = ['mistral', 'openai', 'anthropic', 'groq', 'custom'];
+const KINDS = ['gemini', 'mistral', 'openai', 'anthropic', 'groq', 'custom'];
 const SUGGESTED: Record<string, string> = {
+  gemini: 'gemini-2.5-flash, gemini-2.5-flash-lite, gemini-2.5-pro',
   mistral: 'mistral-small-latest, mistral-large-latest',
   openai: 'gpt-4o, gpt-4o-mini',
   anthropic: 'claude-sonnet-4-20250514',

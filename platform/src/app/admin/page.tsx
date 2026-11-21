@@ -5,9 +5,9 @@ import { api } from '@/lib/client';
 
 type Analytics = {
   days: number;
-  totals: { tokens: number; cost: string; requests: number; userCount: number; paidSubs: number };
+  totals: { tokens: number; cost: string; requests: number; userCount: number; paidSubs: number; revenueInrPaise: number; payments: number };
   perDay: { day: string; tokens: number; requests: number }[];
-  perModel: { modelId: string; tokens: number; requests: number }[];
+  perModel: { modelId: string; slug: string; displayName: string; tokens: number; requests: number }[];
   perUser: { email: string; tokens: number; requests: number }[];
 };
 
@@ -29,12 +29,13 @@ export default function AdminOverview() {
       {!data && !error && <div className="skeleton mt-6 h-64" />}
       {data && (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
             {[
               ['Users', data.totals.userCount.toLocaleString()],
               ['Paid subscribers', data.totals.paidSubs.toLocaleString()],
               ['Tokens used', data.totals.tokens.toLocaleString()],
               ['Requests', data.totals.requests.toLocaleString()],
+              ['Revenue (INR)', `₹${(data.totals.revenueInrPaise / 100).toLocaleString('en-IN')} · ${data.totals.payments} payments`],
               ['Metered cost', `$${Number(data.totals.cost).toFixed(4)}`],
             ].map(([label, value]) => (
               <div key={label} className="card p-5">
@@ -68,7 +69,7 @@ export default function AdminOverview() {
               {data.perModel.length === 0 ? <p className="text-sm text-ink-soft dark:text-white/60">No data.</p> : (
                 <ul className="space-y-2 text-sm">
                   {data.perModel.map((m) => (
-                    <li key={m.modelId} className="flex justify-between"><span className="font-mono text-xs">{m.modelId}</span><span>{m.tokens.toLocaleString()} tok · {m.requests} req</span></li>
+                    <li key={m.modelId} className="flex justify-between"><span className="truncate">{m.displayName} <span className="font-mono text-[10px] text-ink-soft">{m.slug}</span></span><span>{m.tokens.toLocaleString()} tok · {m.requests} req</span></li>
                   ))}
                 </ul>
               )}

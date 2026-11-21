@@ -111,6 +111,23 @@ ok((ask.data?.answer ?? '').includes('Pro') || (ask.data?.answer ?? '').includes
 const badAsk = await req('/api/assistant', { method: 'POST', body: { messages: [] } });
 ok(badAsk.status === 422 || badAsk.status === 400, 'assistant validates empty input', String(badAsk.status));
 
+// gemini models are seeded but stay hidden until the admin pastes a key; direct calls are refused
+const asFree = await req('/api/models', { auth: userC.at + '; ' + userC.rt });
+ok(asFree.status === 200 && !asFree.data.models.some((m) => m.provider === 'gemini'), 'gemini hidden while provider has no key');
+const gemTry = await req('/api/chat', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { model: 'gemini-2.5-pro', messages: [{ role: 'user', content: 'hi' }] } });
+ok([403, 404, 503].includes(gemTry.status), 'gemini chat refused without key/payment', JSON.stringify(gemTry.data));
+
+// pay-as-you-go top-up packs: list + mock purchase credits tokens
+const packs = await req('/api/billing/topup/packs', { auth: userC.at + '; ' + userC.rt });
+ok(packs.status === 200 && packs.data.packs?.length === 3, 'topup packs listed', JSON.stringify(packs.data).slice(0, 150));
+const beforeTop = await req('/api/usage', { auth: userC.at + '; ' + userC.rt });
+const tk = await req('/api/billing/topup/checkout', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { packId: 'booster' } });
+ok(tk.status === 200 && tk.data?.orderId, 'topup checkout', JSON.stringify(tk.data).slice(0, 150));
+const tkDone = await req('/api/billing/topup/mock-complete', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { orderId: tk.data.orderId, packId: 'booster' } });
+ok(tkDone.status === 200 && tkDone.data?.granted === 500000, 'topup mock-complete grants tokens', JSON.stringify(tkDone.data));
+const afterTop = await req('/api/usage', { auth: userC.at + '; ' + userC.rt });
+ok(afterTop.data.available >= beforeTop.data.available + 500000, 'balance increased after topup', `${beforeTop.data.available} -> ${afterTop.data.available}`);
+
 // usage export is a paid-plan feature: free user is refused, CSV served for paid
 const expFree = await fetch(BASE + '/api/usage/export', { headers: { Cookie: userC.at + '; ' + userC.rt } });
 ok(expFree.status === 403, 'usage export refuses free plan', String(expFree.status));
