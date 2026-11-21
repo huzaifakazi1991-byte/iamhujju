@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ToastProvider } from '@/components/toast';
 import { GlobalBackground } from '@/components/ui/global-background';
+import { HuzaifaAssistant } from '@/components/huzaifa-ai';
 
 export const metadata: Metadata = {
   title: 'IamHujju — Frontier AI, for everyone',
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <GlobalBackground variant="page" />
         <ToastProvider>{children}</ToastProvider>
+        <HuzaifaAssistant />
       </body>
     </html>
   );
