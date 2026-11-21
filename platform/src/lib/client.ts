@@ -18,8 +18,10 @@ export async function api<T>(path: string, init?: RequestInit & { retry?: boolea
   return data;
 }
 
+export type StreamContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+
 export async function streamChat(
-  body: { model: string; messages: { role: string; content: string }[]; conversationId?: string | null },
+  body: { model: string; messages: { role: string; content: string | StreamContentPart[] }[]; conversationId?: string | null },
   onEvent: (ev: Record<string, unknown>) => void,
   signal?: AbortSignal,
 ): Promise<void> {

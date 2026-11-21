@@ -123,6 +123,40 @@ for (const social of ['YouTube', 'Telegram', 'LinkedIn']) {
 const founderImg = await fetch(BASE + '/media/huzaifa-kazi.jpg');
 ok(founderImg.status === 200 && (founderImg.headers.get('content-type') ?? '').includes('image'), 'founder photo asset served');
 
+// web-page reader tool: auth required, validates URLs, blocks private ranges
+const browseUnauth = await req('/api/tools/browse', { method: 'POST', body: { url: 'https://example.com' } });
+ok(browseUnauth.status === 401, 'browse tool requires auth', String(browseUnauth.status));
+const browseBad = await req('/api/tools/browse', { method: 'POST', body: { url: 'not a url' }, auth: userC.at + '; ' + userC.rt });
+ok(browseBad.status === 422 || browseBad.status === 400, 'browse tool rejects invalid URLs', String(browseBad.status));
+const browsePrivate = await req('/api/tools/browse', { method: 'POST', body: { url: 'http://127.0.0.1:5433/platform' }, auth: userC.at + '; ' + userC.rt });
+ok(browsePrivate.status === 400, 'browse tool blocks private/loopback addresses', String(browsePrivate.status));
+const browseFtp = await req('/api/tools/browse', { method: 'POST', body: { url: 'ftp://example.com/x' }, auth: userC.at + '; ' + userC.rt });
+ok(browseFtp.status === 422 || browseFtp.status === 400, 'browse tool blocks non-http schemes', String(browseFtp.status));
+let browseOk = false;
+try {
+  const browseGood = await req('/api/tools/browse', { method: 'POST', body: { url: 'https://example.com' }, auth: userC.at + '; ' + userC.rt });
+  browseOk = browseGood.status === 200 && typeof browseGood.data?.text === 'string' && browseGood.data.text.length > 10;
+  ok(browseOk, 'browse tool reads a public page', JSON.stringify(browseGood.data).slice(0, 120));
+} catch { ok(false, 'browse tool reads a public page', 'network unavailable'); }
+
+// multimodal chat: text + image parts accepted, metered, streamed; bad parts rejected
+const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const mmRes = await fetch(BASE + '/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Cookie: userC.at + '; ' + userC.rt },
+  body: JSON.stringify({
+    model: 'mock-small',
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: 'Describe the attached file: hello attachment world' },
+      { type: 'image_url', image_url: { url: tinyPng } },
+    ] }],
+  }),
+});
+const mmText = mmRes.status === 200 ? await mmRes.text() : '';
+ok(mmRes.status === 200 && mmText.includes('attachment') && mmText.includes('done'), 'multimodal chat (text+image parts) streams and completes', `${mmRes.status} ${mmText.slice(0, 120)}`);
+const mmBad = await req('/api/chat', { method: 'POST', body: { model: 'mock-small', messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'http://evil.example/x.png' } }] }] }, auth: userC.at + '; ' + userC.rt });
+ok(mmBad.status === 400 || mmBad.status === 422, 'non-inline image parts rejected server-side', String(mmBad.status));
+
 // gemini models are seeded but stay hidden until the admin pastes a key; direct calls are refused
 const asFree = await req('/api/models', { auth: userC.at + '; ' + userC.rt });
 ok(asFree.status === 200 && !asFree.data.models.some((m) => m.provider === 'gemini'), 'gemini hidden while provider has no key');

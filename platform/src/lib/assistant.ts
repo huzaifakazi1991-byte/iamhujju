@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { decryptSecret } from '@/lib/crypto';
 import { adapterForProvider } from '@/lib/gateway/registry';
-import type { ChatMessage } from '@/lib/gateway/types';
+import { messageText, type ChatMessage } from '@/lib/gateway/types';
 
 export const ASSISTANT_NAME = 'huzaifa.ai';
 
@@ -105,6 +105,6 @@ export async function assistantAnswer(history: ChatMessage[]): Promise<{ answer:
       // fall through to the built-in knowledge base
     }
   }
-  const last = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
-  return { answer: faqAnswer(last), source: 'faq' };
+  const last = [...history].reverse().find((m) => m.role === 'user');
+  return { answer: faqAnswer(last ? messageText(last.content) : ''), source: 'faq' };
 }

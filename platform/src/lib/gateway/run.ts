@@ -4,7 +4,7 @@ import { estimateTokens, minuteKey, nowUtcDayStart } from '@/lib/tokens';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { decryptSecret } from '@/lib/crypto';
 import { adapterForProvider } from '@/lib/gateway/registry';
-import { GatewayError, type ChatMessage } from '@/lib/gateway/types';
+import { GatewayError, messageText, type ChatMessage } from '@/lib/gateway/types';
 
 type PlanRow = {
   id: string;
@@ -87,7 +87,7 @@ export async function preflight(opts: {
     throw new GatewayError(403, `"${model.displayName}" requires a higher plan. Please upgrade.`);
   }
 
-  const promptTokens = opts.messages.reduce((n, m) => n + estimateTokens(m.content), 0);
+  const promptTokens = opts.messages.reduce((n, m) => n + estimateTokens(messageText(m.content)), 0);
 
   const limit = await checkRateLimit(`user:${opts.userId}`, plan.requestsPerMin, plan.tokensPerMinute, promptTokens);
   if (!limit.allowed) {
@@ -268,9 +268,10 @@ export async function executeChat(opts: {
       if (!existing) conversationId = null;
     }
     if (!conversationId) {
-      const firstUser = opts.messages.find((m) => m.role === 'user')?.content ?? 'New chat';
+      const firstUser = opts.messages.find((m) => m.role === 'user');
+      const title = firstUser ? messageText(firstUser.content).slice(0, 80) : 'New chat';
       const conv = await prisma.conversation.create({
-        data: { userId: opts.userId, modelId: model.id, title: firstUser.slice(0, 80) },
+        data: { userId: opts.userId, modelId: model.id, title },
       });
       conversationId = conv.id;
     }
@@ -281,7 +282,7 @@ export async function executeChat(opts: {
     const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user');
     if (lastUser) {
       const msg = await prisma.message.create({
-        data: { conversationId: conversationId!, role: 'user', content: lastUser.content, tokensIn: check.promptTokens },
+        data: { conversationId: conversationId!, role: 'user', content: messageText(lastUser.content), tokensIn: check.promptTokens },
       });
       void msg;
       const assistant = await prisma.message.create({
