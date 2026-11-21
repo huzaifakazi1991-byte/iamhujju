@@ -345,6 +345,8 @@ function HomePage({
   storageError,
   storageNotice,
   authRestoreError,
+  modalRequest,
+  onModalHandled,
   requestedModelId,
   onClearRequestedModel,
   onRetryAuth,
@@ -376,6 +378,23 @@ function HomePage({
   const [aboutOpen, setAboutOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState(null);
+
+  useEffect(() => {
+    if (!modalRequest) return;
+    if (modalRequest.kind === 'docs') {
+      setDocsTab(modalRequest.tab || 'quickstart');
+      setDocsOpen(true);
+    } else if (modalRequest.kind === 'auth') {
+      setAuthMode(modalRequest.mode || 'login');
+      setAuthError('');
+      setAuthOpen(true);
+    } else if (modalRequest.kind === 'contact') {
+      setContactOpen(true);
+    } else if (modalRequest.kind === 'about') {
+      setAboutOpen(true);
+    }
+    if (typeof onModalHandled === 'function') onModalHandled();
+  }, [modalRequest, onModalHandled]);
 
   function handleOpenCheckout(plan) {
     if (typeof propOnOpenCheckout === 'function') {

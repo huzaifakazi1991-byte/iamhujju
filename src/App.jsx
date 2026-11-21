@@ -247,6 +247,7 @@ function App() {
   const [currentView, setCurrentView] = useState('home');
   const [mobileChatSidebarOpen, setMobileChatSidebarOpen] = useState(false);
   const [liveSupportOpen, setLiveSupportOpen] = useState(false);
+  const [homeModalRequest, setHomeModalRequest] = useState(null);
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -1802,6 +1803,22 @@ function App() {
       onOpenPricing={openPricing}
       onOpenApiKeys={openApiKeys}
       onOpenIntegrations={openIntegrations}
+      onOpenDocs={(tab) => {
+        if (currentView !== 'home') navigateToView('home');
+        setHomeModalRequest({ kind: 'docs', tab: tab || 'quickstart', at: Date.now() });
+      }}
+      onOpenAuth={(mode) => {
+        if (currentView !== 'home') navigateToView('home');
+        setHomeModalRequest({ kind: 'auth', mode: mode || 'login', at: Date.now() });
+      }}
+      onOpenContact={() => {
+        if (currentView !== 'home') navigateToView('home');
+        setHomeModalRequest({ kind: 'contact', at: Date.now() });
+      }}
+      onOpenAbout={() => {
+        if (currentView !== 'home') navigateToView('home');
+        setHomeModalRequest({ kind: 'about', at: Date.now() });
+      }}
       onScrollTo={(id) => {
         if (currentView !== 'home') {
           navigateToView('home');
@@ -1838,6 +1855,8 @@ function App() {
           ? 'Older browser conversations are not associated with an account. Import them from Saved conversations after signing in.'
           : ''}
         authRestoreError={authRestoreError}
+        modalRequest={homeModalRequest}
+        onModalHandled={() => setHomeModalRequest(null)}
         requestedModelId={requestedModelId}
         onClearRequestedModel={() => setRequestedModelId(null)}
         onRetryAuth={() => {

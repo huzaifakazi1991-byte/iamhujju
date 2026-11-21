@@ -17,12 +17,6 @@ import {
   generateImageResult,
   createVideoTaskRecord
 } from './aiGateway.js';
-import {
-  getElectronHubKey,
-  generateElectronHubImage,
-  createElectronHubVideoTask,
-  streamElectronHubChat
-} from './electronHubAdapter.js';
 
 export const HUZAIFA_OMNI_MODEL_ID = 'huzaifa-kazi-omni';
 
@@ -192,7 +186,7 @@ Core Directives:
 /**
  * Determine Model Routing Candidate Pool for Huzaifa Kazi
  */
-export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKey = false, hasImage = false, hasElectronHubKey = false } = {}) {
+export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKey = false, hasImage = false } = {}) {
   const canUseGeminiPro = isPaidUser && hasGeminiKey;
 
   // Multimodal Vision Routing: if an image/photo is attached, prioritize vision-capable models
@@ -201,13 +195,11 @@ export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKe
       return [
         { provider: 'gemini', model: 'gemini-2.5-flash' },
         { provider: 'gemini', model: 'gemini-2.5-pro' },
-        { provider: 'electronhub', model: 'gpt-4o' },
         { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' },
         { provider: 'openrouter', model: 'meta-llama/llama-3.2-11b-vision-instruct:free' }
       ];
     }
     return [
-      { provider: 'electronhub', model: 'gpt-4o' },
       { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' },
       { provider: 'openrouter', model: 'meta-llama/llama-3.2-11b-vision-instruct:free' },
       { provider: 'gemini', model: 'gemini-2.5-flash' },
@@ -220,17 +212,13 @@ export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKe
       if (canUseGeminiPro) {
         return [
           { provider: 'gemini', model: 'gemini-2.5-pro' },
-          { provider: 'electronhub', model: 'gpt-4o' },
           { provider: 'openrouter', model: 'anthropic/claude-3.5-sonnet' },
-          { provider: 'electronhub', model: 'deepseek-r1' },
           { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' },
           { provider: 'groq', model: 'llama-3.3-70b-versatile' }
         ];
       }
       return [
         { provider: 'openrouter', model: 'deepseek/deepseek-r1:free' },
-        { provider: 'electronhub', model: 'deepseek-r1' },
-        { provider: 'electronhub', model: 'gpt-4o-mini' },
         { provider: 'openrouter', model: 'qwen/qwen-2.5-coder-32b-instruct:free' },
         { provider: 'groq', model: 'llama-3.3-70b-versatile' },
         { provider: 'openrouter', model: 'openrouter/free' }
@@ -240,14 +228,12 @@ export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKe
       if (canUseGeminiPro) {
         return [
           { provider: 'gemini', model: 'gemini-2.5-flash' },
-          { provider: 'electronhub', model: 'gpt-4o-mini' },
           { provider: 'groq', model: 'llama-3.3-70b-versatile' },
           { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' }
         ];
       }
       return [
         { provider: 'groq', model: 'llama-3.3-70b-versatile' },
-        { provider: 'electronhub', model: 'gpt-4o-mini' },
         { provider: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
         { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' },
         { provider: 'openrouter', model: 'openrouter/free' }
@@ -258,14 +244,12 @@ export function getOmniCandidateModels(intent, { isPaidUser = false, hasGeminiKe
       if (canUseGeminiPro) {
         return [
           { provider: 'gemini', model: 'gemini-2.5-flash' },
-          { provider: 'electronhub', model: 'gpt-4o-mini' },
           { provider: 'groq', model: 'llama-3.3-70b-versatile' },
           { provider: 'openrouter', model: 'openrouter/free' }
         ];
       }
       return [
         { provider: 'groq', model: 'llama-3.3-70b-versatile' },
-        { provider: 'electronhub', model: 'gpt-4o-mini' },
         { provider: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
         { provider: 'openrouter', model: 'google/gemini-2.5-flash:free' },
         { provider: 'openrouter', model: 'openrouter/free' }
@@ -386,27 +370,7 @@ export async function executeHuzaifaOmniChat({
         }
       }
 
-      // Fallback to active key pool Flux / SDXL / Electron Hub Flux
-      if (!imageUrl) {
-        const activeEhKey = await getElectronHubKey(accountStore, user?.id, keyPool);
-        if (activeEhKey) {
-          try {
-            sendSSEStatus('Generating high-resolution AI image via Electron Hub…');
-            const ehImg = await generateElectronHubImage({
-              prompt: intent.extractedPrompt,
-              model: 'flux-schnell',
-              size: '1024x1024',
-              n: 1,
-              apiKey: activeEhKey,
-              fetchImpl
-            });
-            imageUrl = ehImg.data?.[0]?.url;
-          } catch (ehErr) {
-            console.warn('[HuzaifaOmni] Electron Hub image failed, falling back:', ehErr.message);
-          }
-        }
-      }
-
+      // Fallback to active key pool Flux / SDXL
       if (!imageUrl) {
         const activeEhKey = keyPool?.hasKeys('electronhub') ? keyPool.pools.get('electronhub')?.[0]?.key : null;
         const activeOrKey = keyPool?.hasKeys('openrouter') ? keyPool.pools.get('openrouter')?.[0]?.key : null;
@@ -478,25 +442,6 @@ export async function executeHuzaifaOmniChat({
           videoUrl = vTask.video_url || vTask.final_video_url;
         } catch (vErr) {
           console.warn('[HuzaifaOmni] Gemini Veo failed, falling back to Kling/standard pool:', vErr.message);
-        }
-      }
-
-      // Fallback to Electron Hub video engine if key available
-      if (!videoUrl) {
-        const activeEhKey = await getElectronHubKey(accountStore, user?.id, keyPool);
-        if (activeEhKey) {
-          try {
-            sendSSEStatus('Generating cinematic motion video via Electron Hub…');
-            const ehVid = await createElectronHubVideoTask({
-              prompt: intent.extractedPrompt,
-              model: 'kling-video-v1',
-              apiKey: activeEhKey,
-              fetchImpl
-            });
-            videoUrl = ehVid.videoUrl || null;
-          } catch (ehErr) {
-            console.warn('[HuzaifaOmni] Electron Hub video failed, falling back:', ehErr.message);
-          }
         }
       }
 
@@ -613,76 +558,53 @@ export async function executeHuzaifaOmniChat({
     const pConfig = PROVIDERS[candidate.provider];
     if (!pConfig) continue;
 
-    let candidateKey = null;
-    if (candidate.provider === 'electronhub') {
-      candidateKey = await getElectronHubKey(accountStore, user?.id, keyPool);
-    }
-
-    const hasKeys = keyPool?.hasKeys(candidate.provider) || Boolean(candidateKey);
+    const hasKeys = keyPool?.hasKeys(candidate.provider);
     if (!hasKeys && candidate.provider !== 'freellmapi') continue;
 
     try {
       sendSSEStatus('Connecting multi-model intelligence…');
 
       let response = null;
-      if (candidate.provider === 'electronhub' && candidateKey && !keyPool?.hasKeys('electronhub')) {
-        const sanitized = sanitizePayloadForModel(
-          candidate.provider,
-          candidate.model,
-          groundedBody,
-          { isFreeTierUsingServerKey: !isPaidUser }
-        );
-        response = await streamElectronHubChat({
-          apiKey: candidateKey,
-          messages: sanitized.messages || groundedBody.messages,
-          model: candidate.model,
-          temperature: sanitized.temperature || 0.7,
-          max_tokens: sanitized.max_tokens || 4096,
-          stream: isStreaming,
-          fetchImpl
-        });
-      } else {
-        await keyPool.executeWithFailover({
-          providerId: candidate.provider,
-          userKey: candidateKey,
-          fallbackChain: [],
-          requestFn: async (activeKey) => {
-            const endpoint = pConfig.chatUrl || `${upstreamBase}/chat/completions`;
-            const sanitized = sanitizePayloadForModel(
-              candidate.provider,
-              candidate.model,
-              groundedBody,
-              { isFreeTierUsingServerKey: !isPaidUser }
-            );
+      await keyPool.executeWithFailover({
+        providerId: candidate.provider,
+        userKey: null,
+        fallbackChain: [],
+        requestFn: async (activeKey) => {
+          const endpoint = pConfig.chatUrl || `${upstreamBase}/chat/completions`;
+          const sanitized = sanitizePayloadForModel(
+            candidate.provider,
+            candidate.model,
+            groundedBody,
+            { isFreeTierUsingServerKey: !isPaidUser }
+          );
 
-            response = await fetchImpl(endpoint, {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${candidateKey || activeKey}`,
-                'Content-Type': 'application/json',
-                ...(candidate.provider === 'openrouter' ? {
-                  'HTTP-Referer': 'https://iamhujju.com',
-                  'X-Title': 'iamhujju'
-                } : {}),
-                ...(pConfig.headers || {})
-              },
-              body: JSON.stringify({
-                ...sanitized,
-                stream: isStreaming
-              })
-            });
+          response = await fetchImpl(endpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${activeKey}`,
+              'Content-Type': 'application/json',
+              ...(candidate.provider === 'openrouter' ? {
+                'HTTP-Referer': 'https://iamhujju.com',
+                'X-Title': 'iamhujju'
+              } : {}),
+              ...(pConfig.headers || {})
+            },
+            body: JSON.stringify({
+              ...sanitized,
+              stream: isStreaming
+            })
+          });
 
-            if (!response.ok) {
-              const errBody = await response.text().catch(() => '');
-              const err = new Error(`Provider HTTP ${response.status}: ${errBody}`);
-              err.status = response.status;
-              throw err;
-            }
-            return response;
-          },
-          maxRetries: 2
-        });
-      }
+          if (!response.ok) {
+            const errBody = await response.text().catch(() => '');
+            const err = new Error(`Provider HTTP ${response.status}: ${errBody}`);
+            err.status = response.status;
+            throw err;
+          }
+          return response;
+        },
+        maxRetries: 2
+      });
 
       if (response && response.ok) {
         if (isStreaming) {
