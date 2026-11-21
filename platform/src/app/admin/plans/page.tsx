@@ -39,7 +39,7 @@ export default function AdminPlansPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Plans</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Plans</h1>
       <p className="mt-1 mb-8 text-sm text-ink-soft dark:text-white/60">Quotas and rate limits per tier. Changes apply server-side on the next request.</p>
       {!plans && <div className="skeleton h-64" />}
       <div className="grid gap-4 lg:grid-cols-3">

@@ -35,7 +35,7 @@ export default function SignupPage() {
       <Nav />
       <main className="hero-glow px-4 py-16 sm:px-6">
         <form onSubmit={submit} className="card mx-auto w-full max-w-md p-8">
-          <h1 className="text-2xl font-extrabold tracking-tight">Create your account</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
           <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Free tier includes daily tokens — no card required.</p>
           <div className="flex flex-col gap-4">
             <label className="block text-sm font-medium">

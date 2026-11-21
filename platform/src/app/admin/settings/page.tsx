@@ -35,7 +35,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-extrabold tracking-tight">Platform settings</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Platform settings</h1>
       <p className="mt-1 mb-8 text-sm text-ink-soft dark:text-white/60">Feature flags stored in the database and enforced server-side.</p>
       <div className="grid gap-4">
         {TOGGLES.map((t) => (

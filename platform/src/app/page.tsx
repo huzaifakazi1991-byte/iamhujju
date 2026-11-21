@@ -1,6 +1,10 @@
+'use client';
+
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { Nav } from '@/components/nav';
 import { LandingMotion } from '@/components/landing-motion';
+import { GlassCard } from '@/components/ui/glass';
 
 const FEATURES = [
   { icon: '🔀', title: 'One gateway, every provider', body: 'Mistral, OpenAI, Anthropic, Groq or anything OpenAI-compatible — paste a key in the admin vault and its models appear instantly. No redeploys, no code changes.' },
@@ -9,65 +13,129 @@ const FEATURES = [
   { icon: '🔑', title: 'Programmatic access', body: 'Create personal API keys and call the OpenAI-compatible /api/v1/chat/completions endpoint from any SDK or tool.' },
 ];
 
+const STATS = [
+  { value: '4', label: 'providers, one gateway' },
+  { value: '50M+', label: 'daily tokens on Business' },
+  { value: '<1s', label: 'model onboarding after key paste' },
+  { value: '100%', label: 'server-side gating' },
+];
+
+const TRUST = ['OpenAI-compatible', 'Mistral', 'Anthropic', 'Groq', 'Streaming SSE', 'Stripe billing', 'Neon Postgres', 'Redis rate limits'];
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen">
       <Nav />
       <main>
         <section className="hero-glow">
-          <div className="mx-auto max-w-6xl px-4 pb-24 pt-20 text-center sm:px-6 sm:pt-28">
+          <div className="mx-auto max-w-6xl px-4 pb-24 pt-24 text-center sm:px-6 sm:pt-32">
             <LandingMotion>
-              <p className="mb-5 inline-block rounded-full border border-agent/30 bg-agent/10 px-4 py-1 text-sm font-medium text-agent-deep dark:text-agent">
+              <motion.p
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="mb-6 inline-flex items-center gap-2 rounded-full border border-leaf/35 bg-leaf/10 px-4 py-1 text-sm font-medium text-leaf-deep dark:text-leaf-glow"
+              >
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-leaf" />
                 Runs out of the box on the built-in mock provider
-              </p>
-              <h1 className="mx-auto max-w-4xl text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl">
-                Frontier AI, <span className="text-agent">for everyone.</span>
+              </motion.p>
+              <h1 className="text-display mx-auto max-w-5xl">
+                <motion.span
+                  className="block"
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  Grow beyond
+                </motion.span>
+                <motion.span
+                  className="block"
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  one model.{' '}
+                  <span className="bg-gradient-to-r from-leaf-deep via-leaf-glow to-amber bg-clip-text text-transparent dark:from-leaf-glow dark:via-leaf dark:to-amber">
+                    For everyone.
+                  </span>
+                </motion.span>
               </h1>
-              <p className="mx-auto mt-6 max-w-2xl text-lg text-ink-soft dark:text-white/65">
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.36, ease: [0.22, 1, 0.36, 1] }}
+                className="text-body-soft mx-auto mt-7 max-w-2xl text-lg leading-relaxed"
+              >
                 A multi-provider AI playground with transparent metering. Sign up free, chat instantly on the mock provider, upgrade when you outgrow it.
-              </p>
-              <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Link href="/signup" className="btn-primary px-7 py-3 text-base">Start free</Link>
-                <Link href="/playground" className="btn-ghost px-7 py-3 text-base">Open playground →</Link>
+              </motion.p>
+              <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link href="/signup" className="btn-leaf px-8 py-3 text-base">Start free</Link>
+                <Link href="/playground" className="btn-ghost px-8 py-3 text-base">Open playground →</Link>
               </div>
             </LandingMotion>
           </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+          <div className="trust-mask overflow-hidden py-6">
+            <div className="trust-track">
+              {[...TRUST, ...TRUST].map((t, i) => (
+                <span key={i} className="text-caption whitespace-nowrap opacity-75">{t}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
+          <LandingMotion>
+            <div className="glass mx-auto grid max-w-3xl grid-cols-2 gap-6 rounded-[1.5rem] p-8 sm:grid-cols-4">
+              {STATS.map((s) => (
+                <div key={s.label} className="text-center">
+                  <p className="text-num text-h2 text-leaf-deep dark:text-leaf">{s.value}</p>
+                  <p className="mt-1 text-xs leading-snug text-body-soft">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          </LandingMotion>
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
           <div className="grid gap-5 sm:grid-cols-2">
             {FEATURES.map((f, i) => (
               <LandingMotion key={f.title} delay={i * 0.08}>
-                <div className="card h-full p-7">
-                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-agent/10 text-2xl">{f.icon}</div>
-                  <h3 className="mb-2 text-lg font-bold">{f.title}</h3>
-                  <p className="text-[0.95rem] leading-relaxed text-ink-soft dark:text-white/65">{f.body}</p>
-                </div>
+                <GlassCard hover className="h-full p-7">
+                  <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-leaf/25 bg-leaf/10 text-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]">{f.icon}</div>
+                  <h3 className="font-display mb-2 text-lg font-bold tracking-tight">{f.title}</h3>
+                  <p className="text-body-soft text-[0.95rem] leading-relaxed">{f.body}</p>
+                </GlassCard>
               </LandingMotion>
             ))}
           </div>
         </section>
 
-        <section className="border-t border-black/5 bg-cream-deep py-20 dark:border-white/10 dark:bg-night-soft">
-          <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
-            <LandingMotion>
-              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Free to start. Honest about limits.</h2>
-              <p className="mx-auto mt-4 max-w-xl text-ink-soft dark:text-white/65">
-                The Free tier includes daily tokens and core models. Paid tiers unlock every enabled model with much larger quotas.
-              </p>
-              <Link href="/pricing" className="btn-primary mt-8 inline-block px-7 py-3">See pricing</Link>
-            </LandingMotion>
-          </div>
+        <section className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
+          <LandingMotion>
+            <GlassCard className="relative overflow-hidden p-10 text-center sm:p-14">
+              <div className="hero-glow pointer-events-none absolute inset-0" />
+              <div className="relative">
+                <h2 className="text-h1">Free to start. Honest about limits.</h2>
+                <p className="text-body-soft mx-auto mt-4 max-w-xl text-lg">
+                  The Free tier includes daily tokens and core models. Paid tiers unlock every enabled model with much larger quotas.
+                </p>
+                <Link href="/pricing" className="btn-primary mt-9 inline-block px-8 py-3">See pricing</Link>
+              </div>
+            </GlassCard>
+          </LandingMotion>
         </section>
       </main>
 
-      <footer className="border-t border-black/5 py-8 dark:border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm text-ink-soft sm:flex-row sm:px-6 dark:text-white/50">
-          <span>© {new Date().getFullYear()} IamHujju</span>
+      <footer className="border-t border-forest/8 py-8 dark:border-white/10">
+        <div className="text-body-soft mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm sm:flex-row sm:px-6">
+          <span>© {new Date().getFullYear()} IamHujju — grown, not gated.</span>
           <div className="flex gap-5">
-            <Link href="/pricing" className="hover:text-agent">Pricing</Link>
-            <Link href="/playground" className="hover:text-agent">Playground</Link>
-            <Link href="/dashboard" className="hover:text-agent">Dashboard</Link>
+            <Link href="/pricing" className="transition-colors hover:text-leaf">Pricing</Link>
+            <Link href="/playground" className="transition-colors hover:text-leaf">Playground</Link>
+            <Link href="/dashboard" className="transition-colors hover:text-leaf">Dashboard</Link>
           </div>
         </div>
       </footer>

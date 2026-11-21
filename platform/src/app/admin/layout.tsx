@@ -14,10 +14,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen">
       <Nav />
-      <div className="border-b border-black/5 bg-cream-deep dark:border-white/10 dark:bg-night-soft">
-        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2.5 sm:px-6">
+      <div className="glass mx-auto mt-4 max-w-6xl rounded-full px-2 sm:px-3">
+        <div className="flex gap-1 overflow-x-auto py-2">
           {TABS.map((t) => (
-            <Link key={t.href} href={t.href} className="whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10">
+            <Link key={t.href} href={t.href} className="whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors hover:bg-leaf/8 hover:text-leaf-deep dark:hover:bg-leaf/10 dark:hover:text-leaf">
               {t.label}
             </Link>
           ))}

@@ -30,7 +30,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               role="status"
-              className={`card px-4 py-3 text-sm shadow-lg max-w-xs ${t.kind === 'error' ? 'border-red-300 dark:border-red-800' : t.kind === 'success' ? 'border-green-400 dark:border-green-800' : ''}`}
+              className={`glass-strong px-4 py-3 text-sm max-w-xs rounded-2xl ${t.kind === 'error' ? 'border-red-400/50' : t.kind === 'success' ? 'border-leaf/40' : ''}`}
             >
               <span className="mr-2">{t.kind === 'error' ? '⚠️' : t.kind === 'success' ? '✅' : 'ℹ️'}</span>
               {t.message}
