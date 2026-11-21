@@ -123,6 +123,17 @@ for (const social of ['YouTube', 'Telegram', 'LinkedIn']) {
 const founderImg = await fetch(BASE + '/media/huzaifa-kazi.jpg');
 ok(founderImg.status === 200 && (founderImg.headers.get('content-type') ?? '').includes('image'), 'founder photo asset served');
 
+// ai gallery: folders, stories, assets
+ok(landHtml.includes('id="gallery"'), 'gallery section present on landing');
+ok(landHtml.includes('Made by machines'), 'gallery headline present');
+for (const folder of ['Passport &amp; IDs', 'Posters &amp; Reels', 'Character Sheets', 'Brand &amp; Web']) {
+  ok(landHtml.includes(folder), `gallery folder tab: ${folder}`);
+}
+for (const g of ['passport-headshot.jpg', 'id-portrait.jpg', 'car-jump-poster.jpg', 'character-sheet.jpg', 'brand-portrait.jpg']) {
+  const gi = await fetch(BASE + '/media/gallery/' + g);
+  ok(gi.status === 200 && (gi.headers.get('content-type') ?? '').includes('image'), `gallery asset ${g} served`);
+}
+
 // web-page reader tool: auth required, validates URLs, blocks private ranges
 const browseUnauth = await req('/api/tools/browse', { method: 'POST', body: { url: 'https://example.com' } });
 ok(browseUnauth.status === 401, 'browse tool requires auth', String(browseUnauth.status));

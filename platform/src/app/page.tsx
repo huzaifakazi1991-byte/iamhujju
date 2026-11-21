@@ -7,6 +7,7 @@ import { Nav } from '@/components/nav';
 import { LandingMotion } from '@/components/landing-motion';
 import { GlassCard } from '@/components/ui/glass';
 import { AboutSection } from '@/components/about-us';
+import { GallerySection } from '@/components/gallery';
 import { api } from '@/lib/client';
 
 const FEATURES = [
@@ -129,6 +130,10 @@ export default function LandingPage() {
 
         <section id="about" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-24 sm:px-6">
           <AboutSection />
+        </section>
+
+        <section id="gallery" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-24 sm:px-6">
+          <GallerySection />
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
