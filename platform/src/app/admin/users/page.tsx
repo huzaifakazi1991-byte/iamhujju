@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/client';
 
@@ -14,6 +15,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [q, setQ] = useState('');
   const [grant, setGrant] = useState<Record<string, string>>({});
+  const [armDelete, setArmDelete] = useState<string | null>(null);
 
   const load = useCallback(async (query = '') => {
     try {
@@ -43,10 +45,31 @@ export default function AdminUsersPage() {
     } catch (err) { toast(err instanceof Error ? err.message : 'Grant failed', 'error'); }
   }
 
+  async function forceLogout(u: UserRow) {
+    try {
+      await api(`/api/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ forceLogout: true }) });
+      toast(`${u.email} signed out everywhere.`, 'success');
+    } catch (err) { toast(err instanceof Error ? err.message : 'Force logout failed', 'error'); }
+  }
+
+  async function removeUser(u: UserRow) {
+    if (armDelete !== u.id) {
+      setArmDelete(u.id);
+      toast(`Press Delete again to permanently remove ${u.email} and all their data.`, 'error');
+      return;
+    }
+    try {
+      await api(`/api/admin/users/${u.id}`, { method: 'DELETE' });
+      toast(`${u.email} and all their data were permanently removed.`, 'success');
+      setArmDelete(null);
+      await load(q);
+    } catch (err) { toast(err instanceof Error ? err.message : 'Delete failed', 'error'); }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-      <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Search, suspend, promote and grant tokens.</p>
+      <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Search, inspect chats, grant tokens, suspend/terminate, promote or permanently remove users.</p>
 
       <form className="mb-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); load(q); }}>
         <input className="input max-w-sm" placeholder="Search by email or name…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -84,8 +107,13 @@ export default function AdminUsersPage() {
                       <button className="btn-ghost px-3 py-1 text-xs" onClick={() => doGrant(u)}>Apply</button>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-right text-xs text-ink-soft dark:text-white/50">
-                    lifetime {u.lifetimeUsed.toLocaleString()}
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-2 text-xs">
+                      <span className="hidden text-ink-soft dark:text-white/50 sm:inline">lifetime {u.lifetimeUsed.toLocaleString()}</span>
+                      <Link className="btn-ghost px-3 py-1 text-xs" href={`/admin/logs?q=${encodeURIComponent(u.email)}`}>Chats</Link>
+                      <button className="btn-ghost px-3 py-1 text-xs" onClick={() => void forceLogout(u)}>Terminate</button>
+                      {!u.suspended && <button className="btn-ghost px-3 py-1 text-xs text-red-500" onClick={() => void removeUser(u)}>{armDelete === u.id ? 'Confirm delete' : 'Delete'}</button>}
+                    </div>
                   </td>
                 </tr>
               ))}
