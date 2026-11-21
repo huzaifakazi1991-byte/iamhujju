@@ -14,11 +14,37 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required.'),
 });
 
+const textPartSchema = z.object({
+  type: z.literal('text'),
+  text: z.string().min(1).max(40000),
+});
+const imagePartSchema = z.object({
+  type: z.literal('image_url'),
+  image_url: z.object({
+    url: z.string()
+      .regex(/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/, 'Only inline PNG/JPEG/WebP/GIF images are supported.')
+      .max(5_600_000, 'Image is too large (max ~4 MB).'),
+  }),
+});
+const contentSchema = z.union([
+  z.string().min(1, 'Message content cannot be empty.').max(32000),
+  z.array(z.union([textPartSchema, imagePartSchema])).min(1).max(10)
+    .refine((parts) => parts.some((p) => p.type === 'text'), 'A text part is required.')
+    .refine(
+      (parts) => parts.reduce((n, p) => n + (p.type === 'text' ? p.text.length : 0), 0) <= 120000,
+      'Attached text is too large (max ~120k characters per message).',
+    )
+    .refine(
+      (parts) => parts.filter((p) => p.type === 'image_url').length <= 4,
+      'Max 4 images per message.',
+    ),
+]);
+
 export const chatSchema = z.object({
   model: z.string().trim().min(1).max(120),
   messages: z.array(z.object({
     role: z.enum(['system', 'user', 'assistant']),
-    content: z.string().min(1, 'Message content cannot be empty.').max(32000),
+    content: contentSchema,
   })).min(1).max(80),
   conversationId: z.string().trim().max(64).optional().nullable(),
   maxTokens: z.number().int().min(1).max(8192).optional(),

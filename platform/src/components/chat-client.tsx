@@ -7,9 +7,22 @@ import { GlassCard } from '@/components/ui/glass';
 import { useToast } from '@/components/toast';
 import { Markdown } from '@/components/markdown';
 
+import type { StreamContentPart } from '@/lib/client';
+
 type Model = { id: string; slug: string; displayName: string; provider: string; tierRequired: string; contextWindow: number; maxOutputTokens: number };
 type Conversation = { id: string; title: string | null; updatedAt: string };
-type Msg = { role: 'user' | 'assistant' | 'system'; content: string };
+type Msg = { role: 'user' | 'assistant' | 'system'; content: string; files?: string[] };
+type Attachment =
+  | { id: string; kind: 'text'; name: string; data: string; truncated: boolean }
+  | { id: string; kind: 'image'; name: string; data: string };
+
+const TEXT_MIME = /^(text\/|application\/(json|xml|javascript|x-yaml|x-sh|sql))/;
+const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|ya?ml|toml|ini|cfg|conf|env|log|xml|html?|htm|css|scss|less|js|jsx|mjs|cjs|ts|tsx|py|java|kt|c|h|cpp|hpp|cs|go|rs|rb|php|sh|bash|bat|ps1|sql|gitignore|svg)$/i;
+const IMAGE_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const MAX_TEXT_FILES = 10;
+const MAX_IMAGES = 4;
+const MAX_TEXT_CHARS = 150_000;
+const MAX_IMAGE_BYTES = 3.5 * 1024 * 1024;
 type Usage = {
   available: number;
   todayTokens: number;
@@ -27,6 +40,12 @@ export function ChatClient() {
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Msg[]>([]);
@@ -80,20 +99,128 @@ export function ChatClient() {
     setStreaming(false);
   }
 
+  function readAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const addAttachment = useCallback((a: Attachment) => {
+    setAttachments((prev) => {
+      if (prev.length >= MAX_TEXT_FILES + MAX_IMAGES) {
+        toast(`Max ${MAX_TEXT_FILES + MAX_IMAGES} attachments per message.`, 'error');
+        return prev;
+      }
+      return [...prev, a];
+    });
+  }, [toast]);
+
+  async function addFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    let textCount = 0;
+    let imageCount = 0;
+    for (const f of list) {
+      const isImage = IMAGE_MIME.includes(f.type);
+      const isText = TEXT_MIME.test(f.type) || TEXT_EXT.test(f.name);
+      if (!isImage && !isText) {
+        toast(`${f.name}: file type not supported. Use text/code files or PNG/JPEG/WebP/GIF images.`, 'error');
+        continue;
+      }
+      if (isImage) {
+        if (imageCount + attachments.filter((a) => a.kind === 'image').length >= MAX_IMAGES) {
+          toast(`Max ${MAX_IMAGES} images per message.`, 'error');
+          break;
+        }
+        if (f.size > MAX_IMAGE_BYTES) {
+          toast(`${f.name}: image exceeds ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024 * 10) / 10} MB.`, 'error');
+          continue;
+        }
+        try {
+          const dataUrl = await readAsDataUrl(f);
+          addAttachment({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, kind: 'image', name: f.name, data: dataUrl });
+          imageCount++;
+        } catch {
+          toast(`Could not read ${f.name}`, 'error');
+        }
+      } else {
+        if (textCount + attachments.filter((a) => a.kind === 'text').length >= MAX_TEXT_FILES) {
+          toast(`Max ${MAX_TEXT_FILES} text/file attachments per message.`, 'error');
+          break;
+        }
+        if (f.size > 2 * 1024 * 1024) {
+          toast(`${f.name}: file too large (max 2 MB of text).`, 'error');
+          continue;
+        }
+        const raw = await f.text();
+        if (!raw.trim()) {
+          toast(`${f.name}: file is empty.`, 'error');
+          continue;
+        }
+        addAttachment({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          kind: 'text',
+          name: f.name,
+          data: raw.slice(0, MAX_TEXT_CHARS),
+          truncated: raw.length > MAX_TEXT_CHARS,
+        });
+        textCount++;
+      }
+    }
+  }
+
+  async function addLink() {
+    const url = linkUrl.trim();
+    if (!url) return;
+    setLinkBusy(true);
+    try {
+      const d = await api<{ url: string; title: string; text: string; truncated: boolean }>('/api/tools/browse', { method: 'POST', body: JSON.stringify({ url }) });
+      addAttachment({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, kind: 'text', name: d.title || d.url, data: `Read from the web: ${d.url}\n\n${d.text}`, truncated: d.truncated });
+      setLinkOpen(false);
+      setLinkUrl('');
+      toast(`Added page: ${d.title || d.url}`, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not read that page', 'error');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  function buildContentParts(): StreamContentPart[] {
+    let text = input.trim();
+    for (const a of attachments.filter((x): x is Extract<Attachment, { kind: 'text' }> => x.kind === 'text')) {
+      text += `\n\n--- Attached file: ${a.name}${a.truncated ? ' (truncated)' : ''} ---\n${a.data}\n--- End of ${a.name} ---`;
+    }
+    if (text.length > 120_000) text = text.slice(0, 120_000);
+    const parts: StreamContentPart[] = [{ type: 'text', text: text || '[files only]' }];
+    for (const a of attachments.filter((x) => x.kind === 'image')) {
+      parts.push({ type: 'image_url', image_url: { url: a.data } });
+    }
+    return parts;
+  }
+
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
-    if (streaming || !input.trim() || !modelSlug) return;
-    const userMsg: Msg = { role: 'user', content: input.trim() };
+    if (streaming || (!input.trim() && attachments.length === 0) || !modelSlug) return;
+    const contentParts = buildContentParts();
+    const fileNames = attachments.map((a) => (a.kind === 'image' ? `🖼 ${a.name}` : `📄 ${a.name}`));
+    const userMsg: Msg = { role: 'user', content: input.trim() || `[${attachments.length} attachment${attachments.length > 1 ? 's' : ''}]`, files: attachments.length ? fileNames : undefined };
     const history = [...messagesRef.current, userMsg];
+    const payload = history.map((m, i) =>
+      i === history.length - 1 && m.role === 'user' ? { role: m.role, content: contentParts } : { role: m.role, content: m.content },
+    );
     setMessages(history);
     setInput('');
+    setAttachments([]);
     setStreaming(true);
     const controller = new AbortController();
     abortRef.current = controller;
     let assistantText = '';
     try {
       await streamChat(
-        { model: modelSlug, messages: history.filter((m) => m.role !== 'system'), conversationId },
+        { model: modelSlug, messages: payload.filter((m) => m.role !== 'system'), conversationId },
         (ev) => {
           const type = ev.type as string;
           if (type === 'meta' && typeof ev.conversationId === 'string') {
@@ -212,7 +339,18 @@ export function ChatClient() {
             {messages.map((m, i) => (
               <div key={i} className={`mb-5 flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`bubble ${m.role === 'user' ? 'bubble-user bg-leaf/14 dark:bg-leaf/16' : `glass bubble-assistant ${streaming && i === messages.length - 1 ? 'stream-caret' : ''}`}`}>
-                  {m.role === 'user' ? <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed">{m.content}</p> : <Markdown content={m.content} />}
+                  {m.role === 'user' ? (
+                    <>
+                      {m.files && m.files.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                          {m.files.map((f, fi) => (
+                            <span key={fi} className="rounded-full border border-leaf/30 bg-leaf/10 px-2 py-0.5 text-xs font-medium">{f}</span>
+                          ))}
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed">{m.content}</p>
+                    </>
+                  ) : <Markdown content={m.content} />}
                 </div>
               </div>
             ))}
@@ -230,8 +368,44 @@ export function ChatClient() {
         </div>
 
         <form onSubmit={send} className="border-t border-black/5 p-4 dark:border-white/10">
-          <div className="mx-auto flex max-w-3xl items-end gap-2">
-            <textarea
+          <div className="mx-auto max-w-3xl">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {attachments.map((a) => (
+                  <span key={a.id} className="glass-soft inline-flex max-w-[240px] items-center gap-2 rounded-full px-3 py-1 text-xs">
+                    <span aria-hidden>{a.kind === 'image' ? '🖼' : '📄'}</span>
+                    <span className="truncate" title={a.name}>{a.name}</span>
+                    <button type="button" aria-label={`Remove ${a.name}`} className="ml-0.5 text-red-500 hover:text-red-400" onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}>✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {linkOpen && (
+              <div className="mb-2 flex gap-2">
+                <input
+                  className="input flex-1 py-2 text-sm"
+                  placeholder="https://example.com/page-to-read"
+                  value={linkUrl}
+                  autoFocus
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addLink(); } if (e.key === 'Escape') setLinkOpen(false); }}
+                  aria-label="Page URL to read"
+                />
+                <button type="button" className="btn-leaf px-4 py-2 text-sm" disabled={linkBusy || !linkUrl.trim()} onClick={() => void addLink()}>
+                  {linkBusy ? 'Reading…' : 'Add page'}
+                </button>
+                <button type="button" className="btn-ghost px-3 py-2 text-sm" onClick={() => setLinkOpen(false)}>Cancel</button>
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <div className="flex items-center gap-1 pb-1">
+                <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} aria-label="Attach files" />
+                <input ref={folderInputRef} type="file" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} className="[&::-webkit-directory-button]:hidden" {...{ webkitdirectory: '', directory: '' }} aria-label="Attach a folder" />
+                <button type="button" className="btn-ghost px-2.5 py-2.5 text-base" title="Attach files (text, code, images)" aria-label="Attach files" onClick={() => fileInputRef.current?.click()} disabled={streaming}>📎</button>
+                <button type="button" className="btn-ghost px-2.5 py-2.5 text-base" title="Attach a folder" aria-label="Attach a folder" onClick={() => folderInputRef.current?.click()} disabled={streaming}>📁</button>
+                <button type="button" className="btn-ghost px-2.5 py-2.5 text-base" title="Read a web page" aria-label="Read a web page" onClick={() => setLinkOpen((v) => !v)} disabled={streaming}>🌐</button>
+              </div>
+              <textarea
               className="input max-h-40 min-h-[46px] flex-1 resize-y"
               placeholder={modelSlug ? 'Ask anything… (Enter to send, Shift+Enter for a new line)' : 'Loading models…'}
               value={input}
@@ -245,8 +419,9 @@ export function ChatClient() {
             {streaming ? (
               <button type="button" className="btn-ghost px-5 py-2.5 text-sm" onClick={stop}>Stop</button>
             ) : (
-              <button className="btn-primary px-5 py-2.5 text-sm" disabled={!input.trim() || !modelSlug}>Send</button>
+              <button className="btn-primary px-5 py-2.5 text-sm" disabled={(!input.trim() && attachments.length === 0) || !modelSlug}>Send</button>
             )}
+            </div>
           </div>
           <p className="mx-auto mt-2 max-w-3xl text-xs text-ink-soft dark:text-white/45">
             Free tier limits apply server-side.{' '}

@@ -1,8 +1,8 @@
-import type { ChatEvent, ChatParams, ProviderAdapter } from '@/lib/gateway/types';
+import { messageText, type ChatEvent, type ChatParams, type ProviderAdapter } from '@/lib/gateway/types';
 
-function replyFor(messages: { role: string; content: string }[]): string {
-  const last = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
-  const trimmed = last.trim().slice(0, 280);
+function replyFor(messages: ChatParams['messages']): string {
+  const last = [...messages].reverse().find((m) => m.role === 'user');
+  const trimmed = (last ? messageText(last.content) : '').trim().slice(0, 280);
   return [
     `Here is a mock response from the built-in provider — no external API needed.`,
     '',
@@ -20,7 +20,7 @@ export const mockAdapter: ProviderAdapter = {
       if (w) yield { type: 'delta', text: w };
       await new Promise((r) => setTimeout(r, 8));
     }
-    const promptChars = params.messages.reduce((n, m) => n + m.content.length, 0);
+    const promptChars = params.messages.reduce((n, m) => n + messageText(m.content).length, 0);
     yield {
       type: 'usage',
       promptTokens: Math.max(1, Math.ceil(promptChars / 4)),

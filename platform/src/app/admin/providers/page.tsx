@@ -12,7 +12,7 @@ type Provider = {
 
 const KINDS = ['gemini', 'mistral', 'openai', 'anthropic', 'groq', 'custom'];
 const SUGGESTED: Record<string, string> = {
-  gemini: 'gemini-2.5-flash, gemini-2.5-flash-lite, gemini-2.5-pro',
+  gemini: 'gemini-3.5-flash-lite, gemini-3.8-flash, gemini-3.6-flash, gemini-4-neon, gemini-4-carbon',
   mistral: 'mistral-small-latest, mistral-large-latest',
   openai: 'gpt-4o, gpt-4o-mini',
   anthropic: 'claude-sonnet-4-20250514',

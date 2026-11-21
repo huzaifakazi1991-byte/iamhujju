@@ -1,4 +1,4 @@
-import type { ChatEvent, ChatParams, ProviderAdapter } from '@/lib/gateway/types';
+import { messageText, type ChatEvent, type ChatParams, type ProviderAdapter } from '@/lib/gateway/types';
 
 type ProviderPreset = { kind: 'mistral' | 'openai' | 'groq' | 'gemini' | 'custom' };
 
@@ -70,7 +70,7 @@ export function openAICompatAdapter(preset: ProviderPreset): ProviderAdapter {
         } catch { /* skip malformed SSE line */ }
       }
     }
-    if (!usage) usage = { promptTokens: Math.ceil(params.messages.reduce((n, m) => n + m.content.length, 0) / 4), completionTokens: Math.max(1, Math.ceil(completionChars / 4)) };
+    if (!usage) usage = { promptTokens: Math.ceil(params.messages.reduce((n, m) => n + messageText(m.content).length, 0) / 4), completionTokens: Math.max(1, Math.ceil(completionChars / 4)) };
     void emitted;
     yield { type: 'usage', ...usage };
   }
