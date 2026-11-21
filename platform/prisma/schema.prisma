@@ -66,6 +66,8 @@ model Plan {
   slug             String   @unique
   priceMonthly     Int      @default(0)    // cents
   priceYearly      Int?
+  priceMonthlyInrPaise Int?
+  priceYearlyInrPaise  Int?
   dailyTokens      Int                     // token grant per day
   monthlyTokens    Int
   tokensPerMinute  Int                     // rate limit

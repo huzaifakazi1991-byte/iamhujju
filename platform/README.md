@@ -23,6 +23,9 @@ npm run build && npm run start   # http://localhost:3000
 | `APP_URL` | Public base URL, e.g. `https://iamhujju.com` |
 | `REDIS_URL` | Optional. Enables shared rate limiting across instances (falls back to in-memory) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Optional. Enables Stripe Checkout + webhook billing |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Optional. Enables Razorpay Checkout (INR: UPI, cards, netbanking) |
+| `RAZORPAY_WEBHOOK_SECRET` | Optional. Enables the `/api/billing/webhook/razorpay` replay-safe webhook |
+| `RAZORPAY_USD_TO_INR` | Optional fallback conversion (default `88`) when a plan has no INR paise price |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional. Enables "Continue with Google" |
 | `SMTP_URL` | Optional. Enables e-mail verification + receipts |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Read by the seed script |

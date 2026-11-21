@@ -6,6 +6,7 @@ import { api } from '@/lib/client';
 
 type Plan = {
   id: string; slug: string; name: string; priceMonthly: number; priceYearly: number | null;
+  priceMonthlyInrPaise: number | null; priceYearlyInrPaise: number | null;
   dailyTokens: number; monthlyTokens: number; tokensPerMinute: number; requestsPerMin: number;
   allowedModels: string[]; isActive: boolean; isFree: boolean;
 };
@@ -54,13 +55,14 @@ export default function AdminPlansPage() {
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 {([
-                  ['priceMonthly', 'Price /mo (¢)'], ['dailyTokens', 'Daily tokens'],
-                  ['monthlyTokens', 'Monthly tokens'], ['tokensPerMinute', 'Tokens /min'],
+                  ['priceMonthlyInrPaise', 'Price /mo (₹ paise)'], ['dailyTokens', 'Daily tokens'],
+                  ['priceYearlyInrPaise', 'Price /yr (₹ paise)'], ['monthlyTokens', 'Monthly tokens'],
+                  ['tokensPerMinute', 'Tokens /min'],
                   ['requestsPerMin', 'Requests /min'],
                 ] as const).map(([key, label]) => (
                   <label key={key} className="font-medium">
                     {label}
-                    <input className="input mt-1 py-1.5 text-sm" type="number" value={String(cur[key])}
+                    <input className="input mt-1 py-1.5 text-sm" type="number" value={String(cur[key] ?? '')}
                       onChange={(ev) => set(p.id, { [key]: num(ev.target.value) } as Partial<Plan>)} />
                   </label>
                 ))}

@@ -55,6 +55,8 @@ export const planUpdateSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   priceMonthly: z.number().int().min(0).max(10_000_000).optional(),
   priceYearly: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  priceMonthlyInrPaise: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  priceYearlyInrPaise: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   dailyTokens: z.number().int().min(0).max(1_000_000_000).optional(),
   monthlyTokens: z.number().int().min(0).max(10_000_000_000).optional(),
   tokensPerMinute: z.number().int().min(60).max(10_000_000).optional(),
