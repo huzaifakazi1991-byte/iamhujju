@@ -51,6 +51,10 @@ export const chatSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
 });
 
+export const conversationTruncateSchema = z.object({
+  keepCount: z.number().int().min(0).max(500),
+});
+
 export const providerCreateSchema = z.object({
   name: z.string().trim().min(2).max(60).regex(/^[a-z0-9-]+$/, 'Use lowercase letters, numbers and dashes.'),
   kind: z.enum(['mock', 'gemini', 'google', 'mistral', 'openai', 'anthropic', 'groq', 'custom']).default('custom'),

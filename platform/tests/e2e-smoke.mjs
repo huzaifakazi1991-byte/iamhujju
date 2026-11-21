@@ -97,6 +97,19 @@ ok(us.status === 200 && typeof us.data?.available === 'number' && us.data.availa
 const conv = await req('/api/conversations', { auth: userC.at + '; ' + userC.rt });
 ok(conv.status === 200 && conv.data?.conversations?.length >= 1, 'conversation persisted', JSON.stringify(conv.data).slice(0, 200));
 
+// conversation truncate API (edit / undo backend)
+const convId1 = conv.data.conversations[0].id;
+const det1 = await req('/api/conversations/' + convId1, { auth: userC.at + '; ' + userC.rt });
+const beforeCount = det1.data?.conversation?.messages?.length ?? 0;
+const trunc = await req('/api/conversations/' + convId1, { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { keepCount: Math.max(0, beforeCount - 2) } });
+ok(trunc.status === 200 && trunc.data?.deleted === 2, 'undo truncates last exchange', JSON.stringify(trunc.data));
+const det2 = await req('/api/conversations/' + convId1, { auth: userC.at + '; ' + userC.rt });
+ok(det2.status === 200 && det2.data?.conversation?.messages?.length === beforeCount - 2, 'messages removed server-side', String(det2.data?.conversation?.messages?.length));
+const truncOther = await req('/api/conversations', { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { keepCount: 0 } });
+ok(truncOther.status === 404 || truncOther.status === 405, 'truncate on unknown conversation -> 404', String(truncOther.status));
+const truncBad = await req('/api/conversations/' + convId1, { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { keepCount: -5 } });
+ok(truncBad.status === 422 || truncBad.status === 400, 'truncate validates keepCount', String(truncBad.status));
+
 // invalid input -> 400
 const bad = await req('/api/auth/login', { method: 'POST', body: { email: 'bad' } });
 ok(bad.status === 400 || bad.status === 422, 'zod validation returns 4xx', String(bad.status));
