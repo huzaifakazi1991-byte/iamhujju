@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Nav } from '@/components/nav';
 import { LandingMotion } from '@/components/landing-motion';
 import { GlassCard } from '@/components/ui/glass';
+import { api } from '@/lib/client';
 
 const FEATURES = [
   { icon: '🔀', title: 'One gateway, every provider', body: 'Mistral, OpenAI, Anthropic, Groq or anything OpenAI-compatible — paste a key in the admin vault and its models appear instantly. No redeploys, no code changes.' },
@@ -23,6 +25,11 @@ const STATS = [
 const TRUST = ['OpenAI-compatible', 'Mistral', 'Anthropic', 'Groq', 'Streaming SSE', 'Stripe billing', 'Neon Postgres', 'Redis rate limits'];
 
 export default function LandingPage() {
+  const [authed, setAuthed] = useState(false);
+  useEffect(() => {
+    api('/api/auth/me').then(() => setAuthed(true)).catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen">
       <Nav />
@@ -69,8 +76,14 @@ export default function LandingPage() {
                 A multi-provider AI playground with transparent metering. Sign up free, chat instantly on the mock provider, upgrade when you outgrow it.
               </motion.p>
               <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Link href="/signup" className="btn-leaf px-8 py-3 text-base">Start free</Link>
-                <Link href="/playground" className="btn-ghost px-8 py-3 text-base">Open playground →</Link>
+                {authed ? (
+                  <Link href="/playground" className="btn-leaf px-8 py-3 text-base">Open your playground</Link>
+                ) : (
+                  <Link href="/signup" className="btn-leaf px-8 py-3 text-base">Start free</Link>
+                )}
+                <Link href={authed ? '/pricing' : '/playground'} className="btn-ghost px-8 py-3 text-base">
+                  {authed ? 'See pricing' : 'Open playground →'}
+                </Link>
               </div>
             </LandingMotion>
           </div>

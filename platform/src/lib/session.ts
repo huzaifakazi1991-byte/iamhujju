@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
-import { accessCookieName, verifyJwt } from '@/lib/auth';
+import { accessCookieName, verifyAccessToken, verifyJwt, type JwtClaims } from '@/lib/auth';
 
 export type Actor = { id: string; email: string; role: 'USER' | 'ADMIN' };
 
@@ -16,4 +16,15 @@ export async function getActor(): Promise<Actor | null> {
   });
   if (!user || user.suspended) return null;
   return { id: user.id, email: user.email, role: user.role };
+}
+
+export async function getSessionClaims(): Promise<JwtClaims | null> {
+  const store = await cookies();
+  const token = store.get(accessCookieName())?.value;
+  if (!token) return null;
+  try {
+    return await verifyAccessToken(token);
+  } catch {
+    return null;
+  }
 }

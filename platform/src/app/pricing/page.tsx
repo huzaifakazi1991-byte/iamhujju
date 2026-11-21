@@ -2,26 +2,32 @@ import Link from 'next/link';
 import { Nav } from '@/components/nav';
 import { LandingMotion } from '@/components/landing-motion';
 import { GlassCard } from '@/components/ui/glass';
+import { getSessionClaims } from '@/lib/session';
+import { resolvePlan } from '@/lib/gateway/run';
 
 export const dynamic = 'force-dynamic';
 
 const PLANS = [
   {
-    slug: 'free', name: 'Free', price: '$0', tagline: 'Everything you need to try it.',
+    slug: 'free', name: 'Free', price: '₹0', yearly: null, tagline: 'Everything you need to try it.',
     items: ['10,000 tokens / day', '100,000 tokens / month', 'Free-tier enabled models', 'Playground + conversation history', 'Community support'],
   },
   {
-    slug: 'pro', name: 'Pro', price: '$20', tagline: 'For daily builders.',
+    slug: 'pro', name: 'Pro', price: '₹1,299', yearly: '₹14,029 / year — save 10%', tagline: 'For daily builders.',
     items: ['200,000 tokens / day', '4M tokens / month', 'All enabled models incl. Pro', '60 requests / minute', 'API keys for programmatic access', 'Priority support'],
     featured: true,
   },
   {
-    slug: 'business', name: 'Business', price: '$100', tagline: 'Scale without ceilings.',
+    slug: 'business', name: 'Business', price: '₹8,999', yearly: '₹97,189 / year — save 10%', tagline: 'Scale without ceilings.',
     items: ['2M tokens / day', '40M tokens / month', 'Every enabled model', '300 requests / minute', 'Usage analytics export', 'Dedicated support'],
   },
 ];
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const claims = await getSessionClaims();
+  const authed = !!claims;
+  const currentPlanSlug = claims ? ((await resolvePlan(claims.sub))?.slug ?? 'free') : null;
+  const tierOf = (slug: string) => PLANS.findIndex((p) => p.slug === slug);
   return (
     <div className="min-h-screen">
       <Nav />
@@ -51,6 +57,7 @@ export default function PricingPage() {
                     <span className="text-num text-4xl">{p.price}</span>
                     <span className="text-body-soft text-sm">/ month</span>
                   </div>
+                  {p.yearly && <p className="text-leaf mt-1 text-xs">{p.yearly}</p>}
                   <ul className="mt-6 flex flex-1 flex-col gap-2.5 text-sm">
                     {p.items.map((item) => (
                       <li key={item} className="flex items-start gap-2">
@@ -59,12 +66,22 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
+                  {currentPlanSlug === p.slug ? (
+                    <span className="mt-8 block rounded-full bg-green-100 py-2.5 text-center text-sm font-semibold text-green-700 dark:bg-green-900 dark:text-green-200">Your current plan</span>
+                  ) : p.slug === 'free' && authed && currentPlanSlug !== 'free' ? (
+                    <span className="mt-8 block rounded-full bg-black/5 py-2.5 text-center text-sm dark:bg-white/10">Included with your plan</span>
+                  ) : (
                   <Link
-                    href={p.slug === 'free' ? '/signup' : `/billing?plan=${p.slug}`}
+                    href={p.slug === 'free' ? (authed ? '/playground' : '/signup') : (authed ? `/billing?plan=${p.slug}` : '/login')}
                     className={`mt-8 block rounded-full py-2.5 text-center text-sm font-semibold ${p.featured ? 'btn-primary' : 'btn-ghost'}`}
                   >
-                    {p.slug === 'free' ? 'Start free' : `Upgrade to ${p.name}`}
+                    {p.slug === 'free'
+                      ? 'Start free'
+                      : currentPlanSlug && tierOf(p.slug) < tierOf(currentPlanSlug)
+                        ? `Switch to ${p.name}`
+                        : `Upgrade to ${p.name}`}
                   </Link>
+                  )}
                 </GlassCard>
               </LandingMotion>
             ))}
