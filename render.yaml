@@ -1,34 +1,43 @@
-# iamhujju — Render Web Service blueprint
-# https://github.com/render-community/render/tree/main/examples
-# Deploy with: render.yaml deploy --output-url
-# Or the Render dashboard: New Web Service → Import from GitHub
+# iamhujju — Render blueprint (Next.js platform app)
+# Deploy: Render dashboard → NewBlueprint / or your existing service re-syncs on push to main.
+# Secrets marked `sync: false` must be set in the Render dashboard (never commit them).
 
-apiVersion: render.com/v1
-kind: web
-name: iamhujju
-region: oregon
-plan: free
-runtime: node
-branch: main
-buildCommand: npm ci && npm run build
-startCommand: npm run start:api
-envVars:
-  - key: DATABASE_URL
-    fromDatabase:
-      databaseName: iamhujju
-  - key: API_KEY_ENCRYPTION_SECRET
-    sync: false
-  - key: FREELLMAPI_BASE_URL
-    sync: false
-  - key: FREELLMAPI_KEY
-    sync: false
-  - key: APP_ORIGIN
-    sync: false
-  - key: ALLOW_SHARED_FREELLMAPI_KEY
-    sync: false
-  - key: RAZORPAY_KEY_ID
-    value: rzp_test_U2SqMDjvKttD4X
-  - key: VITE_RAZORPAY_KEY_ID
-    value: rzp_test_U2SqMDjvKttD4X
-  - key: RAZORPAY_KEY_SECRET
-    sync: false
+services:
+  - type: web
+    name: iamhujju-platform
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    rootDir: platform
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false          # PostgreSQL connection string (Neon / Render Postgres)
+      - key: JWT_SECRET
+        generateValue: true  # first sync generates & stores a secure random secret
+      - key: KEY_ENCRYPTION_SECRET
+        generateValue: true  # used to encrypt provider API keys at rest
+      - key: APP_URL
+        value: https://iamhujju.com
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Optional integrations — leave unset to run on built-in mock provider / mock checkout
+      - key: REDIS_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SMTP_URL
+        sync: false
