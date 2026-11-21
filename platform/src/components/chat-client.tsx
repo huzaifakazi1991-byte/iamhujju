@@ -255,6 +255,8 @@ export function ChatClient() {
     for (const a of attachments.filter((x): x is Extract<Attachment, { kind: 'text' }> => x.kind === 'text')) {
       text += `\n\n--- Attached file: ${a.name}${a.truncated ? ' (truncated)' : ''} ---\n${a.data}\n--- End of ${a.name} ---`;
     }
+    const imageNames = attachments.filter((x) => x.kind === 'image').map((x) => x.name);
+    if (imageNames.length > 0) text += `${text ? '\n\n' : ''}[Images attached: ${imageNames.join(', ')}]`;
     if (text.length > 120_000) text = text.slice(0, 120_000);
     const parts: StreamContentPart[] = [{ type: 'text', text: text || '[files only]' }];
     for (const a of attachments.filter((x) => x.kind === 'image')) {
