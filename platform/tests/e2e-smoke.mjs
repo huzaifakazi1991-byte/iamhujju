@@ -111,6 +111,18 @@ ok((ask.data?.answer ?? '').includes('Pro') || (ask.data?.answer ?? '').includes
 const badAsk = await req('/api/assistant', { method: 'POST', body: { messages: [] } });
 ok(badAsk.status === 422 || badAsk.status === 400, 'assistant validates empty input', String(badAsk.status));
 
+// about section: founder card, narration control, social icons
+ok(landHtml.includes('id="about"'), 'about section present on landing');
+ok(landHtml.includes('huzaifa-kazi.jpg'), 'founder photo in about section');
+ok(landHtml.includes('Owner &amp; CEO'), 'founder role shown');
+ok(landHtml.includes('Listen to our story'), 'voice narration button present');
+ok(landHtml.includes('instagram.com/iam_hujju_'), 'instagram social link points to profile');
+for (const social of ['YouTube', 'Telegram', 'LinkedIn']) {
+  ok(landHtml.includes(`IamHujju on ${social}`), `${social} icon present`);
+}
+const founderImg = await fetch(BASE + '/media/huzaifa-kazi.jpg');
+ok(founderImg.status === 200 && (founderImg.headers.get('content-type') ?? '').includes('image'), 'founder photo asset served');
+
 // gemini models are seeded but stay hidden until the admin pastes a key; direct calls are refused
 const asFree = await req('/api/models', { auth: userC.at + '; ' + userC.rt });
 ok(asFree.status === 200 && !asFree.data.models.some((m) => m.provider === 'gemini'), 'gemini hidden while provider has no key');

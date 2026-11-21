@@ -56,6 +56,7 @@ export function Nav() {
   }
 
   const links = [
+    { href: '/#about', label: 'About' },
     { href: '/playground', label: 'Playground' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/dashboard', label: 'Dashboard' },
