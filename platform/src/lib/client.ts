@@ -25,12 +25,13 @@ export async function api<T>(path: string, init?: RequestInit & { retry?: boolea
 
 export type StreamContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
-export async function streamChat(
-  body: { model: string; messages: { role: string; content: string | StreamContentPart[] }[]; conversationId?: string | null },
+export async function streamSSE(
+  path: string,
+  body: unknown,
   onEvent: (ev: Record<string, unknown>) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch('/api/chat', {
+  const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -38,7 +39,7 @@ export async function streamChat(
   });
   if (!res.ok || !res.body) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error ?? `Chat failed (${res.status})`);
+    throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -55,4 +56,20 @@ export async function streamChat(
       try { onEvent(JSON.parse(line.slice(6)) as Record<string, unknown>); } catch { /* skip */ }
     }
   }
+}
+
+export async function streamChat(
+  body: { model: string; messages: { role: string; content: string | StreamContentPart[] }[]; conversationId?: string | null },
+  onEvent: (ev: Record<string, unknown>) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  await streamSSE('/api/chat', body, onEvent, signal);
+}
+
+export async function streamImage(
+  body: { model: string; prompt: string; conversationId?: string | null },
+  onEvent: (ev: Record<string, unknown>) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  await streamSSE('/api/image', body, onEvent, signal);
 }

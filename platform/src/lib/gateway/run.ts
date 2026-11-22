@@ -154,25 +154,13 @@ export async function settle(opts: {
       ).toFixed(12)
     : '0';
 
-  await prisma.$transaction(async (tx) => {
-    await tx.usageRecord.create({
-      data: {
-        userId: opts.userId,
-        modelId: opts.modelId,
-        messageId: opts.messageId,
-        promptTokens: outcome.promptTokens,
-        completionTokens: outcome.completionTokens,
-        totalTokens: outcome.promptTokens + outcome.completionTokens,
-        cost,
-        status: outcome.status,
-        latencyMs: opts.latencyMs,
-      },
-    }).catch(async () => {
+  const settlement = (messageId: string | null) =>
+    prisma.$transaction(async (tx) => {
       await tx.usageRecord.create({
         data: {
           userId: opts.userId,
           modelId: opts.modelId,
-          messageId: null,
+          messageId,
           promptTokens: outcome.promptTokens,
           completionTokens: outcome.completionTokens,
           totalTokens: outcome.promptTokens + outcome.completionTokens,
@@ -181,33 +169,38 @@ export async function settle(opts: {
           latencyMs: opts.latencyMs,
         },
       });
+
+      await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { reserved: { decrement: reserve } } });
+      if (actual > reserve) {
+        await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { available: { decrement: actual - reserve } } });
+      } else if (actual < reserve) {
+        await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { available: { increment: reserve - actual } } });
+      }
+      await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { lifetimeUsed: { increment: actual } } });
+      const after = await tx.tokenBalance.findUnique({ where: { userId: opts.userId } });
+      await tx.tokenLedger.create({
+        data: {
+          userId: opts.userId,
+          delta: -actual,
+          reason: 'message_usage',
+          referenceId: opts.usageRecordId,
+          balanceAfter: after?.available ?? BigInt(0),
+        },
+      });
+      await tx.rateLimit
+        .upsert({
+          where: { userId_minuteKey: { userId: opts.userId, minuteKey: minuteKey() } },
+          create: { userId: opts.userId, minuteKey: minuteKey(), requests: 1, tokens: Number(actual) },
+          update: { requests: { increment: 1 }, tokens: { increment: Number(actual) } },
+        })
+        .catch(() => undefined);
     });
 
-    await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { reserved: { decrement: reserve } } });
-    if (actual > reserve) {
-      await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { available: { decrement: actual - reserve } } });
-    } else if (actual < reserve) {
-      await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { available: { increment: reserve - actual } } });
-    }
-    await tx.tokenBalance.updateMany({ where: { userId: opts.userId }, data: { lifetimeUsed: { increment: actual } } });
-    const after = await tx.tokenBalance.findUnique({ where: { userId: opts.userId } });
-    await tx.tokenLedger.create({
-      data: {
-        userId: opts.userId,
-        delta: -actual,
-        reason: 'message_usage',
-        referenceId: opts.usageRecordId,
-        balanceAfter: after?.available ?? BigInt(0),
-      },
-    });
-    await tx.rateLimit
-      .upsert({
-        where: { userId_minuteKey: { userId: opts.userId, minuteKey: minuteKey() } },
-        create: { userId: opts.userId, minuteKey: minuteKey(), requests: 1, tokens: Number(actual) },
-        update: { requests: { increment: 1 }, tokens: { increment: Number(actual) } },
-      })
-      .catch(() => undefined);
-  });
+  try {
+    await settlement(opts.messageId);
+  } catch {
+    await settlement(null);
+  }
 
   if (actual > reserve) {
     const bal = await prisma.tokenBalance.findUnique({ where: { userId: opts.userId } });
@@ -323,7 +316,7 @@ export async function executeChat(opts: {
       if (!closed) controller.enqueue(sse({ type: 'meta', conversationId, model: model.slug, usageRecordId }));
       try {
         for await (const event of adapter.streamChat(
-          { model: model.slug, messages: wireMessages, maxTokens: opts.maxTokens, temperature: opts.temperature },
+          { model: model.slug, messages: wireMessages, maxTokens: opts.maxTokens, temperature: opts.temperature, baseUrl: model.Provider.baseUrl },
           credential,
           internal.signal,
         )) {
@@ -348,7 +341,8 @@ export async function executeChat(opts: {
         }
         else {
           status = 'error';
-          const message = err instanceof Error ? err.message : 'Provider request failed.';
+          const e = err as Error & { cause?: unknown };
+          const message = e instanceof Error ? `${e.message}${e.cause ? ` [${String(e.cause)}]` : ''}` : 'Provider request failed.';
           if (!closed) controller.enqueue(sse({ type: 'error', message }));
         }
       } finally {
@@ -364,8 +358,8 @@ export async function executeChat(opts: {
       if (status === 'aborted') finalUsage.completionTokens = Math.max(1, Math.ceil(outputChars / 4));
       try {
         if (persist && assistantMessageId) {
-          await prisma.message.update({ where: { id: assistantMessageId }, data: { content: collected, tokensOut: finalUsage.completionTokens } });
-          await prisma.conversation.update({ where: { id: conversationId! }, data: { updatedAt: new Date() } });
+          await prisma.message.update({ where: { id: assistantMessageId }, data: { content: collected, tokensOut: finalUsage.completionTokens } }).catch((err) => console.error('[gateway] assistant message update skipped', err));
+          await prisma.conversation.update({ where: { id: conversationId! }, data: { updatedAt: new Date() } }).catch(() => undefined);
         }
         if (!settled) {
           settled = true;

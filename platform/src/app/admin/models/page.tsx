@@ -6,14 +6,16 @@ import { useToast } from '@/components/toast';
 import { api } from '@/lib/client';
 
 type ModelRow = {
-  id: string; providerId: string; slug: string; displayName: string; contextWindow: number; maxOutputTokens: number;
+  id: string; providerId: string; slug: string; displayName: string; capability: string; contextWindow: number; maxOutputTokens: number;
   costPer1kInput: string | number; costPer1kOutput: string | number; tierRequired: string; adminEnabled: boolean; displayOrder: number;
   provider?: { name: string };
   providerName?: string;
 };
 type Provider = { id: string; name: string; enabled: boolean; keyConfigured: boolean };
 
-const EMPTY = { providerId: '', slug: '', displayName: '', contextWindow: 8192, maxOutputTokens: 4096, costPer1kInput: 0, costPer1kOutput: 0, tierRequired: 'free', displayOrder: 0 };
+const EMPTY = { providerId: '', slug: '', displayName: '', capability: 'chat', contextWindow: 8192, maxOutputTokens: 4096, costPer1kInput: 0, costPer1kOutput: 0, tierRequired: 'free', displayOrder: 0 };
+
+const CAPABILITY_LABEL: Record<string, string> = { chat: '💬 Chat', image: '🖼 Image', video: '🎬 Video', tts: '🔊 TTS' };
 
 export default function AdminModelsPage() {
   const { toast } = useToast();
@@ -87,6 +89,15 @@ export default function AdminModelsPage() {
           <input className="input mt-1.5" required value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="Mistral Small" />
         </label>
         <label className="text-sm font-medium">
+          Capability
+          <select className="input mt-1.5" value={form.capability} onChange={(e) => setForm({ ...form, capability: e.target.value })}>
+            <option value="chat">chat (streaming text)</option>
+            <option value="image">image generation</option>
+            <option value="video">video generation</option>
+            <option value="tts">speech / tts</option>
+          </select>
+        </label>
+        <label className="text-sm font-medium">
           Minimum tier
           <select className="input mt-1.5" value={form.tierRequired} onChange={(e) => setForm({ ...form, tierRequired: e.target.value })}>
             <option value="free">free</option>
@@ -114,7 +125,7 @@ export default function AdminModelsPage() {
           <table className="table-glass">
             <thead>
               <tr className="border-b border-black/5 text-xs uppercase tracking-wide text-ink-soft dark:border-white/10 dark:text-white/50">
-                <th className="px-5 py-3">Slug</th><th className="px-5 py-3">Name</th><th className="px-5 py-3">Provider</th>
+                <th className="px-5 py-3">Slug</th><th className="px-5 py-3">Name</th><th className="px-5 py-3">Provider</th><th className="px-5 py-3">Type</th>
                 <th className="px-5 py-3">Tier</th><th className="px-5 py-3">$ in/out per 1K</th><th className="px-5 py-3">Visible</th><th className="px-5 py-3" />
               </tr>
             </thead>
@@ -124,6 +135,7 @@ export default function AdminModelsPage() {
                   <td className="px-5 py-3 font-mono text-xs">{m.slug}</td>
                   <td className="px-5 py-3">{m.displayName}</td>
                   <td className="px-5 py-3">{m.providerName ?? m.provider?.name}</td>
+                  <td className="px-5 py-3"><span className="rounded-full bg-leaf/12 px-2.5 py-1 text-xs font-semibold text-leaf-deep dark:text-leaf-glow" title={m.capability}>{CAPABILITY_LABEL[m.capability] ?? m.capability}</span></td>
                   <td className="px-5 py-3">{m.tierRequired}</td>
                   <td className="px-5 py-3">${Number(m.costPer1kInput).toFixed(4)} / ${Number(m.costPer1kOutput).toFixed(4)}</td>
                   <td className="px-5 py-3">

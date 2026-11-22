@@ -2,6 +2,47 @@ const BASE = process.env.E2E_BASE ?? 'http://localhost:3100';
 let cookie = '';
 let adminCookie = '';
 let failures = 0;
+
+// in-process mock OpenAI-compatible upstream for gateway provider tests
+import http from 'node:http';
+const upstreamHits = { streamOptionsSeen: 0 };
+const UPSTREAM_MODELS = ['mock-echo', 'mock-picky-streamopts', 'mock-auto-a', 'mock-auto-b'];
+function sseChunk(obj) { return `data: ${JSON.stringify(obj)}\n\n`; }
+const mockUpstream = http.createServer((rq, rs) => {
+  let raw = '';
+  rq.on('data', (c) => { raw += c; });
+  rq.on('end', () => {
+    if (rq.url === '/models') {
+      rs.writeHead(200, { 'Content-Type': 'application/json' });
+      rs.end(JSON.stringify({ object: 'list', data: UPSTREAM_MODELS.map((id) => ({ id, object: 'model' })) }));
+      return;
+    }
+    if (rq.url !== '/chat/completions') { rs.writeHead(404); rs.end('{}'); return; }
+    let body = {};
+    try { body = JSON.parse(raw); } catch { /* ignore */ }
+    if (body.stream_options) upstreamHits.streamOptionsSeen++;
+    if (body.model === 'mock-picky-streamopts' && body.stream_options) {
+      rs.writeHead(400, { 'Content-Type': 'application/json' });
+      rs.end(JSON.stringify({ error: { message: 'Unknown field: stream_options', status: 'INVALID_ARGUMENT' } }));
+      return;
+    }
+    if (body.model === 'mock-missing') {
+      rs.writeHead(404, { 'Content-Type': 'application/json' });
+      rs.end(JSON.stringify({ error: { message: 'models/mock-missing not found', status: 'NOT_FOUND' } }));
+      return;
+    }
+    rs.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    const text = body.model === 'mock-empty' ? '' : `Gateway pong for ${body.model}`;
+    if (text) {
+      rs.write(sseChunk({ choices: [{ delta: { content: text } }] }));
+    }
+    rs.write(sseChunk({ choices: [], usage: { prompt_tokens: 3, completion_tokens: Math.max(1, Math.ceil(text.length / 4)) } }));
+    rs.write('data: [DONE]\n\n');
+    rs.end();
+  });
+});
+const mockPort = await new Promise((res) => { mockUpstream.listen(0, '127.0.0.1', () => res(mockUpstream.address().port)); });
+mockUpstream.unref();
 function ok(cond, label, extra = '') {
   if (cond) console.log('PASS', label);
   else { failures++; console.log('FAIL', label, extra); }
@@ -244,6 +285,82 @@ const expPaid = await fetch(BASE + '/api/usage/export', { headers: { Cookie: adm
 const expText = await expPaid.text();
 ok(expPaid.status === 200 && expText.includes('total_tokens'), 'usage export CSV for paid plan', String(expPaid.status));
 
+// ── Image/video capability gateway ──
+function parseSseEvents(text) {
+  return text.split('\n\n').map((c) => c.split('\n').find((l) => l.startsWith('data: '))?.slice(6)).filter(Boolean).map((s) => { try { return JSON.parse(s); } catch { return null; } });
+}
+
+const imgAnon = await fetch(BASE + '/api/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'mock-image', prompt: 'passport photo of a sailor' }) });
+ok(imgAnon.status === 401, 'image: anonymous blocked', String(imgAnon.status));
+
+const imgRes = await fetch(BASE + '/api/image', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Cookie: userC.at + '; ' + userC.rt },
+  body: JSON.stringify({ model: 'mock-image', prompt: 'passport photo of a sailor, size 3.5x4.5cm' }),
+});
+const imgText = await imgRes.text();
+const imgEvents = parseSseEvents(imgText);
+const imgMeta = imgEvents.find((e) => e?.type === 'meta');
+const imgDone = imgEvents.find((e) => e?.type === 'done');
+const imgBurst = imgEvents.filter((e) => e?.type === 'image');
+ok(imgRes.status === 200, 'image: SSE starts for free user', String(imgRes.status));
+ok(Boolean(imgMeta?.conversationId), 'image: meta carries conversationId');
+ok(imgBurst.length === 1 && imgBurst[0]?.url?.startsWith('data:image/svg+xml') && imgBurst[0]?.kind === 'image', 'image: mock render returns an image data URL', String(imgBurst[0]?.url?.slice(0, 40)));
+ok(imgDone?.status === 'completed' && imgDone?.usage?.completionTokens === 1000 && typeof imgDone?.balance === 'number', 'image: flat metering (1000 tokens) with balance in done', JSON.stringify(imgDone));
+
+const imgConv = await req(`/api/conversations/${imgMeta?.conversationId}`, { auth: userC.at + '; ' + userC.rt });
+const imgMsg = imgConv.data?.conversation?.messages?.find((m) => m.role === 'assistant');
+ok(Boolean(imgMsg?.content?.startsWith('[[image:')) && imgMsg.content.includes('data:image/svg+xml'), 'image: render persisted as replayable message', String(imgMsg?.content?.slice(0, 60)));
+
+const imgChatBlocked = await fetch(BASE + '/api/image', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Cookie: userC.at + '; ' + userC.rt },
+  body: JSON.stringify({ model: 'mock-small', prompt: 'make an image' }),
+});
+ok(imgChatBlocked.status === 400, 'image: chat model refused on image endpoint', String(imgChatBlocked.status));
+
+const vidFree = await fetch(BASE + '/api/image', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Cookie: userC.at + '; ' + userC.rt },
+  body: JSON.stringify({ model: 'mock-video', prompt: 'car jump poster clip' }),
+});
+ok(vidFree.status === 403, 'video: pro-gated model refused for free user', String(vidFree.status));
+
+
+let saw429 = 0;
+const burst = await Promise.all(Array.from({ length: 14 }, () => req('/api/chat', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { model: 'mock-echo', messages: [{ role: 'user', content: 'ping' }] } })));
+for (const b of burst) { if (b.status === 429) saw429++; }
+ok(saw429 >= 1, 'gateway: burst enforces requests/min rate limit', `429s=${saw429}/14`);
+ok(burst.every((b) => b.status === 200 || b.status === 429), 'gateway: burst never 500s', JSON.stringify(burst.map((b) => b.status)));
+
+console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
+process.exit(failures === 0 ? 0 : 1);
+
+// ── Provider health persistence (test route records lastTest fields) ──
+const healthTest = await req(`/api/admin/providers/${gwProvId}/test`, { method: 'POST', auth: adminC.at + '; ' + adminC.rt });
+ok(healthTest.status === 200 && healthTest.data?.ok === true, 'health: provider test succeeds', JSON.stringify(healthTest.data).slice(0, 150));
+const provsAfterTest = await req('/api/admin/providers', { auth: adminC.at + '; ' + adminC.rt });
+const gwAfterTest = provsAfterTest.data?.providers?.find((p) => p.id === gwProvId);
+ok(gwAfterTest?.lastTestOk === true && Boolean(gwAfterTest?.lastTestAt), 'health: lastTestOk/lastTestAt persisted for admin UI', JSON.stringify(gwAfterTest).slice(0, 200));
+
+
+const vidAdmin = await fetch(BASE + '/api/image', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Cookie: adminC.at + '; ' + adminC.rt },
+  body: JSON.stringify({ model: 'mock-video', prompt: 'car jump poster clip' }),
+});
+const vidEvents = parseSseEvents(await vidAdmin.text());
+const vidDone = vidEvents.find((e) => e?.type === 'done');
+const vidBurst = vidEvents.filter((e) => e?.type === 'image');
+ok(vidBurst.length === 1 && vidBurst[0]?.kind === 'video', 'video: admin video render succeeds', String(vidBurst[0]?.url?.slice(0, 50)));
+ok(vidDone?.usage?.completionTokens === 8000, 'video: flat metering (8000 tokens)', JSON.stringify(vidDone));
+
+
+const modelsWithCap = await req('/api/models', { auth: userC.at + '; ' + userC.rt });
+ok(modelsWithCap.data?.models?.every((m) => m.capability !== undefined), 'models list exposes capability field');
+ok(modelsWithCap.data?.models?.some((m) => m.capability === 'image') && !modelsWithCap.data?.models?.some((m) => m.capability === 'video'), 'image models visible, video hidden for free user', JSON.stringify(modelsWithCap.data?.models?.map((m) => m.slug + ':' + m.capability)));
+
+
 // admin analytics
 const an = await req('/api/admin/analytics', { auth: adminC.at + '; ' + adminC.rt });
 ok(an.status === 200 && typeof an.data?.totals?.tokens === 'number', 'admin analytics', JSON.stringify(an.data).slice(0, 200));
@@ -385,5 +502,87 @@ ok(gDelAdmin.status === 200 && gDelAdmin.data?.deleted === gMsgId, 'admin modera
 const presAdm = await req('/api/admin/users', { auth: adminC.at + '; ' + adminC.rt });
 ok(presAdm.status === 200 && presAdm.data.users.every((u) => typeof u.online === 'boolean'), 'admin users table carries online status', String(presAdm.status));
 
-console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
-process.exit(failures === 0 ? 0 : 1);
+// ─── gateway diagnostics: provider API check, model check, limit check ───
+
+const gwBase = `http://127.0.0.1:${mockPort}`;
+let gwProv = await req('/api/admin/providers', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { name: 'mockupstream', baseUrl: gwBase, apiKey: 'test-key-e2e' } });
+if (gwProv.status === 409) {
+  const plist = await req('/api/admin/providers', { auth: adminC.at + '; ' + adminC.rt });
+  const found = plist.data.providers.find((x) => x.name === 'mockupstream');
+  if (found) {
+    await req(`/api/admin/providers/${found.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { baseUrl: gwBase, enabled: true } });
+    gwProv = { status: 200, data: { provider: { id: found.id } } };
+  }
+}
+ok(gwProv.status === 200 && gwProv.data?.provider?.id, 'gateway: mock upstream provider ready', JSON.stringify(gwProv.data));
+const gwProvId = gwProv.data?.provider?.id;
+
+async function makeModel(slug) {
+  let r = await req('/api/admin/models', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { providerId: gwProvId, slug, displayName: slug, adminEnabled: true, displayOrder: 50 } });
+  if (r.status === 409) {
+    const mlist = await req('/api/admin/models', { auth: adminC.at + '; ' + adminC.rt });
+    const found = (mlist.data.models ?? []).find((m) => m.slug === slug);
+    if (found) r = await req(`/api/admin/models/${found.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { providerId: gwProvId, adminEnabled: true } });
+  }
+  ok(r.status === 200, `gateway: model ${slug} registered`, JSON.stringify(r.data).slice(0, 120));
+}
+await makeModel('mock-echo');
+await makeModel('mock-missing');
+await makeModel('mock-empty');
+await makeModel('mock-ghost');
+await makeModel('mock-picky-streamopts');
+
+async function chatStream(model, auth) {
+  const res = await fetch(BASE + '/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: auth },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }] }),
+  });
+  const text = res.headers.get('content-type')?.includes('event-stream') ? await res.text() : '';
+  return { status: res.status, text };
+}
+
+const good = await chatStream('mock-echo', userC.at + '; ' + userC.rt);
+ok(good.status === 200 && good.text.includes('Gateway pong for mock-echo'), 'gateway: provider chat streams text', String(good.status));
+ok(good.text.includes('"type":"done"') && good.text.includes('"usage":{') && /"balance":\d+/.test(good.text), 'gateway: usage metered + done event', JSON.stringify(good.text.slice(-400)));
+
+const missing = await chatStream('mock-missing', userC.at + '; ' + userC.rt);
+ok(missing.text.includes('was not found on this provider') && missing.text.includes('Sync models'), 'gateway: unknown model id yields actionable error', missing.text.slice(0, 200));
+
+const empty = await chatStream('mock-empty', userC.at + '; ' + userC.rt);
+ok(empty.text.includes('empty response'), 'gateway: empty response guarded with clear error', empty.text.slice(0, 160));
+
+const picky = await chatStream('mock-picky-streamopts', userC.at + '; ' + userC.rt);
+ok(picky.status === 200 && picky.text.includes('Gateway pong for mock-picky-streamopts'), 'gateway: retries without rejected stream_options and succeeds', picky.text.slice(0, 160));
+
+ok(upstreamHits.streamOptionsSeen >= 2, 'gateway: upstream saw stream_options requests (baseUrl honored)', JSON.stringify(upstreamHits));
+
+// keep the sync-assertion deterministic across re-runs
+const preSyncList = await req('/api/admin/models', { auth: adminC.at + '; ' + adminC.rt });
+for (const auto of ['mock-auto-a', 'mock-auto-b']) {
+  const found = (preSyncList.data.models ?? []).find((m) => m.slug === auto);
+  if (found) await req(`/api/admin/models/${found.id}`, { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt });
+}
+
+const probe = await req(`/api/admin/providers/${gwProvId}/models`, { auth: adminC.at + '; ' + adminC.rt });
+ok(probe.status === 200 && probe.data.upstream.includes('mock-echo') && probe.data.upstream.includes('mock-auto-a'), 'gateway: model check lists upstream ids', JSON.stringify(probe.data?.upstream));
+const probeCfg = probe.data?.configured?.find((c) => c.slug === 'mock-echo');
+ok(probeCfg?.upstream === true && probeCfg?.adminEnabled === true, 'gateway: configured model matched against upstream');
+
+const sync = await req(`/api/admin/providers/${gwProvId}/models`, { method: 'POST', auth: adminC.at + '; ' + adminC.rt });
+ok(sync.status === 200 && sync.data.created === 2, 'gateway: sync adds models upstream offers', JSON.stringify(sync.data).slice(0, 200));
+ok(sync.data?.disabled === 3 && ['mock-ghost','mock-missing','mock-empty'].every((g) => sync.data.disabledSlugs.includes(g)), 'gateway: sync hides model ids unknown to the key', JSON.stringify(sync.data?.disabledSlugs));
+const afterSyncModels = await req('/api/models', { auth: userC.at + '; ' + userC.rt });
+ok(['mock-ghost','mock-missing','mock-empty'].every((g) => !afterSyncModels.data.models.some((m) => m.slug === g)) && afterSyncModels.data.models.some((m) => m.slug === 'mock-auto-a'), 'gateway: synced models visible/hidden for users immediately');
+
+const freePlansAdmin = await req('/api/admin/plans', { auth: adminC.at + '; ' + adminC.rt });
+const freePlan = (freePlansAdmin.data?.plans ?? freePlansAdmin.data ?? []).find?.((p) => p.slug === 'free');
+ok(Boolean(freePlan?.id), 'gateway: free plan id available for limit checks', JSON.stringify(freePlansAdmin.data).slice(0, 120));
+
+await req(`/api/admin/plans/${freePlan.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { dailyTokens: 1 } });
+const dailyLimitedJson = await req('/api/chat', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { model: 'mock-echo', messages: [{ role: 'user', content: 'ping' }] } });
+ok(dailyLimitedJson.status === 429 && String(dailyLimitedJson.data?.error ?? '').includes('Daily token limit'), 'gateway: daily token limit enforced with clear message', JSON.stringify(dailyLimitedJson.data));
+await req(`/api/admin/plans/${freePlan.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { dailyTokens: freePlan.dailyTokens } });
+
+const restored = await chatStream('mock-echo', userC.at + '; ' + userC.rt);
+ok(restored.status === 200 && restored.text.includes('Gateway pong for mock-echo'), 'gateway: chat works again after limit restored', String(restored.status));

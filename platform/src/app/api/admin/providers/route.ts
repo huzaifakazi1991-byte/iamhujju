@@ -17,6 +17,9 @@ export async function GET() {
         baseUrl: p.baseUrl,
         enabled: p.enabled,
         keyConfigured: Boolean(p.encryptedKey),
+        lastTestAt: p.lastTestAt,
+        lastTestOk: p.lastTestOk,
+        lastTestDetail: p.lastTestDetail,
         models: p.models,
       })),
     });
