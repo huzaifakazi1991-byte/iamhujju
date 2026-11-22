@@ -67,6 +67,11 @@ export function HuzaifaAssistant() {
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const openRef = useRef(false);
+
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
 
   const posRef = useRef({ x: 0, y: 0 });
   const avatarRef = useRef<HTMLButtonElement | null>(null);
@@ -216,7 +221,8 @@ export function HuzaifaAssistant() {
     lastTap.current = now;
     tapTimer.current = setTimeout(() => {
       tapTimer.current = null;
-      setOpen((o) => !o);
+      if (openRef.current) setOpen(false);
+      else openPanel();
     }, 360);
   };
 
@@ -293,7 +299,7 @@ export function HuzaifaAssistant() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            onClick={() => setOpen(false)}
+            onPointerDown={() => setOpen(false)}
             aria-hidden
           />
         )}

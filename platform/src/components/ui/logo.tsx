@@ -22,7 +22,7 @@ export function Wordmark() {
   return (
     <span className="flex items-center gap-2.5">
       <LeafMark />
-      <span className="font-display text-lg font-bold tracking-tight">IamHujju</span>
+      <span className="whitespace-nowrap font-display text-sm font-bold tracking-tight sm:text-lg">Ratnagiri_Enterprenuers</span>
     </span>
   );
 }
