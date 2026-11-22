@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  outputFileTracingRoot: import.meta.dirname,
   poweredByHeader: false,
   serverExternalPackages: ['@prisma/client', 'bcryptjs', 'stripe', 'ioredis'],
   async headers() {
