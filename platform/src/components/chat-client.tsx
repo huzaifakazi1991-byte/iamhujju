@@ -469,7 +469,7 @@ export function ChatClient() {
         <button
           type="button"
           className="fixed inset-0 z-[39] bg-forest/40 backdrop-blur-sm md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onPointerDown={() => setSidebarOpen(false)}
           aria-label="Close conversation menu"
           style={{ transition: 'opacity 150ms' }}
         />
