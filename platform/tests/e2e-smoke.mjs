@@ -248,6 +248,11 @@ ok(expPaid.status === 200 && expText.includes('total_tokens'), 'usage export CSV
 const an = await req('/api/admin/analytics', { auth: adminC.at + '; ' + adminC.rt });
 ok(an.status === 200 && typeof an.data?.totals?.tokens === 'number', 'admin analytics', JSON.stringify(an.data).slice(0, 200));
 
+// admin settings incl. mail delivery monitor
+const st = await req('/api/admin/settings', { auth: adminC.at + '; ' + adminC.rt });
+ok(st.status === 200 && Array.isArray(st.data?.settings) && Array.isArray(st.data?.mailLogs), 'admin settings exposes mail delivery log', String(st.status));
+ok(Array.isArray(st.data?.mailLogs) && st.data.mailLogs.every((m) => typeof m.delivered === 'boolean' && typeof m.to === 'string'), 'mail log entries carry delivered flag', JSON.stringify(st.data?.mailLogs).slice(0, 200));
+
 // RBAC: non-admin to admin endpoint -> 403
 const rbac = await req('/api/admin/analytics', { auth: userC.at + '; ' + userC.rt });
 ok(rbac.status === 403, 'RBAC blocks non-admin', String(rbac.status));
