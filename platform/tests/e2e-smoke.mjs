@@ -86,6 +86,8 @@ const home2 = await fetch(BASE + '/');
 ok((await home2.text()).includes('href="/privacy"'), 'landing footer links privacy');
 
 // google sign-in UI present + graceful flow when unconfigured
+const pgImg = await fetch(BASE + '/playground?mode=image', { redirect: 'manual' });
+ok(pgImg.status === 200 || pgImg.status === 307, 'playground mode=image deep link renders', String(pgImg.status));
 const lp = await fetch(BASE + '/login');
 ok((await lp.text()).includes('Continue with Google'), 'login page shows Google button');
 const spg = await fetch(BASE + '/signup');
