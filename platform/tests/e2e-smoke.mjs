@@ -156,10 +156,17 @@ ok(landHtml.includes('Made by machines'), 'gallery headline present');
 for (const folder of ['Passport &amp; IDs', 'Posters &amp; Reels', 'Character Sheets', 'Brand &amp; Web']) {
   ok(landHtml.includes(folder), `gallery folder tab: ${folder}`);
 }
+ok(landHtml.indexOf('Brand &amp; Web') < landHtml.indexOf('Passport &amp; IDs'), 'gallery folder order: Brand & Web first, Passport & IDs last');
+ok(landHtml.includes('data-template="brand-portrait"'), 'gallery card exposes ready-made template slug');
 for (const g of ['passport-headshot.jpg', 'id-portrait.jpg', 'car-jump-poster.jpg', 'character-sheet.jpg', 'brand-portrait.jpg']) {
   const gi = await fetch(BASE + '/media/gallery/' + g);
   ok(gi.status === 200 && (gi.headers.get('content-type') ?? '').includes('image'), `gallery asset ${g} served`);
 }
+ok(landHtml.includes('gallery-reel-demo.mp4') || landHtml.includes('data-template="gallery-reel-demo"'), 'gallery demo reel card renders');
+const reelVideo = await fetch(BASE + '/media/gallery/gallery-reel-demo.mp4');
+ok(reelVideo.status === 200 && (reelVideo.headers.get('content-type') ?? '').includes('video'), 'gallery video asset served as video', String(reelVideo.status));
+const tplPage = await fetch(BASE + '/playground?template=passport-headshot');
+ok(tplPage.status === 200, 'playground accepts template query param', String(tplPage.status));
 
 // web-page reader tool: auth required, validates URLs, blocks private ranges
 const browseUnauth = await req('/api/tools/browse', { method: 'POST', body: { url: 'https://example.com' } });
