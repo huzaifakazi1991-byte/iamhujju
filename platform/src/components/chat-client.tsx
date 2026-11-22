@@ -11,6 +11,19 @@ import { findGalleryTemplate } from '@/lib/gallery';
 
 import type { StreamContentPart } from '@/lib/client';
 
+function ModePrefill({ onApply }: { onApply: (mode: string) => void }) {
+  const params = useSearchParams();
+  const applied = useRef<string | null>(null);
+  useEffect(() => {
+    const requested = params.get('mode');
+    if (!requested || applied.current === requested) return;
+    if (requested !== 'image' && requested !== 'video') return;
+    applied.current = requested;
+    onApply(requested);
+  }, [params, onApply]);
+  return null;
+}
+
 function TemplatePrefill({ onApply }: { onApply: (prompt: string, title: string) => void }) {
   const params = useSearchParams();
   const appliedSlug = useRef<string | null>(null);
@@ -88,6 +101,7 @@ export function ChatClient() {
   const [linkUrl, setLinkUrl] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -122,7 +136,19 @@ export function ChatClient() {
     if (next === mode) return;
     setMode(next);
     const pool = models.filter((m) => (next === 'chat' ? (m.capability ?? 'chat') === 'chat' : m.capability === next));
-    if (pool.length > 0) setModelSlug(pool.find((m) => m.tierRequired === 'free')?.slug ?? pool[0].slug);
+    if (pool.length > 0) setModelSlug(pool[0].slug);
+  }
+
+  function openCapability(next: 'image' | 'video') {
+    if (streaming) cancelRun();
+    const pool = models.filter((m) => m.capability === next);
+    if (pool.length === 0) {
+      openUpgrade(`No ${next} models are available for your plan yet — upgrade or buy tokens to unlock ${next} generation.`);
+      return;
+    }
+    setMode(next);
+    setModelSlug(pool[0].slug);
+    composerRef.current?.focus();
   }
 
   function openUpgrade(msg: string) {
@@ -436,6 +462,9 @@ export function ChatClient() {
           }}
         />
       </Suspense>
+      <Suspense fallback={null}>
+        <ModePrefill onApply={(cap) => openCapability(cap as 'image' | 'video')} />
+      </Suspense>
       <aside className={`glass-panel absolute inset-y-0 left-0 z-40 w-72 !rounded-none border-x-0 border-b-0 transform pt-20 transition-transform duration-200 ease-out md:static md:translate-x-0 md:pt-16 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="flex h-full flex-col p-4 -mt-10 md:mt-0">
           <button
@@ -491,6 +520,18 @@ export function ChatClient() {
                 >{icon} {key}</button>
               ))}
             </div>
+            <button
+              type="button"
+              className="btn-leaf px-2.5 py-1.5 text-xs sm:px-3"
+              onClick={() => openCapability('image')}
+              title="Jump straight to image generation — just type a prompt"
+            ><span className="sm:hidden">🖼</span><span className="hidden sm:inline">🖼 Create image</span></button>
+            <button
+              type="button"
+              className="btn-leaf px-2.5 py-1.5 text-xs sm:px-3"
+              onClick={() => openCapability('video')}
+              title="Jump straight to video generation — just type a prompt"
+            ><span className="sm:hidden">🎬</span><span className="hidden sm:inline">🎬 Create video</span></button>
             <select
               className="input w-auto max-w-64 py-1.5 text-sm"
               value={modelSlug}
@@ -645,6 +686,7 @@ export function ChatClient() {
                 <button type="button" className="btn-ghost px-2.5 py-2.5 text-base" title="Read a web page" aria-label="Read a web page" onClick={() => setLinkOpen((v) => !v)} disabled={streaming}>🌐</button>
               </div>
               <textarea
+              ref={composerRef}
               className="composer-textarea input max-h-40 min-h-[46px] flex-1 resize-y"
               placeholder={modelSlug ? (mode === 'chat' ? 'Ask anything… (Enter to send, Shift+Enter for a new line)' : 'Describe the image to render… (Enter to generate)') : 'Loading models…'}
               value={input}
