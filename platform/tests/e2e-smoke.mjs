@@ -94,6 +94,10 @@ const gs = await fetch(BASE + '/api/auth/google/start', { redirect: 'manual' });
 ok(gs.status === 302 || gs.status === 307, 'google start redirects gracefully', String(gs.status));
 const gsLoc = gs.headers.get('location') ?? '';
 ok(gsLoc.includes('accounts.google.com') || gsLoc.includes('error=google_not_configured'), 'google start redirects to Google or friendly error', gsLoc);
+const gstat = await fetch(BASE + '/api/auth/google/status');
+const gstatBody = await gstat.json();
+ok(gstat.status === 200 && typeof gstatBody.configured === 'boolean', 'google status endpoint reports configured boolean', JSON.stringify(gstatBody));
+ok(!('clientId' in gstatBody) && !('secret' in gstatBody), 'google status endpoint leaks no secrets', JSON.stringify(gstatBody));
 
 // signup new user
 const su = await req('/api/auth/signup', { method: 'POST', body: { email: e2eEmail, password: 'supersecret123', name: 'E2E User' } });
