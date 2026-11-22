@@ -1,13 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, streamChat, ApiError } from '@/lib/client';
 import { GlassCard } from '@/components/ui/glass';
 import { useToast } from '@/components/toast';
 import { Markdown } from '@/components/markdown';
+import { findGalleryTemplate } from '@/lib/gallery';
 
 import type { StreamContentPart } from '@/lib/client';
+
+function TemplatePrefill({ onApply }: { onApply: (prompt: string, title: string) => void }) {
+  const params = useSearchParams();
+  const appliedSlug = useRef<string | null>(null);
+  useEffect(() => {
+    const slug = params.get('template');
+    if (!slug || appliedSlug.current === slug) return;
+    const hit = findGalleryTemplate(slug);
+    if (!hit) return;
+    appliedSlug.current = slug;
+    onApply(hit.prompt, hit.title);
+  }, [params, onApply]);
+  return null;
+}
 
 function IconCopy() {
   return (
@@ -323,6 +339,14 @@ export function ChatClient() {
 
   return (
     <div className="flex min-h-0 flex-1">
+      <Suspense fallback={null}>
+        <TemplatePrefill
+          onApply={(prompt, title) => {
+            setInput(prompt);
+            toast(`🎨 Template loaded — ${title}. Attach your photo with 📎 and send — no prompt needed.`, 'success');
+          }}
+        />
+      </Suspense>
       <aside className={`glass-panel absolute inset-y-0 left-0 z-40 w-72 !rounded-none border-x-0 border-b-0 transform pt-20 transition-transform duration-200 ease-out md:static md:translate-x-0 md:pt-16 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="flex h-full flex-col p-4 -mt-10 md:mt-0">
           <button
@@ -533,3 +557,4 @@ export function ChatClient() {
     </div>
   );
 }
+

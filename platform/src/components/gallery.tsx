@@ -2,11 +2,57 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { GALLERY_FOLDERS, GALLERY_INTRO, type GalleryItem } from '@/lib/gallery';
+import {
+  GALLERY_FOLDERS,
+  GALLERY_INTRO,
+  galleryItemSlug,
+  isGalleryVideo,
+  type GalleryItem,
+} from '@/lib/gallery';
 import { GlassCard } from '@/components/ui/glass';
 import { LandingMotion } from '@/components/landing-motion';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+function GalleryMedia({ item, lightbox }: { item: GalleryItem; lightbox?: boolean }) {
+  if (isGalleryVideo(item)) {
+    if (lightbox) {
+      return (
+        <video
+          src={`/media/gallery/${item.file}`}
+          poster={item.poster ? `/media/gallery/${item.poster}` : undefined}
+          className="max-h-[60vh] w-full object-contain md:max-h-[80vh]"
+          controls
+          autoPlay
+          playsInline
+        />
+      );
+    }
+    return (
+      <video
+        src={`/media/gallery/${item.file}`}
+        poster={item.poster ? `/media/gallery/${item.poster}` : undefined}
+        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        muted
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
+  /* eslint-disable-next-line @next/next/no-img-element */
+  return (
+    <img
+      src={`/media/gallery/${item.file}`}
+      alt={item.title}
+      loading="lazy"
+      className={
+        lightbox
+          ? 'max-h-[60vh] w-full object-contain md:max-h-[80vh]'
+          : 'h-full w-full object-cover transition-transform duration-500 group-hover:scale-105'
+      }
+    />
+  );
+}
 
 export function GallerySection() {
   const [activeFolder, setActiveFolder] = useState(GALLERY_FOLDERS[0].id);
@@ -88,19 +134,22 @@ export function GallerySection() {
                 tabIndex={0}
                 role="button"
                 aria-label={`Open ${item.title}`}
+                data-template={galleryItemSlug(item.file)}
               >
                 <div className="glass card-hover overflow-hidden rounded-[1.25rem]">
                   <div className="relative aspect-[4/5] overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/media/gallery/${item.file}`}
-                      alt={item.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
+                    <GalleryMedia item={item} />
+                    {isGalleryVideo(item) && (
+                      <span className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-forest/60 text-cream shadow-lg backdrop-blur-md transition-transform duration-200 group-hover:scale-110" aria-hidden>
+                        ▶
+                      </span>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-forest/80 via-transparent to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 p-4" style={{ transform: 'translateZ(40px)' }}>
-                      <p className="font-display text-[0.95rem] font-bold leading-snug text-cream">{item.title}</p>
+                      <p className="font-display text-[0.95rem] font-bold leading-snug text-cream">
+                        {item.title}
+                        {isGalleryVideo(item) && <span className="ml-2 rounded-full bg-leaf/25 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-cream/90">video</span>}
+                      </p>
                       <p className="mt-1 line-clamp-2 text-xs text-cream/75">{item.why}</p>
                     </div>
                   </div>
@@ -112,7 +161,7 @@ export function GallerySection() {
 
         <LandingMotion>
           <p className="text-caption mt-6 text-center">
-            Want frames like these? Describe them in the{' '}
+            Want frames like these? Open any frame and tap <span className="font-semibold">🎨 Recreate this</span> in the{' '}
             <a href="/playground" className="font-medium text-leaf-deep underline decoration-leaf/50 underline-offset-4 hover:decoration-leaf dark:text-leaf">playground</a> —
             Gemini image models are one key away.
           </p>
@@ -144,8 +193,7 @@ export function GallerySection() {
             >
               <div className="grid md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                 <div className="relative bg-forest/20">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/media/gallery/${openItem.file}`} alt={openItem.title} className="max-h-[60vh] w-full object-contain md:max-h-[80vh]" />
+                  <GalleryMedia item={openItem} lightbox />
                 </div>
                 <div className="flex flex-col justify-center gap-4 p-6 sm:p-8" style={{ transform: 'translateZ(50px)' }}>
                   <span className="text-caption">{folder.icon} {folder.label}</span>
@@ -154,7 +202,13 @@ export function GallerySection() {
                   <p className="text-xs leading-relaxed text-body-soft">
                     <span className="font-semibold text-leaf-deep dark:text-leaf">How it was made:</span> {openItem.madeWith}
                   </p>
-                  <button type="button" className="btn-ghost mt-2 self-start px-5 py-2 text-sm" onClick={close}>Close</button>
+                  <a
+                    href={`/playground?template=${galleryItemSlug(openItem.file)}`}
+                    className="btn-primary mt-2 self-start px-5 py-2 text-sm"
+                  >
+                    🎨 Recreate this
+                  </a>
+                  <button type="button" className="btn-ghost self-start px-5 py-2 text-sm" onClick={close}>Close</button>
                 </div>
               </div>
               <button
