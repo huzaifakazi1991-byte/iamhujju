@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, streamChat, streamImage, ApiError } from '@/lib/client';
@@ -414,6 +414,15 @@ export function ChatClient() {
 
   const currentModel = models.find((m) => m.slug === modelSlug);
   const modeModels = models.filter((m) => (mode === 'chat' ? (m.capability ?? 'chat') === 'chat' : m.capability === mode));
+  const groupedModeModels = useMemo(() => {
+    const groups = new Map<string, Model[]>();
+    for (const m of modeModels) {
+      const list = groups.get(m.provider) ?? [];
+      list.push(m);
+      groups.set(m.provider, list);
+    }
+    return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [modeModels]);
   const lastIsUser = messages.length === 0 || messages[messages.length - 1].role === 'user';
   const dailyPct = usage?.plan && usage.plan.dailyTokens > 0 ? Math.min(100, Math.round((usage.todayTokens / usage.plan.dailyTokens) * 100)) : 0;
 
@@ -483,17 +492,21 @@ export function ChatClient() {
               ))}
             </div>
             <select
-              className="input w-auto py-1.5 text-sm"
+              className="input w-auto max-w-64 py-1.5 text-sm"
               value={modelSlug}
               onChange={(e) => { if (streaming) cancelRun(); setModelSlug(e.target.value); }}
               aria-label="Select model"
             >
               {modeModels.length === 0 && <option value="">No {mode} models available</option>}
-              {modeModels.map((m) => (
-                <option key={m.slug} value={m.slug}>
-                  {m.displayName} · {m.provider}
-                  {m.tierRequired !== 'free' ? ` · ${m.tierRequired}+` : ''}
-                </option>
+              {groupedModeModels.map(([providerName, list]) => (
+                <optgroup key={providerName} label={providerName}>
+                  {list.map((m) => (
+                    <option key={m.slug} value={m.slug}>
+                      {m.displayName}
+                      {m.tierRequired !== 'free' ? ` · ${m.tierRequired}+` : ''}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
