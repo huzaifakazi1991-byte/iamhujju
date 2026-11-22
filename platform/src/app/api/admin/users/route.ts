@@ -10,11 +10,17 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
       take: 100,
       select: {
-        id: true, email: true, name: true, role: true, suspended: true, createdAt: true, emailVerified: true,
+        id: true, email: true, name: true, role: true, suspended: true, createdAt: true, emailVerified: true, presenceLastSeen: true,
         balance: { select: { available: true, lifetimeUsed: true } },
         subscriptions: { where: { status: { in: ['active', 'trialing'] } }, select: { status: true, Plan: { select: { name: true, slug: true } } }, take: 1 },
       },
     });
-    return ok({ users: users.map((u) => ({ ...u, available: Number(u.balance?.available ?? 0), lifetimeUsed: Number(u.balance?.lifetimeUsed ?? 0), planName: u.subscriptions[0]?.Plan.name ?? 'Free' })) });
+    return ok({ users: users.map((u) => ({
+      ...u,
+      available: Number(u.balance?.available ?? 0),
+      lifetimeUsed: Number(u.balance?.lifetimeUsed ?? 0),
+      planName: u.subscriptions[0]?.Plan.name ?? 'Free',
+      online: Boolean(u.presenceLastSeen && Date.now() - u.presenceLastSeen.getTime() < 60_000),
+    })) });
   } catch (err) { return handleError(err); }
 }

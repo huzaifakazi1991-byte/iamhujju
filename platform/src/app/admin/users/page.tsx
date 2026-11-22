@@ -7,7 +7,7 @@ import { api } from '@/lib/client';
 
 type UserRow = {
   id: string; email: string; name: string | null; role: 'USER' | 'ADMIN'; suspended: boolean;
-  createdAt: string; available: number; lifetimeUsed: number; planName: string;
+  createdAt: string; available: number; lifetimeUsed: number; planName: string; online?: boolean;
 };
 
 export default function AdminUsersPage() {
@@ -99,7 +99,12 @@ export default function AdminUsersPage() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id} className={`border-b border-black/5 last:border-0 dark:border-white/5 ${u.suspended ? 'opacity-70' : ''}`}>
-                  <td className="px-5 py-3">{u.email}</td>
+                  <td className="px-5 py-3">
+                    <span className="flex items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${u.online ? 'bg-green-500' : 'bg-neutral-400'}`} title={u.online ? 'Online now' : 'Offline'} />
+                      <span className="truncate">{u.email}</span>
+                    </span>
+                  </td>
                   <td className="px-5 py-3">{u.planName}</td>
                   <td className="px-5 py-3">{u.available.toLocaleString()}</td>
                   <td className="px-5 py-3">
@@ -119,6 +124,7 @@ export default function AdminUsersPage() {
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2 text-xs">
                       <span className="hidden text-ink-soft dark:text-white/50 sm:inline">lifetime {u.lifetimeUsed.toLocaleString()}</span>
+                      <Link className="btn-ghost px-3 py-1 text-xs" href={`/admin/messages?user=${encodeURIComponent(u.email)}`}>Message</Link>
                       <Link className="btn-ghost px-3 py-1 text-xs" href={`/admin/logs?q=${encodeURIComponent(u.email)}`}>Chats</Link>
                       {!u.suspended && <button className="btn-ghost px-3 py-1 text-xs" onClick={() => void terminate(u)}>Terminate</button>}
                       <button className="btn-ghost px-3 py-1 text-xs text-red-500" onClick={() => void removeUser(u)}>{armDelete === u.id ? 'Confirm delete' : 'Delete'}</button>
