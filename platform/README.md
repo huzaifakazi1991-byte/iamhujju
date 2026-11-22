@@ -26,7 +26,8 @@ npm run build && npm run start   # http://localhost:3000
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Optional. Enables Razorpay Checkout (INR: UPI, cards, netbanking) |
 | `RAZORPAY_WEBHOOK_SECRET` | Optional. Enables the `/api/billing/webhook/razorpay` replay-safe webhook |
 | `RAZORPAY_USD_TO_INR` | Optional fallback conversion (default `88`) when a plan has no INR paise price |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional. Enables "Continue with Google" |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional. Enables "Continue with Google" (see [Google OAuth setup](#google-oauth-setup)) |
+| `APP_URL` | Public origin of the deployment, e.g. `https://iamhujju.com` (no trailing slash). Builds the Google redirect URI |
 | `SMTP_URL` | Optional. Enables e-mail verification + receipts |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Read by the seed script |
 
@@ -39,6 +40,13 @@ npm run build && npm run start   # http://localhost:3000
    - **Plans** → edit prices, daily/monthly tokens, rate limits, and allowed model slugs.
    - **Users** → search, grant/adjust token balances, suspend accounts (full audit trail in `AdminAction`).
    - **Settings** → platform toggles (e.g. disable sign-ups).
+
+## Google OAuth setup
+
+1. Google Cloud Console → APIs & Services → Credentials → OAuth client (Web application).
+2. Authorized redirect URI must be exactly `<APP_URL>/api/auth/google/callback` (e.g. `https://iamhujju.com/api/auth/google/callback`). Use the apex host if `www` redirects to it.
+3. Render environment: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `APP_URL=https://iamhujju.com` (no trailing slash — the redirect URI is built from it).
+4. Verify by opening `https://<APP_URL>/api/auth/google/status` → `{"configured":true}` — the login/signup Google button self-checks this endpoint and shows "setup in progress" until both keys are present.
 
 ## Model capabilities (chat · image · video)
 
