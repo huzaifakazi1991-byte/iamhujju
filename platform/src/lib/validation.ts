@@ -57,7 +57,7 @@ export const conversationTruncateSchema = z.object({
 
 export const providerCreateSchema = z.object({
   name: z.string().trim().min(2).max(60).regex(/^[a-z0-9-]+$/, 'Use lowercase letters, numbers and dashes.'),
-  kind: z.enum(['mock', 'gemini', 'google', 'mistral', 'openai', 'anthropic', 'groq', 'custom']).default('custom'),
+  kind: z.enum(['mock', 'gemini', 'google', 'mistral', 'openai', 'anthropic', 'groq', 'xai', 'deepseek', 'openrouter', 'together', 'fireworks', 'perplexity', 'cerebras', 'custom']).default('custom'),
   baseUrl: z.string().trim().url('Base URL must be a valid URL.').max(400).optional().or(z.literal('')),
   apiKey: z.string().trim().max(400).optional().or(z.literal('')),
 });
@@ -72,7 +72,8 @@ export const modelUpsertSchema = z.object({
   providerId: z.string().min(1),
   slug: z.string().trim().min(1).max(120).regex(/^[a-zA-Z0-9._-]+$/, 'Use letters, numbers, dots, dashes and underscores.'),
   displayName: z.string().trim().min(1).max(120),
-  contextWindow: z.number().int().min(512).max(10_000_000).default(8192),
+  capability: z.enum(['chat', 'image', 'video', 'tts']).default('chat'),
+  contextWindow: z.number().int().min(16).max(10_000_000).default(8192),
   maxOutputTokens: z.number().int().min(16).max(100_000).default(4096),
   costPer1kInput: z.number().min(0).max(1000).default(0),
   costPer1kOutput: z.number().min(0).max(1000).default(0),
@@ -102,6 +103,12 @@ export const adminSettingsSchema = z.object({
 
 export const keyCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
+});
+
+export const imageSchema = z.object({
+  model: z.string().trim().min(1).max(120),
+  prompt: z.string().trim().min(1).max(2000),
+  conversationId: z.string().trim().max(64).optional().nullable(),
 });
 
 export const checkoutSchema = z.object({

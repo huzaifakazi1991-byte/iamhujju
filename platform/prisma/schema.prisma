@@ -178,12 +178,15 @@ model TokenLedger {                     // every balance change, append-only
 
 // ── AI Gateway ─────────────────────────────────
 model Provider {
-  id           String  @id @default(cuid())
-  name         String  @unique          // "mistral", "openai", "anthropic"
-  baseUrl      String?
-  encryptedKey String?                  // AES-256-GCM encrypted API key; null = mock mode
-  enabled      Boolean @default(false)  // active only when key is set by admin
-  models       Model[]
+  id             String    @id @default(cuid())
+  name           String    @unique          // "mistral", "openai", "anthropic"
+  baseUrl        String?
+  encryptedKey   String?                  // AES-256-GCM encrypted API key; null = mock mode
+  enabled        Boolean   @default(false)  // active only when key is set by admin
+  lastTestAt     DateTime?                // latest admin connection test
+  lastTestOk     Boolean?
+  lastTestDetail String?
+  models         Model[]
 }
 
 model Model {
@@ -191,6 +194,7 @@ model Model {
   providerId        String
   slug              String   @unique      // "mistral-small", "gpt-4o"
   displayName       String
+  capability        String   @default("chat")  // chat, image, video, tts
   contextWindow     Int      @default(8192)
   maxOutputTokens   Int      @default(4096)
   costPer1kInput    Decimal  @default(0)  // internal pricing multiplier

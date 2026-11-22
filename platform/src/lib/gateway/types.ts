@@ -21,6 +21,7 @@ export type ChatParams = {
   messages: ChatMessage[];
   maxTokens?: number;
   temperature?: number;
+  baseUrl?: string | null;
 };
 
 export type StreamLimits = {
@@ -29,8 +30,13 @@ export type StreamLimits = {
   maxOutputChars?: number;
 };
 
+export type ImageKind = 'image' | 'video';
+export type ImageRequest = { model: string; prompt: string; kind: ImageKind; baseUrl?: string | null };
+export type ImageResult = { url: string; kind: ImageKind; note?: string };
+
 export type ProviderAdapter = {
   streamChat(params: ChatParams, credential: string | null, signal?: AbortSignal): AsyncGenerator<ChatEvent>;
+  generateImage?(req: ImageRequest, credential: string | null, signal?: AbortSignal): Promise<ImageResult>;
 };
 
 export class GatewayError extends Error {

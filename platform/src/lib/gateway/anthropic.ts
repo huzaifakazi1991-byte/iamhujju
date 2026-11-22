@@ -1,4 +1,4 @@
-import { messageText, type ChatEvent, type ChatMessage, type ContentPart, type ChatParams, type ProviderAdapter } from '@/lib/gateway/types';
+import { messageText, type ChatEvent, type ChatMessage, type ContentPart, type ChatParams, type ImageRequest, type ImageResult, type ProviderAdapter } from '@/lib/gateway/types';
 
 type AnthropicBlock = { type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
 
@@ -78,5 +78,9 @@ export const anthropicAdapter: ProviderAdapter = {
     }
     if (!usage) usage = { promptTokens: Math.ceil(params.messages.reduce((n, m) => n + messageText(m.content).length, 0) / 4), completionTokens: Math.max(1, Math.ceil(completionChars / 4)) };
     yield { type: 'usage', ...usage };
+  },
+
+  async generateImage(req: ImageRequest): Promise<ImageResult> {
+    throw new Error('Anthropic does not expose image generation. Use the built-in Mock Image model or add an image-capable provider (Google Imagen, OpenAI, Together).');
   },
 };

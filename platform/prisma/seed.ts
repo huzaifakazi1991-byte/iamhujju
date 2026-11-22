@@ -13,19 +13,22 @@ const PLANS = [
 ];
 
 const GEMINI_MODELS = [
-  { slug: 'gemini-3.5-flash-lite', displayName: 'Gemini 3.5 Flash-Lite', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 10 },
-  { slug: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 11 },
-  { slug: 'gemini-3.6-flash', displayName: 'Gemini 3.6 Flash', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 12 },
-  { slug: 'gemini-4-neon', displayName: 'Gemini 4 Neon', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 13 },
-  { slug: 'gemini-4-carbon', displayName: 'Gemini 4 Carbon', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'business', displayOrder: 14 },
+  { slug: 'gemini-3.5-flash-lite', displayName: 'Gemini 3.5 Flash-Lite', capability: 'chat', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 10 },
+  { slug: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash', capability: 'chat', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 11 },
+  { slug: 'gemini-3.6-flash', displayName: 'Gemini 3.6 Flash', capability: 'chat', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 12 },
+  { slug: 'gemini-4-neon', displayName: 'Gemini 4 Neon', capability: 'chat', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'pro', displayOrder: 13 },
+  { slug: 'gemini-4-carbon', displayName: 'Gemini 4 Carbon', capability: 'chat', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'business', displayOrder: 14 },
+  { slug: 'imagen-4.0-generate-001', displayName: 'Imagen 4 (image generation)', capability: 'image', contextWindow: 480, maxOutputTokens: 1, tierRequired: 'pro', displayOrder: 15 },
 ];
 
 // Google retired the 2.5 family for new API keys — keep the rows but hide them.
 const GEMINI_RETIRED = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'];
 
 const MOCK_MODELS = [
-  { slug: 'mock-small', displayName: 'Mock Small (free tier)', contextWindow: 8192, maxOutputTokens: 2048, tierRequired: 'free', displayOrder: 0 },
-  { slug: 'mock-large', displayName: 'Mock Large (paid tier)', contextWindow: 32768, maxOutputTokens: 8192, tierRequired: 'pro', displayOrder: 1 },
+  { slug: 'mock-small', displayName: 'Mock Small (free tier)', capability: 'chat', contextWindow: 8192, maxOutputTokens: 2048, tierRequired: 'free', displayOrder: 0 },
+  { slug: 'mock-large', displayName: 'Mock Large (paid tier)', capability: 'chat', contextWindow: 32768, maxOutputTokens: 8192, tierRequired: 'pro', displayOrder: 1 },
+  { slug: 'mock-image', displayName: 'Mock Image (free demo)', capability: 'image', contextWindow: 480, maxOutputTokens: 1, tierRequired: 'free', displayOrder: 2 },
+  { slug: 'mock-video', displayName: 'Mock Video (demo)', capability: 'video', contextWindow: 480, maxOutputTokens: 1, tierRequired: 'pro', displayOrder: 3 },
 ];
 
 async function main() {
@@ -66,9 +69,16 @@ async function main() {
   for (const m of MOCK_MODELS) {
     await prisma.model.upsert({
       where: { slug: m.slug },
-      update: { adminEnabled: true, providerId: provider.id },
+      update: { adminEnabled: true, providerId: provider.id, capability: m.capability },
       create: { ...m, providerId: provider.id, adminEnabled: true },
     });
+  }
+
+  // Classify any models that predate the capability column (idempotent).
+  for (const m of await prisma.model.findMany({ select: { id: true, slug: true, capability: true } })) {
+    if (m.capability === 'chat' && /^(imagen|dall-e|flux)/.test(m.slug)) {
+      await prisma.model.update({ where: { id: m.id }, data: { capability: 'image' } });
+    }
   }
 
   const geminiProvider = await prisma.provider.upsert({
@@ -80,7 +90,7 @@ async function main() {
   for (const m of GEMINI_MODELS) {
     await prisma.model.upsert({
       where: { slug: m.slug },
-      update: { providerId: geminiProvider.id, displayName: m.displayName, contextWindow: m.contextWindow, maxOutputTokens: m.maxOutputTokens, tierRequired: m.tierRequired },
+      update: { providerId: geminiProvider.id, displayName: m.displayName, capability: m.capability, contextWindow: m.contextWindow, maxOutputTokens: m.maxOutputTokens, tierRequired: m.tierRequired },
       create: { ...m, providerId: geminiProvider.id, adminEnabled: true },
     });
   }

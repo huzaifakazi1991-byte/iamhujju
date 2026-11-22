@@ -34,11 +34,15 @@ npm run build && npm run start   # http://localhost:3000
 
 1. Seed creates an admin user (`ADMIN_EMAIL` / `ADMIN_PASSWORD`, default `admin@example.com` / `change-me-immediately`) plus the Free/Pro/Business plans and two mock models.
 2. Sign in, open `/admin`:
-   - **Providers** → paste any provider API key (Mistral, OpenAI, OpenAI-compatible, Anthropic, Groq). Keys are AES-256-GCM encrypted server-side and never leave the backend. The provider's models become available through the gateway immediately — no code changes, no redeploy.
+   - **Providers** → paste any provider API key (Mistral, OpenAI, OpenAI-compatible, Anthropic, Groq). Keys are AES-256-GCM encrypted server-side and never leave the backend. The provider's models become available through the gateway immediately — no code changes, no redeploy. The **platform catalog** lists 13 ready-to-configure providers with prefilled base URLs; saving a key auto-syncs its models and runs a live connection test whose result shows as a health pill (✅ live / ❌ failing) on the provider card.
    - **Models** → add/rename/reorder models, set context window, pricing multipliers and the minimum tier (`free`/`pro`/`business`), and toggle visibility.
    - **Plans** → edit prices, daily/monthly tokens, rate limits, and allowed model slugs.
    - **Users** → search, grant/adjust token balances, suspend accounts (full audit trail in `AdminAction`).
    - **Settings** → platform toggles (e.g. disable sign-ups).
+
+## Model capabilities (chat · image · video)
+
+Every model carries a `capability` (`chat`, `image`, `video`, `tts`). The playground groups models by capability (💬 Chat / 🖼 Images / 🎬 Video tabs) and every capability is metered and gated identically: same preflight (auth, plan, rate limit, balance), same `TokenLedger` audit. Image and video renders charge a flat completion fee (1,000 / 8,000 tokens) settled atomically after the render; aborted renders are not billed for the completion, only for the prompt. "Sync models" auto-detects image/video ids (Imagen, DALL·E, FLUX, Veo…) and classifies them. The built-in `mock-image` / `mock-video` models let every flow work before a real image provider is connected.
 
 ## Gateway rules (enforced server-side on every request)
 

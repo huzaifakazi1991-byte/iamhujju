@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { api, streamChat, ApiError } from '@/lib/client';
+import { api, streamChat, streamImage, ApiError } from '@/lib/client';
 import { GlassCard } from '@/components/ui/glass';
 import { useToast } from '@/components/toast';
 import { Markdown } from '@/components/markdown';
@@ -50,9 +50,9 @@ function IconUndo() {
   );
 }
 
-type Model = { id: string; slug: string; displayName: string; provider: string; tierRequired: string; contextWindow: number; maxOutputTokens: number };
+type Model = { id: string; slug: string; displayName: string; provider: string; capability: string; tierRequired: string; contextWindow: number; maxOutputTokens: number };
 type Conversation = { id: string; title: string | null; updatedAt: string };
-type Msg = { role: 'user' | 'assistant' | 'system'; content: string; files?: string[] };
+type Msg = { role: 'user' | 'assistant' | 'system'; content: string; files?: string[]; imageUrl?: string; note?: string };
 type Attachment =
   | { id: string; kind: 'text'; name: string; data: string; truncated: boolean }
   | { id: string; kind: 'image'; name: string; data: string };
@@ -74,6 +74,8 @@ export function ChatClient() {
   const { toast } = useToast();
   const [models, setModels] = useState<Model[]>([]);
   const [modelSlug, setModelSlug] = useState<string>('');
+  const [mode, setMode] = useState<'chat' | 'image' | 'video'>('chat');
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -101,7 +103,7 @@ export function ChatClient() {
       .then((d) => {
         setModels(d.models);
         if (d.models.length > 0) {
-          const firstFree = d.models.find((m) => m.tierRequired === 'free') ?? d.models[0];
+          const firstFree = d.models.find((m) => m.tierRequired === 'free' && (m.capability ?? 'chat') === 'chat') ?? d.models[0];
           setModelSlug((current) => current || firstFree.slug);
         }
       })
@@ -115,6 +117,17 @@ export function ChatClient() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streaming]);
+
+  function switchMode(next: 'chat' | 'image' | 'video') {
+    if (next === mode) return;
+    setMode(next);
+    const pool = models.filter((m) => (next === 'chat' ? (m.capability ?? 'chat') === 'chat' : m.capability === next));
+    if (pool.length > 0) setModelSlug(pool.find((m) => m.tierRequired === 'free')?.slug ?? pool[0].slug);
+  }
+
+  function openUpgrade(msg: string) {
+    setUpgradeMsg(msg);
+  }
 
   useEffect(() => {
     function onVisible() {
@@ -132,7 +145,13 @@ export function ChatClient() {
     try {
       const d = await api<{ conversation: { id: string; messages: { role: string; content: string }[] } }>(`/api/conversations/${id}`);
       setConversationId(id);
-      setMessages(d.conversation.messages.map((m) => ({ role: m.role as Msg['role'], content: m.content })));
+      setMessages(d.conversation.messages.map((m) => {
+        const img = /^\[\[image:(.*?)\]\]/.exec(m.content);
+        if (img) {
+          return { role: m.role as Msg['role'], content: m.content.slice(img[0].length).trim(), imageUrl: img[1], note: m.content.slice(img[0].length).trim() || undefined };
+        }
+        return { role: m.role as Msg['role'], content: m.content };
+      }));
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not load conversation', 'error');
     }
@@ -281,6 +300,14 @@ export function ChatClient() {
     return parts;
   }
 
+  function handleDone(ev: Record<string, unknown>) {
+    refreshUsage();
+    const balance = typeof ev.balance === 'number' ? ev.balance : null;
+    if (balance !== null && balance < 500 && balance >= 0) {
+      toast(`⚠️ Low token balance: ${balance.toLocaleString()} left. Buy tokens or upgrade to keep going.`, 'error');
+    }
+  }
+
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
     if (streaming || (!input.trim() && attachments.length === 0) || !modelSlug) return;
@@ -314,7 +341,7 @@ export function ChatClient() {
             assistantText += ev.text;
             setMessages([...history, { role: 'assistant', content: assistantText }]);
           } else if (type === 'done') {
-            refreshUsage();
+            handleDone(ev);
           } else if (type === 'error') {
             toast(String(ev.message ?? 'Provider error'), 'error');
           }
@@ -322,7 +349,10 @@ export function ChatClient() {
         controller.signal,
       );
     } catch (err) {
-      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+      if (err instanceof ApiError && err.status === 402) {
+        openUpgrade(err.message);
+        setMessages(history);
+      } else if (!(err instanceof DOMException && err.name === 'AbortError')) {
         toast(err instanceof Error ? err.message : 'Chat failed', 'error');
         setMessages(history);
       }
@@ -333,7 +363,57 @@ export function ChatClient() {
     }
   }
 
+  async function sendImage(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (streaming || !input.trim() || !modelSlug) return;
+    const prompt = input.trim();
+    const userMsg: Msg = { role: 'user', content: prompt };
+    const history = [...messagesRef.current, userMsg];
+    setMessages(history);
+    setInput('');
+    setStreaming(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await streamImage(
+        { model: modelSlug, prompt, conversationId },
+        (ev) => {
+          const type = ev.type as string;
+          if (type === 'meta' && typeof ev.conversationId === 'string') {
+            setConversationId(ev.conversationId);
+            setConversations((c) =>
+              c.some((x) => x.id === ev.conversationId)
+                ? c
+                : [{ id: ev.conversationId as string, title: prompt.slice(0, 60), updatedAt: new Date().toISOString() }, ...c],
+            );
+          } else if (type === 'image' && typeof ev.url === 'string') {
+            setMessages([...history, { role: 'assistant', content: String(ev.note ?? ''), imageUrl: ev.url, note: ev.note ? String(ev.note) : undefined }]);
+          } else if (type === 'done') {
+            handleDone(ev);
+            if (ev.status === 'error' && typeof ev.error === 'string') toast(ev.error, 'error');
+          } else if (type === 'error') {
+            toast(String(ev.message ?? 'Render failed'), 'error');
+          }
+        },
+        controller.signal,
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) {
+        openUpgrade(err.message);
+        setMessages(history);
+      } else if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        toast(err instanceof Error ? err.message : 'Render failed', 'error');
+        setMessages(history);
+      }
+    } finally {
+      setStreaming(false);
+      abortRef.current = null;
+      refreshUsage();
+    }
+  }
+
   const currentModel = models.find((m) => m.slug === modelSlug);
+  const modeModels = models.filter((m) => (mode === 'chat' ? (m.capability ?? 'chat') === 'chat' : m.capability === mode));
   const lastIsUser = messages.length === 0 || messages[messages.length - 1].role === 'user';
   const dailyPct = usage?.plan && usage.plan.dailyTokens > 0 ? Math.min(100, Math.round((usage.todayTokens / usage.plan.dailyTokens) * 100)) : 0;
 
@@ -391,14 +471,25 @@ export function ChatClient() {
         <div className="flex items-center justify-between border-b border-black/5 px-4 py-2.5 dark:border-white/10">
           <div className="flex items-center gap-2">
             <button className="btn-ghost px-3 py-1.5 text-sm md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+            <div className="flex overflow-hidden rounded-lg border border-black/8 text-xs dark:border-white/10">
+              {([['chat', '💬'], ['image', '🖼'], ['video', '🎬']] as const).map(([key, icon]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`px-3 py-1.5 transition-colors ${mode === key ? 'bg-leaf/16 font-semibold text-leaf-deep dark:text-leaf-glow' : 'text-ink-soft hover:bg-forest/6 dark:text-white/50 dark:hover:bg-leaf/8'} ${models.some((m) => m.capability === key) ? '' : 'opacity-40'}`}
+                  onClick={() => { if (streaming) cancelRun(); switchMode(key); }}
+                  title={key === 'chat' ? 'Chat models' : key === 'image' ? 'Image generation models' : 'Video generation models'}
+                >{icon} {key}</button>
+              ))}
+            </div>
             <select
               className="input w-auto py-1.5 text-sm"
               value={modelSlug}
               onChange={(e) => { if (streaming) cancelRun(); setModelSlug(e.target.value); }}
               aria-label="Select model"
             >
-              {models.length === 0 && <option value="">No models available</option>}
-              {models.map((m) => (
+              {modeModels.length === 0 && <option value="">No {mode} models available</option>}
+              {modeModels.map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.displayName} · {m.provider}
                   {m.tierRequired !== 'free' ? ` · ${m.tierRequired}+` : ''}
@@ -417,10 +508,14 @@ export function ChatClient() {
           <div className="mx-auto max-w-3xl">
             {messages.length === 0 && !streaming && (
               <GlassCard className="mt-10 p-10 text-center">
-                <div className="mb-3 text-3xl" aria-hidden>🌱</div>
-                <h2 className="font-display text-lg font-bold">Start a conversation</h2>
+                <div className="mb-3 text-3xl" aria-hidden>{mode === 'chat' ? '🌱' : mode === 'image' ? '🖼' : '🎬'}</div>
+                <h2 className="font-display text-lg font-bold">{mode === 'chat' ? 'Start a conversation' : mode === 'image' ? 'Generate an image' : 'Generate a video preview'}</h2>
                 <p className="text-body-soft mx-auto mt-2 max-w-md text-sm">
-                  Runs on the built-in mock provider. Ask anything — responses, metering and billing all work exactly like a real provider.
+                  {mode === 'chat'
+                    ? 'Ask anything — responses, metering and billing all work exactly like a real provider.'
+                    : mode === 'image'
+                      ? 'Describe the image, pick an image model, and the render is metered to your token balance like every other model.'
+                      : 'Describe the short clip and render a video preview with your available video models.'}
                 </p>
               </GlassCard>
             )}
@@ -438,6 +533,12 @@ export function ChatClient() {
                       )}
                       <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed">{m.content}</p>
                     </>
+                  ) : m.imageUrl ? (
+                    <div className="space-y-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.imageUrl} alt={m.note || 'Generated image'} className="max-w-md rounded-2xl border border-black/8 shadow-lg dark:border-white/10" loading="lazy" />
+                      {m.note && <p className="text-body-soft text-xs">{m.note}</p>}
+                    </div>
                   ) : <Markdown content={m.content} />}
                 </div>
                 {m.role === 'user' ? (
@@ -492,7 +593,7 @@ export function ChatClient() {
           </div>
         </div>
 
-        <form onSubmit={send} className="border-t border-black/5 p-4 dark:border-white/10">
+        <form onSubmit={mode === 'chat' ? send : sendImage} className="border-t border-black/5 p-4 dark:border-white/10">
           <div className="mx-auto max-w-3xl">
             {attachments.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
@@ -532,7 +633,7 @@ export function ChatClient() {
               </div>
               <textarea
               className="composer-textarea input max-h-40 min-h-[46px] flex-1 resize-y"
-              placeholder={modelSlug ? 'Ask anything… (Enter to send, Shift+Enter for a new line)' : 'Loading models…'}
+              placeholder={modelSlug ? (mode === 'chat' ? 'Ask anything… (Enter to send, Shift+Enter for a new line)' : 'Describe the image to render… (Enter to generate)') : 'Loading models…'}
               value={input}
               rows={1}
               disabled={streaming || models.length === 0}
@@ -544,16 +645,31 @@ export function ChatClient() {
             {streaming ? (
               <button type="button" className="btn-ghost px-5 py-2.5 text-sm" onClick={cancelRun}>Stop</button>
             ) : (
-              <button className="btn-primary px-5 py-2.5 text-sm" disabled={(!input.trim() && attachments.length === 0) || !modelSlug}>Send</button>
+              <button className="btn-primary px-5 py-2.5 text-sm" disabled={(!input.trim() && (mode === 'chat' ? attachments.length === 0 : true)) || !modelSlug}>{mode === 'chat' ? 'Send' : 'Generate'}</button>
             )}
             </div>
           </div>
           <p className="mx-auto mt-2 max-w-3xl text-xs text-ink-soft dark:text-white/45">
-            Free tier limits apply server-side.{' '}
+            {mode === 'chat' ? 'Free tier limits apply server-side.' : 'Renders cost a flat token fee per output, charged to your balance.'}{' '}
             {usage?.plan?.isFree && <Link href="/billing" className="font-medium text-leaf-deep hover:underline dark:text-leaf">Upgrade →</Link>}
           </p>
         </form>
       </main>
+
+      {upgradeMsg && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-forest/60 p-4 backdrop-blur-sm" role="dialog" aria-modal aria-label="Upgrade required">
+          <GlassCard className="w-full max-w-md p-8 text-center">
+            <div className="mb-3 text-3xl" aria-hidden>⚡</div>
+            <h2 className="font-display text-lg font-bold">Out of tokens</h2>
+            <p className="text-body-soft mx-auto mt-2 max-w-sm text-sm">{upgradeMsg}</p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link href="/pricing" className="btn-leaf px-6 py-2.5 text-sm" onClick={() => setUpgradeMsg(null)}>Upgrade plan</Link>
+              <Link href="/billing" className="btn-ghost px-6 py-2.5 text-sm" onClick={() => setUpgradeMsg(null)}>Buy tokens</Link>
+              <button type="button" className="btn-ghost px-4 py-2.5 text-sm" onClick={() => setUpgradeMsg(null)}>Close</button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }
