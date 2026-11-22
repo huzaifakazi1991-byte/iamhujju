@@ -537,6 +537,11 @@ async function makeModel(slug) {
   }
   ok(r.status === 200, `gateway: model ${slug} registered`, JSON.stringify(r.data).slice(0, 120));
 }
+{
+  const sm = await req('/api/admin/models', { auth: adminC.at + '; ' + adminC.rt });
+  const one = (sm.data.models ?? [])[0] ?? {};
+  ok(sm.status === 200 && one.stats && typeof one.stats.requests24h === 'number' && 'lastTestOk' in (one.providerHealth ?? {}), 'admin models: status & load stats + provider health exposed', JSON.stringify(one).slice(0, 160));
+}
 await makeModel('mock-echo');
 await makeModel('mock-missing');
 await makeModel('mock-empty');
