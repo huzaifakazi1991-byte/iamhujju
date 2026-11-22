@@ -165,6 +165,17 @@ export function ChatClient() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refreshUsage]);
 
+  useEffect(() => {
+    if (!sidebarOpen && !upgradeMsg) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (upgradeMsg) setUpgradeMsg(null);
+      if (sidebarOpen) setSidebarOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidebarOpen, upgradeMsg]);
+
   async function openConversation(id: string) {
     setSidebarOpen(false);
     if (streaming) cancelRun();
@@ -454,6 +465,15 @@ export function ChatClient() {
 
   return (
     <div className="flex min-h-0 flex-1">
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-[39] bg-forest/40 backdrop-blur-sm md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close conversation menu"
+          style={{ transition: 'opacity 150ms' }}
+        />
+      )}
       <Suspense fallback={null}>
         <TemplatePrefill
           onApply={(prompt, title) => {
@@ -465,7 +485,7 @@ export function ChatClient() {
       <Suspense fallback={null}>
         <ModePrefill onApply={(cap) => openCapability(cap as 'image' | 'video')} />
       </Suspense>
-      <aside className={`glass-panel absolute inset-y-0 left-0 z-40 w-72 !rounded-none border-x-0 border-b-0 transform pt-20 transition-transform duration-200 ease-out md:static md:translate-x-0 md:pt-16 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`glass-panel absolute inset-y-0 left-0 z-40 w-72 !rounded-none border-x-0 border-b-0 transform pt-20 transition-transform duration-[250ms] ease-[cubic-bezier(0.22,1,0.36,1)] md:static md:translate-x-0 md:pt-16 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="flex h-full flex-col p-4 -mt-10 md:mt-0">
           <button
             className="btn-leaf mb-4 py-2 text-sm"
@@ -506,9 +526,9 @@ export function ChatClient() {
       </aside>
 
       <main className="flex min-h-0 w-full flex-1 flex-col">
-        <div className="flex items-center justify-between border-b border-black/5 px-4 py-2.5 dark:border-white/10">
-          <div className="flex items-center gap-2">
-            <button className="btn-ghost px-3 py-1.5 text-sm md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+        <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-black/5 px-3 py-2.5 sm:px-4 dark:border-white/10">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+            <button className="btn-ghost shrink-0 px-2.5 py-1.5 text-sm md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)} aria-expanded={sidebarOpen} aria-label="Conversations menu">☰</button>
             <div className="flex overflow-hidden rounded-lg border border-black/8 text-xs dark:border-white/10">
               {([['chat', '💬'], ['image', '🖼'], ['video', '🎬']] as const).map(([key, icon]) => (
                 <button
@@ -533,7 +553,7 @@ export function ChatClient() {
               title="Jump straight to video generation — just type a prompt"
             ><span className="sm:hidden">🎬</span><span className="hidden sm:inline">🎬 Create video</span></button>
             <select
-              className="input w-auto max-w-64 py-1.5 text-sm"
+              className="input w-auto max-w-40 min-w-0 flex-1 py-1.5 text-sm sm:flex-none sm:max-w-64"
               value={modelSlug}
               onChange={(e) => { if (streaming) cancelRun(); setModelSlug(e.target.value); }}
               aria-label="Select model"
@@ -712,7 +732,7 @@ export function ChatClient() {
       </main>
 
       {upgradeMsg && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-forest/60 p-4 backdrop-blur-sm" role="dialog" aria-modal aria-label="Upgrade required">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-forest/60 p-4 backdrop-blur-sm" role="dialog" aria-modal aria-label="Upgrade required" onClick={(e) => { if (e.target === e.currentTarget) setUpgradeMsg(null); }}>
           <GlassCard className="w-full max-w-md p-8 text-center">
             <div className="mb-3 text-3xl" aria-hidden>⚡</div>
             <h2 className="font-display text-lg font-bold">Out of tokens</h2>

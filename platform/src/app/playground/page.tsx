@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export default function PlaygroundPage() {
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-[100dvh] flex-col">
       <Nav />
       <ChatClient />
     </div>

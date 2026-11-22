@@ -26,6 +26,7 @@ export default function MessagesPage() {
   const [group, setGroup] = useState<{ messages: GroupMessageRow[]; online: OnlineUser[]; me: string } | null>(null);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [chatMinimized, setChatMinimized] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadDirect = useCallback(() => api<typeof direct>('/api/threads/direct').then((d) => setDirect(d)).catch(() => undefined), []);
@@ -91,8 +92,31 @@ export default function MessagesPage() {
         ))}
       </div>
 
+      {chatMinimized ? (
+        <button
+          type="button"
+          onClick={() => setChatMinimized(false)}
+          className="fixed bottom-24 left-4 z-[60] flex h-14 items-center gap-2.5 rounded-full border border-leaf/40 bg-leaf-deep px-5 text-sm font-semibold text-cream shadow-xl md:hidden"
+          aria-label="Open community chat"
+        >
+          <span aria-hidden>💬</span>
+          {tab === 'group' ? 'Community chat' : 'Chat with Huzaifa'}
+          {tab === 'group' && group && group.online.length > 0 && (
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-cream/20 px-1.5 text-xs">{group.online.length}</span>
+          )}
+        </button>
+      ) : (
       <div className="glass card flex h-[62vh] min-h-[420px] flex-col overflow-hidden p-0">
-        <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 sm:px-6">
+        <div className="flex items-center justify-between border-b border-black/5 px-3 py-1.5 md:hidden dark:border-white/10">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft dark:text-white/50">{tab === 'direct' ? 'Support · Huzaifa' : 'Community'}</p>
+          <button
+            type="button"
+            onClick={() => setChatMinimized(true)}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-base text-body-soft transition-colors hover:bg-forest/8 dark:hover:bg-white/10"
+            aria-label="Minimize chat"
+          >✕</button>
+        </div>
+        <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
           {!current && <div className="skeleton h-32 mt-4" />}
           {current && messages.length === 0 && (
             <div className="flex h-full items-center justify-center px-6 text-center text-sm text-ink-soft dark:text-white/55">
@@ -139,16 +163,17 @@ export default function MessagesPage() {
         </div>
         <form className="flex gap-2 border-t border-black/5 p-3 sm:p-4 dark:border-white/10" onSubmit={(e) => { e.preventDefault(); void send(); }}>
           <input
-            className="input flex-1"
+            className="input flex-1 min-w-0"
             placeholder={tab === 'direct' ? 'Message Huzaifa — tokens, support, anything…' : 'Share something with the community…'}
             value={input}
             maxLength={2000}
             onChange={(e) => setInput(e.target.value)}
             aria-label="Message"
           />
-          <button className="btn-leaf px-5 text-sm" disabled={busy || !input.trim()}>{busy ? '…' : 'Send'}</button>
+          <button className="btn-leaf shrink-0 px-5 py-2.5 text-sm" disabled={busy || !input.trim()}>{busy ? '…' : 'Send'}</button>
         </form>
       </div>
+      )}
 
       {tab === 'group' && group && group.online.length > 0 && (
         <div className="glass mt-4 card p-4">

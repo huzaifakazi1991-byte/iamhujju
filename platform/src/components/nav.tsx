@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { api } from '@/lib/client';
 import { Wordmark } from '@/components/ui/logo';
 
@@ -54,6 +54,15 @@ export function Nav() {
 
   useEffect(() => { setOpen(false); }, [pathname]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   function toggleTheme() {
     const next = !dark;
     setDark(next);
@@ -79,7 +88,7 @@ export function Nav() {
   ];
 
   return (
-    <header className="glass sticky top-0 z-50 border-x-0 border-t-0">
+    <header className="glass relative sticky top-0 z-50 border-x-0 border-t-0">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="transition-opacity hover:opacity-80">
           <Wordmark />
@@ -136,8 +145,30 @@ export function Nav() {
         <button className="btn-ghost px-3 py-1.5 text-sm md:hidden" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open}>☰</button>
       </div>
 
-      {open && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-cream/80 border-t border-forest/8 px-4 py-3 backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-forest/80">
+      <AnimatePresence>
+        {open && (
+          <>
+            <motion.div
+              key="nav-backdrop"
+              className="fixed inset-0 z-[36] bg-forest/35 backdrop-blur-[2px] md:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setOpen(false)}
+              aria-hidden
+            />
+            <motion.div
+              key="nav-drawer"
+              className="bg-cream/80 absolute inset-x-0 top-full z-[38] origin-top border-t border-forest/8 px-4 py-3 backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-forest/80"
+              initial={{ opacity: 0, scaleY: 0.85, y: -10 }}
+              animate={{ opacity: 1, scaleY: 1, y: 0 }}
+              exit={{ opacity: 0, scaleY: 0.85, y: -10 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('a, button')) setOpen(false);
+              }}
+            >
           <div className="flex flex-col gap-1">
             {links.map((l) => (
               <Link key={l.href} href={l.href} className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-leaf/8 dark:hover:bg-leaf/10">{l.label}</Link>
@@ -159,8 +190,10 @@ export function Nav() {
               <button onClick={toggleTheme} aria-label="Toggle dark mode" className="btn-ghost px-3 py-2 text-sm">{dark ? <SunIcon /> : <MoonIcon />}</button>
             </div>
           </div>
-        </motion.div>
-      )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
