@@ -29,6 +29,7 @@ model User {
   country       String?
   bio           String?   @db.Text
   avatarUrl     String?   @db.Text
+  presenceLastSeen DateTime?                  // heartbeat for online dot
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -43,6 +44,38 @@ model User {
   usage         UsageRecord[]
   rateLimits    RateLimit[]
   verificationTokens VerificationToken[]
+  directThread  DirectThread?
+  groupMessages GroupMessage[]
+}
+
+model DirectThread {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  ownerReadAt DateTime?
+  userReadAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  User        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    DirectMessage[]
+}
+
+model DirectMessage {
+  id        String   @id @default(cuid())
+  threadId  String
+  senderId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  Thread    DirectThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  @@index([threadId, createdAt])
+}
+
+model GroupMessage {
+  id        String   @id @default(cuid())
+  senderId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  @@index([createdAt])
 }
 
 model Account {                       // Google OAuth etc.

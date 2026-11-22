@@ -108,3 +108,7 @@ export const checkoutSchema = z.object({
   planSlug: z.enum(['pro', 'business']),
   interval: z.enum(['monthly', 'yearly']).default('monthly'),
 });
+
+export const messageBodySchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+});

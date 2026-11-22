@@ -44,6 +44,14 @@ export function Nav() {
     setDark(document.documentElement.classList.contains('dark'));
   }, []);
 
+  useEffect(() => {
+    if (!me) return;
+    const beat = () => void api('/api/presence', { method: 'POST' }).catch(() => undefined);
+    beat();
+    const timer = window.setInterval(beat, 30_000);
+    return () => window.clearInterval(timer);
+  }, [me]);
+
   useEffect(() => { setOpen(false); }, [pathname]);
 
   function toggleTheme() {
@@ -66,6 +74,7 @@ export function Nav() {
     { href: '/playground', label: 'Playground' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/messages', label: 'Messages' },
     { href: '/keys', label: 'API keys' },
   ];
 

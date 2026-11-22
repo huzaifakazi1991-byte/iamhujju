@@ -340,5 +340,50 @@ const reLo = await req('/api/auth/login', { method: 'POST', body: { email: e2eEm
 ok(reLo.status === 200 && reLo.data?.otpRequired === false, 're-login after sign-out asks for credentials again', JSON.stringify(reLo.data));
 collect(reLo, userC);
 
+// ═══ Messenger: presence, direct thread (user ↔ owner), community group ═══
+const presU = await req('/api/presence', { method: 'POST', auth: userC.at + '; ' + userC.rt });
+ok(presU.status === 200 && presU.data?.online === true, 'presence heartbeat accepted', String(presU.status));
+const dEmpty = await req('/api/threads/direct', { auth: userC.at + '; ' + userC.rt });
+ok(dEmpty.status === 200 && Array.isArray(dEmpty.data?.messages) && dEmpty.data?.owner && typeof dEmpty.data.owner.online === 'boolean', 'direct thread GET returns messages + owner presence', JSON.stringify(dEmpty.data).slice(0, 200));
+const dSend = await req('/api/threads/direct', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { body: 'Hello Huzaifa — requesting 5000 extra tokens please' } });
+ok(dSend.status === 201 && (dSend.data?.message?.body ?? '').includes('requesting 5000'), 'user sends direct message to owner', JSON.stringify(dSend.data).slice(0, 150));
+const dmNoAuth = await req('/api/threads/direct');
+ok(dmNoAuth.status === 401, 'anonymous cannot read direct thread', String(dmNoAuth.status));
+const dmTooLong = await req('/api/threads/direct', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { body: 'x'.repeat(2001) } });
+ok(dmTooLong.status === 400 || dmTooLong.status === 422, 'message body length validated', String(dmTooLong.status));
+const admThreads = await req('/api/admin/threads?q=' + encodeURIComponent(e2eEmail), { auth: adminC.at + '; ' + adminC.rt });
+const threadRow = admThreads.data?.threads?.[0];
+ok(admThreads.status === 200 && threadRow?.user?.email === e2eEmail && threadRow.unread >= 1 && typeof threadRow.user.online === 'boolean', 'admin inbox lists thread with unread count + presence', JSON.stringify(admThreads.data).slice(0, 250));
+const admNonAdmin = await req('/api/admin/threads', { auth: userC.at + '; ' + userC.rt });
+ok(admNonAdmin.status === 403, 'non-admin blocked from inbox', String(admNonAdmin.status));
+if (threadRow) {
+  const admReply = await req('/api/admin/threads/' + threadRow.id, { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { body: 'Granted! Check your balance shortly.' } });
+  ok(admReply.status === 201, 'owner replies in the thread', JSON.stringify(admReply.data).slice(0, 150));
+  const dBack = await req('/api/threads/direct', { auth: userC.at + '; ' + userC.rt });
+  ok(dBack.data?.messages?.length >= 2 && dBack.data.messages.some((m) => m.body.includes('Granted!')), 'user receives owner reply', String(dBack.data?.messages?.length));
+  const adm404 = await req('/api/admin/threads/nonexistent-thread-id', { auth: adminC.at + '; ' + adminC.rt });
+  ok(adm404.status === 404, 'unknown thread id -> 404', String(adm404.status));
+} else { failures++; console.log('FAIL admin inbox thread row (none)'); }
+
+// community group chat
+const gEmpty = await req('/api/threads/group', { auth: userC.at + '; ' + userC.rt });
+ok(gEmpty.status === 200 && Array.isArray(gEmpty.data?.messages) && Array.isArray(gEmpty.data?.online), 'group chat GET returns messages + online list', JSON.stringify(gEmpty.data).slice(0, 200));
+const gSend = await req('/api/threads/group', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { body: 'Hello community — greetings from the e2e user!' } });
+ok(gSend.status === 201 && gSend.data?.message?.sender, 'user posts to community group', JSON.stringify(gSend.data).slice(0, 200));
+// second user sees the group message
+const otherEmail = 'peer-' + Date.now() + '@test.dev';
+const otherC = {};
+const otherSignup = await req('/api/auth/signup', { method: 'POST', body: { email: otherEmail, password: 'password123', name: 'Peer User' } });
+collect(otherSignup, otherC);
+const gPeer = await req('/api/threads/group', { auth: otherC.at + '; ' + otherC.rt });
+ok(gPeer.data?.messages?.some((m) => (m.body ?? '').includes('greetings from the e2e user') && m.senderId !== otherC.at), 'second user sees community message from first user', String(gPeer.data?.messages?.length));
+const gMsgId = gSend.data?.message?.id;
+const gDelUser = await req('/api/threads/group/' + gMsgId, { method: 'DELETE', auth: userC.at + '; ' + userC.rt });
+ok(gDelUser.status === 403, 'non-admin cannot moderate group messages', String(gDelUser.status));
+const gDelAdmin = await req('/api/threads/group/' + gMsgId, { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt });
+ok(gDelAdmin.status === 200 && gDelAdmin.data?.deleted === gMsgId, 'admin moderates (deletes) group message', JSON.stringify(gDelAdmin.data));
+const presAdm = await req('/api/admin/users', { auth: adminC.at + '; ' + adminC.rt });
+ok(presAdm.status === 200 && presAdm.data.users.every((u) => typeof u.online === 'boolean'), 'admin users table carries online status', String(presAdm.status));
+
 console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
 process.exit(failures === 0 ? 0 : 1);
