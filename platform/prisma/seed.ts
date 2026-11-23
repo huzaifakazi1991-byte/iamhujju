@@ -1,16 +1,28 @@
 import { Prisma } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
+import { PLAN_FACTS, priceMonthlyUsdCents, priceYearlyUsdCents } from '../src/lib/plans';
 
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@example.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'change-me-immediately';
 
-const PLANS = [
-  { slug: 'free', name: 'Free', priceMonthly: 0, priceYearly: null, priceMonthlyInrPaise: 0, priceYearlyInrPaise: null, dailyTokens: 10000, monthlyTokens: 100000, tokensPerMinute: 6000, requestsPerMin: 10, allowedModels: [] as string[], isFree: true },
-  { slug: 'pro', name: 'Pro', priceMonthly: 1476, priceYearly: 15942, priceMonthlyInrPaise: 129900, priceYearlyInrPaise: 1402900, dailyTokens: 200000, monthlyTokens: 4000000, tokensPerMinute: 60000, requestsPerMin: 60, allowedModels: [] as string[], isFree: false },
-  { slug: 'business', name: 'Business', priceMonthly: 10226, priceYearly: 110442, priceMonthlyInrPaise: 899900, priceYearlyInrPaise: 9718900, dailyTokens: 2000000, monthlyTokens: 40000000, tokensPerMinute: 250000, requestsPerMin: 300, allowedModels: [] as string[], isFree: false },
-];
+// Commercial plan facts live in src/lib/plans.ts — seed, pricing page and the
+// assistant prompt all consume the same object, so they can never drift apart.
+const PLANS = PLAN_FACTS.map((f) => ({
+  slug: f.slug,
+  name: f.name,
+  priceMonthly: priceMonthlyUsdCents(f),
+  priceYearly: priceYearlyUsdCents(f),
+  priceMonthlyInrPaise: f.priceMonthlyInrPaise,
+  priceYearlyInrPaise: f.priceYearlyInrPaise,
+  dailyTokens: f.dailyTokens,
+  monthlyTokens: f.monthlyTokens,
+  tokensPerMinute: f.tokensPerMinute,
+  requestsPerMin: f.requestsPerMin,
+  allowedModels: [] as string[],
+  isFree: f.isFree,
+}));
 
 const GEMINI_MODELS = [
   { slug: 'gemini-3.5-flash-lite', displayName: 'Gemini 3.5 Flash-Lite', capability: 'chat', contextWindow: 1048576, maxOutputTokens: 65536, tierRequired: 'free', displayOrder: 10 },

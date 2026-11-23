@@ -340,11 +340,8 @@ const vidFree = await fetch(BASE + '/api/image', {
 ok(vidFree.status === 403, 'video: pro-gated model refused for free user', String(vidFree.status));
 
 
-let saw429 = 0;
-const burst = await Promise.all(Array.from({ length: 14 }, () => req('/api/chat', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { model: 'mock-echo', messages: [{ role: 'user', content: 'ping' }] } })));
-for (const b of burst) { if (b.status === 429) saw429++; }
-ok(saw429 >= 1, 'gateway: burst enforces requests/min rate limit', `429s=${saw429}/14`);
-ok(burst.every((b) => b.status === 200 || b.status === 429), 'gateway: burst never 500s', JSON.stringify(burst.map((b) => b.status)));
+// NOTE: burst/rate-limit checks live right after makeModel('mock-echo') below —
+// the model must exist before the burst, otherwise a pristine database 404s.
 
 console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
 process.exit(failures === 0 ? 0 : 1);
@@ -545,6 +542,14 @@ async function makeModel(slug) {
   ok(sm.status === 200 && one.stats && typeof one.stats.requests24h === 'number' && 'lastTestOk' in (one.providerHealth ?? {}), 'admin models: status & load stats + provider health exposed', JSON.stringify(one).slice(0, 160));
 }
 await makeModel('mock-echo');
+
+// ── burst / rate-limit (moved here: mock-echo must exist on a pristine DB) ──
+
+let saw429 = 0;
+const burst = await Promise.all(Array.from({ length: 14 }, () => req('/api/chat', { method: 'POST', auth: userC.at + '; ' + userC.rt, body: { model: 'mock-echo', messages: [{ role: 'user', content: 'ping' }] } })));
+for (const b of burst) { if (b.status === 429) saw429++; }
+ok(saw429 >= 1, 'gateway: burst enforces requests/min rate limit', `429s=${saw429}/14`);
+ok(burst.every((b) => b.status === 200 || b.status === 429), 'gateway: burst never 500s', JSON.stringify(burst.map((b) => b.status)));
 await makeModel('mock-missing');
 await makeModel('mock-empty');
 await makeModel('mock-ghost');
