@@ -95,9 +95,12 @@
 
 ## 📊 GitHub stats
 
+<!-- Forks (hermes-agent, diffusers, freellmapi, claude-mem, awesome-python) carry
+     ~129 MB of third-party Python code and would bury the stats; they're excluded
+     so the cards reflect his own maintained work (iamhujju). -->
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=huzaifakazi1991-byte&show_icons=true&theme=github_dark&hide_border=true&bg_color=0d1117" alt="GitHub stats" height="165"/>
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=huzaifakazi1991-byte&layout=compact&theme=github_dark&hide_border=true&bg_color=0d1117" alt="Top languages" height="165"/>
+  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=huzaifakazi1991-byte&layout=compact&theme=github_dark&hide_border=true&bg_color=0d1117&exclude_repo=freellmapi,hermes-agent,claude-mem,diffusers,awesome-python&langs_count=8" alt="Top languages" height="165"/>
 </p>
 
 <br/>

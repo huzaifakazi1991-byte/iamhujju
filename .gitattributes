@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Language classification for GitHub language bars (repo card + profile stats)
+#
+# The real product lives in platform/ (Next.js, TypeScript, Tailwind).
+# Everything else at the workspace root is the superseded legacy
+# Express/Vite FreeLLMAPI workspace (see docs/legacy-freellmapi-workspace.md) —
+# kept only for reference.
+#
+# linguist-vendored removes those files from GitHub's language statistics,
+# so iamhujju reports what is actually maintained: TypeScript.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Legacy Express + Vite workspace at the repo root
+/*.js          linguist-vendored
+/*.json        linguist-vendored
+/*.html        linguist-vendored
+/src/**        linguist-vendored
+/services/**   linguist-vendored
+/scripts/**    linguist-vendored
+/scratch/**    linguist-vendored
+/public/**     linguist-vendored
+/prisma/**     linguist-vendored
+/firebase.json       linguist-vendored
+/firestore.rules     linguist-vendored
+/skills-lock.json    linguist-vendored
