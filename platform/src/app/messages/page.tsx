@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { api, ApiError } from '@/lib/client';
 import { useToast } from '@/components/toast';
@@ -21,6 +22,7 @@ function fmtTime(iso: string) {
 
 export default function MessagesPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [tab, setTab] = useState<'direct' | 'group'>('direct');
   const [direct, setDirect] = useState<{ messages: DirectMessage[]; me: string; owner: { name: string; online: boolean } | null } | null>(null);
   const [group, setGroup] = useState<{ messages: GroupMessageRow[]; online: OnlineUser[]; me: string } | null>(null);
@@ -107,8 +109,14 @@ export default function MessagesPage() {
         </button>
       ) : (
       <div className="glass card flex h-[62vh] min-h-[420px] flex-col overflow-hidden p-0">
-        <div className="flex items-center justify-between border-b border-black/5 px-3 py-1.5 md:hidden dark:border-white/10">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft dark:text-white/50">{tab === 'direct' ? 'Support · Huzaifa' : 'Community'}</p>
+        <div className="flex items-center gap-1 border-b border-black/5 px-1.5 py-1.5 md:hidden dark:border-white/10">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg text-body-soft transition-colors hover:bg-forest/8 dark:hover:bg-white/10"
+            aria-label="Back — close messages"
+          >←</button>
+          <p className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-ink-soft dark:text-white/50">{tab === 'direct' ? 'Support · Huzaifa' : 'Community'}</p>
           <button
             type="button"
             onClick={() => setChatMinimized(true)}

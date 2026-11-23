@@ -155,7 +155,7 @@ export function Nav() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={() => setOpen(false)}
+              onPointerDown={() => setOpen(false)}
               aria-hidden
             />
             <motion.div
