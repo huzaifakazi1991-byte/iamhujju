@@ -1,168 +1,193 @@
-# iamhujju
+# Ratnagiri_Enterprenuers — iamhujju platform
 
-iamhujju is a local React/Vite workspace and Express API for a running
-FreeLLMAPI gateway. The browser talks only to the local Express API. Accounts,
-sessions, provider credentials, and saved conversations are stored in the
-configured Neon PostgreSQL database; the database URL and provider keys stay
-server-side.
+A production AI SaaS platform (Le Chat / mistral.ai style) living at
+**[iamhujju.com](https://iamhujju.com)** and served by Render at
+`https://iamhujju-platform.onrender.com`. Users sign in, chat with real AI
+models, generate images, and pay for GPU-time via an INR token system — while
+the owner administers everything (providers, models, plans, users, pricing)
+from a built-in admin panel, **without code changes or redeploys**.
 
-## Requirements
+> Detailed platform internals live in [`platform/README.md`](platform/README.md).
+> The pre-platform legacy FreeLLMAPI workspace notes are archived at
+> [`docs/legacy-freellmapi-workspace.md`](docs/legacy-freellmapi-workspace.md).
 
-- Node.js 20.19+
-- A Neon PostgreSQL database
-- A running FreeLLMAPI gateway and a gateway API key
+---
 
-## Configure and run
+## 1. What this project is
 
-Copy `.env.example` to `.env` and set the values locally:
+| | |
+|---|---|
+| **Product** | Multi-provider AI gateway + chat playground + billing + admin |
+| **Stack** | Next.js 15 (App Router, TypeScript strict) · Prisma 6 + PostgreSQL · Tailwind v4 · framer-motion · zod · jose (JWT cookies) |
+| **Database** | Neon PostgreSQL (free tier) |
+| **Hosting** | Render free web service (`platform/` root dir, blueprint in `render.yaml`) |
+| **Payments** | Razorpay (INR: UPI/cards/netbanking) · Stripe optional (mock checkout when unset) |
+| **Auth** | Email+password (bcrypt hashes, HttpOnly JWT cookies) + "Continue with Google" OAuth |
+| **Live status** | `GET /api/health` → `{"status":"ok","db":"up"}` |
 
-```env
-DATABASE_URL=your-Neon-PostgreSQL-connection-URL
-FREELLMAPI_BASE_URL=http://127.0.0.1:31415/v1
-FREELLMAPI_KEY=your-local-gateway-key
-API_KEY_ENCRYPTION_SECRET=your-random-secret-at-least-32-bytes
-# Set only when a one-time migration needs to decrypt older stored keys.
-# LEGACY_API_KEY_ENCRYPTION_SECRET=
-# Shared server-key chat access is disabled unless explicitly enabled.
-# ALLOW_SHARED_FREELLMAPI_KEY=true
-# For a deployed frontend, set its exact origin.
-# APP_ORIGIN=https://iamhujju.com
+### Core features
+
+- **Provider-agnostic AI gateway** — the owner pastes any provider API key in
+  the admin panel (13 ready-to-configure providers with prefilled base URLs).
+  Keys are **AES-256-GCM encrypted at rest**, never leave the server, and that
+  provider's models go live **instantly** — no redeploy. Saving a key
+  auto-syncs its model list and runs a live connection test (✅ live / ❌
+  failing pill, with error classification for expired vs retired keys).
+- **Capability catalog** — every model carries a capability (`chat`, `image`,
+  `video`, `tts`); the playground exposes 💬 / 🖼 / 🎬 mode tabs with
+  Create-image / Create-video quick actions and `?mode=` deep links.
+- **Server-side gating on every request** — no request reaches a model without
+  passing all checks: authenticated & not suspended → plan resolved server-side
+  → per-minute rate limit (requests + tokens) → daily/monthly token caps →
+  sufficient balance. Tokens are reserved atomically before streaming and
+  settled with real usage afterward (aborted streams are still billed for what
+  was consumed). Every mutation lands in an append-only `TokenLedger` audit.
+- **Metered flat fees** — image renders cost 1,000 tokens, video 8,000 (plus
+  prompt tokens); settled atomically after the render.
+- **Billing (INR)** — Pro **₹1,299/mo**, Business **₹8,999/mo**, ~10% yearly
+  discount (₹14,029/yr, ₹97,189/yr), pay-as-you-go token top-ups from ₹499.
+  Razorpay webhook is replay-safe and idempotent.
+- **Admin panel** (`/admin`) — providers, models (per-model pricing, tier,
+  context window, live status/load), plans, users (grant tokens, suspend,
+  audit trail), platform settings.
+- **In-app messenger** — direct support chat with the owner + community group
+  chat with live online indicators; huzaifa.ai floating assistant with
+  carrom-striker flick physics and a full mobile experience (drawer, back
+  buttons, touch-outside-to-close).
+
+---
+
+## 2. Repository map
+
+```
+.
+├── platform/                 # ⭐ the real product (Next.js app)
+│   ├── src/app/              # routes: playground, messages, pricing, billing,
+│   │                         #   settings, profiles, /admin, api/*
+│   ├── src/components/       # chat-client, nav, huzaifa-ai, gallery, ui/…
+│   ├── src/lib/gateway/      # preflight → stream → settle pipeline, health
+│   ├── prisma/               # schema + migrations + seed (plans, admin, mocks)
+│   └── tests/                # vitest units + e2e-smoke.mjs + adversarial-stress.mjs
+├── docs/
+│   └── legacy-freellmapi-workspace.md  # archived pre-platform README
+├── render.yaml               # Render blueprint (rootDir: platform, free plan)
+├── server.js, src/, …        # legacy Express workspace (kept, not deployed)
+└── README.md                 # this file
 ```
 
-Keep `.env` out of source control. `DATABASE_URL` is used only by the Express
-server; never prefix it with `VITE_` or expose it to frontend code. Use a Neon
-pooled connection URL. The server requires verified TLS and fails closed if
-`DATABASE_URL` is absent or invalid. Set a stable random
-`API_KEY_ENCRYPTION_SECRET` of at least 32 bytes; changing or losing it makes
-stored provider keys unusable.
+---
 
-Install dependencies and start both the API proxy and Vite:
+## 3. Run it locally (procedure)
 
-```sh
-npm install
-npm run dev
+Requires **Node.js 20.19+** and any PostgreSQL (Neon works fine).
+
+```bash
+cd platform
+npm ci
+cp .env.example .env         # then fill the values (table below)
+npx prisma migrate deploy    # create schema
+npm run db:seed              # admin user + Free/Pro/Business plans + mock models
+npm run dev                  # http://localhost:3000
 ```
 
-The Express API listens on `127.0.0.1:3001`; Vite proxies `/api` requests to it.
-`npm run dev:api` and `npm run dev:web` can also be run separately. The API
-remains loopback-bound by default even though its database is hosted by Neon.
-Do not expose it to an untrusted network without a separate deployment and
-identity/security review.
+The seed admin comes from `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+(defaults `admin@example.com` / `change-me-immediately` — change immediately).
+The `mock-chat` / `mock-image` / `mock-video` models let every flow work before
+any real provider key is added.
 
-## Existing local account migration
+### Environment variables
 
-The migration command defaults to a read-only dry run:
+| Variable | Required | Purpose |
+|---|---|---|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string (Neon pooled URL preferred) |
+| `JWT_SECRET` | ✅ | Signs access/refresh cookies — `openssl rand -hex 32` |
+| `APP_URL` | ✅ | Public origin, e.g. `https://iamhujju.com` (no trailing slash) |
+| `KEY_ENCRYPTION_SECRET` | ✅ | AES-256-GCM secret for provider keys — stable; losing it makes stored keys unusable |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | ✅ | Read by the seed script |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional | Enables Continue-with-Google |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | optional | Live INR checkout in production |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | optional | Stripe billing (mock checkout when unset) |
+| `REDIS_URL` | optional | Shared rate limiting across instances (in-memory fallback) |
+| `SMTP_URL` | optional | Email verification + receipts |
 
-```sh
-npm run migrate:neon -- --dry-run
+Never commit `.env` or any secret.
+
+---
+
+## 4. Deploy to Render (procedure)
+
+The blueprint `render.yaml` defines a free-tier node web service with
+`rootDir: platform`, build `npm ci && npx prisma generate && npm run build`,
+start `bash scripts/deploy-start.sh` (runs `prisma migrate deploy` then
+`next start`), and health check `/api/health`.
+
+1. **Neon** — create a project, copy the pooled connection string.
+2. **Render** — New → Blueprint (or re-sync your existing service), set the
+   `sync: false` secrets in the dashboard: `DATABASE_URL`, `ADMIN_EMAIL`,
+   `ADMIN_PASSWORD`, payment + Google keys. `JWT_SECRET` /
+   `KEY_ENCRYPTION_SECRET` are auto-generated on first sync.
+3. **Deploy** — Render builds on every push to `main`. Verify
+   `https://iamhujju-platform.onrender.com/api/health`.
+4. **Custom domain** — Cloudflare DNS: CNAME apex → the Render hostname;
+   proxy through Cloudflare with a rule 301ing `www.iamhujju.com` → apex.
+5. **Google OAuth** — create an OAuth web client in Google Cloud; authorized
+   redirect URI must be exactly `https://iamhujju.com/api/auth/google/callback`;
+   set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_URL` on Render. Check
+   `https://iamhujju.com/api/auth/google/status` → `{"configured":true}`.
+6. **Razorpay** — add key id/secret + webhook secret (webhook URL
+   `https://iamhujju.com/api/billing/webhook/razorpay`) to enable live INR
+   payments; unset keys fall back to mock checkout.
+
+---
+
+## 5. Daily admin operations (guidance)
+
+All of this happens at `/admin` after seeding — no deploys required:
+
+- **Add a provider** — Admin → Providers → paste the API key → Save. Models
+  auto-sync (capability auto-detected from ids), a live test runs, and the
+  health pill appears. Use **Connection test** if the pill disagrees with
+  reality; the tester probes up to 3 models and classifies errors
+  (bad key vs retired model vs provider outage).
+- **Tune models** — per-model edit: context window, max output, tier gate
+  (`free`/`pro`/`business`), price multiplier, display order, visibility. The
+  **Status & load** column shows 24h requests, error %, latency and provider
+  health, auto-refreshing every 20s.
+- **Plans & pricing** — edit token grants, rate limits, INR/USD prices.
+- **Users** — search, grant/adjust token balances, suspend/terminate; every
+  action is auditable. Admin can also read user chat threads from the admin
+  console and answer them directly in the messenger.
+- **Embed keys rotation** — rotating `KEY_ENCRYPTION_SECRET` invalidates
+  stored provider keys; re-enter keys after an intended rotation.
+
+---
+
+## 6. Testing (procedure)
+
+```bash
+cd platform
+npm test                  # vitest units (crypto, tokens, rate-limit, health, …)
+npx tsc --noEmit          # typecheck
+npm run build             # production build
 ```
 
-Review the account, active-session, and credential counts. To apply, first make
-sure the Neon database is the intended target and that you have a separate
-Neon backup. Then run:
+Full-flow e2e (needs a running server on :3100):
 
-```sh
-npm run migrate:neon -- --apply
+```bash
+npx prisma migrate deploy && npm run db:seed
+npm run build && npm run start
+E2E_BASE=http://localhost:3100 node tests/e2e-smoke.mjs         # expect ALL-PASS
+E2E_BASE=http://localhost:3100 node tests/adversarial-stress.mjs # expect ADV-ALL-PASS
 ```
 
-On apply, the tool creates a timestamped backup of `.data/auth-store.json`,
-validates the source, and imports accounts, unexpired hashed sessions, and
-encrypted provider credentials in one PostgreSQL transaction. It records an
-idempotency marker and never deletes or rewrites the original JSON file. If
-older credentials were encrypted with a different secret, configure
-`LEGACY_API_KEY_ENCRYPTION_SECRET` for this one-time operation; the migration
-never derives encryption from `FREELLMAPI_KEY`. Keep the backup until the
-migrated accounts and keys have been checked. Use Neon backups/PITR for ongoing
-database recovery.
+---
 
-Older conversations in browser storage are not sent to the server
-automatically when they are not tied to an account. After signing in, use
-**Import older browser chats to this account** to choose an account for those
-unassigned conversations. Account-partitioned browser conversations are
-imported into that same account on successful sign-in. Browser copies are
-removed only after the server confirms the import; malformed or failed imports
-remain untouched. The database migration does not read browser storage.
+## 7. Contribution workflow
 
-## Authentication and data handling
-
-- Sign-up and login use salted scrypt password hashes. Session tokens are
-  delivered only in an `HttpOnly`, `SameSite=Strict` cookie; only token hashes
-  are stored in PostgreSQL.
-- Provider keys are encrypted with AES-256-GCM before being stored in
-  `provider_credentials`. They are never returned to the browser. The
-  encryption secret is independent of the shared gateway key.
-- Saved conversations are stored in Neon under the authenticated account and
-  are retrieved or changed only through owner-scoped API routes. Conversation
-  message content is not end-to-end encrypted by this app and is available to
-  the application server and database provider; do not save credentials or
-  other secrets in chat text.
-- The browser uses local storage only to safely import pre-existing
-  conversations. New and updated conversations are saved through the
-  authenticated API.
-
-## Chat and model API
-
-- `GET /api/models` retrieves FreeLLMAPI's
-  `/v1/models?available=true` catalog. When an authenticated account has an
-  OpenRouter connection, it also retrieves that key's accessible catalog.
-- `POST /api/chat/completions` validates the model and conversation, then
-  forwards the request to the selected provider. SSE responses are streamed
-  through to the browser, and stopping generation aborts the upstream request.
-- Chat requests use the signed-in user's own FreeLLMAPI key by default. The
-  server's `FREELLMAPI_KEY` is not used for account chat unless
-  `ALLOW_SHARED_FREELLMAPI_KEY=true` is explicitly set. Keep this option unset
-  for shared or publicly reachable deployments.
-- The API validates request bodies, caps JSON payloads at 1 MB, and
-  rate-limits account, chat, model-refresh, credential, and conversation
-  endpoints. Rate limits use in-memory storage and are intended for this
-  loopback-bound single-process app; a multi-instance deployment needs a
-  shared rate-limit store.
-- API responses and the Vite development/preview server send restrictive
-  security headers, including CSP and frame denial. Cross-origin API requests
-  are rejected. Set `APP_ORIGIN` to the exact frontend origin before deploying
-  behind a reverse proxy.
-
-## Models and skills
-
-The Models screen browses the live gateway catalog with search, provider and
-availability filters, context-window filtering, sorting, and pagination.
-Filters use only metadata returned by the gateway; fields it does not provide
-are not fabricated.
-
-The Skills screen browses the 451 skill metadata records from the supplied
-`NVIDIA/skills` archive. The static catalog includes category, product,
-subdomain, audience, and activity fields for local search and filtering; it
-does not download or execute skill contents. Use a card's Copy command action
-to copy the documented `npx skills add` command, then review and run it
-yourself in a terminal. The metadata is attributed to
-[NVIDIA/skills](https://github.com/NVIDIA/skills) and is distributed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-
-## Checks
-
-```sh
-npm test
-npm run lint
-npm run build
-```
-
-The regular suite uses an isolated PostgreSQL-compatible in-memory database.
-For a real Neon connection check, create a disposable Neon test branch and set
-`DATABASE_TEST_URL` in the process environment (never point it at production):
-
-```sh
-npm run test:database
-```
-
-## Prisma data layer (foundation)
-
-The target data model for upcoming milestones lives in [`prisma/schema.prisma`](prisma/schema.prisma)
-(PostgreSQL). The existing raw-`pg` layer keeps running unchanged; adoption happens per milestone.
-
-- `npm run prisma:generate` — generate the Prisma client
-- `npm run db:migrate:dev` — create/apply migrations during development
-- `npm run db:migrate:deploy` — apply committed migrations (CI/production)
-
-A baseline migration is committed at `prisma/migrations/20261121120000_init/migration.sql`.
-It has **not** been applied to the live database yet; apply it only when a milestone
-switches to Prisma, using `DATABASE_URL` for the target database.
+- Feature work goes on `vibe/<slug>-507ca0` branches, delivered as **draft PRs**.
+- CI: `.github/workflows/platform-ci.yml` (typecheck + tests + build,
+  triggered on `platform/**` changes).
+- Merge policy: **"Create a merge commit"** button — keep merge commits, no
+  squash/rebase merges.
+- Production is whichever commit `main` points at; Render redeploys on push
+  to `main`.
