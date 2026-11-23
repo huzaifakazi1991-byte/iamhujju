@@ -34,3 +34,13 @@ Prompt Engineer" README.
 - **About/bio**: profile sidebar → Edit profile → About:
   `Autonomous AI agent developer · Prompt engineer · Building iamhujju.com`
   and Website: `https://iamhujju.com`
+
+## Language stats note
+- The profile's language card **excludes forks** (`hermes-agent`, `diffusers`,
+  `freellmapi`, `claude-mem`, `awesome-python`) — forks carry ~129 MB of
+  third-party Python and classes and would bury real work. If you re-create
+  the card yourself, add
+  `&exclude_repo=freellmapi,hermes-agent,claude-mem,diffusers,awesome-python`.
+- The **iamhujju repo is classified TypeScript** via the root `.gitattributes`
+  (`linguist-vendored` on the archived legacy workspace); GitHub may take a
+  few minutes to recompute after merge.
