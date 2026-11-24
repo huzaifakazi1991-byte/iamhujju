@@ -4,24 +4,43 @@ import { LandingMotion } from '@/components/landing-motion';
 import { GlassCard } from '@/components/ui/glass';
 import { getSessionClaims } from '@/lib/session';
 import { resolvePlan } from '@/lib/gateway/run';
+import { PLAN_FACTS, YEARLY_DISCOUNT, formatInrRupees, formatTokens } from '@/lib/plans';
 
 export const dynamic = 'force-dynamic';
 
-const PLANS = [
-  {
-    slug: 'free', name: 'Free', price: '₹0', yearly: null, tagline: 'Everything you need to try it.',
-    items: ['10,000 tokens / day', '100,000 tokens / month', 'Free-tier enabled models', 'Playground + conversation history', 'Community support'],
+// Numbers come from lib/plans.ts (single source of truth shared with seed + prompts);
+// only marketing copy is authored here.
+const PLAN_COPY: Record<string, { tagline: string; items: string[] }> = {
+  free: {
+    tagline: 'Everything you need to try it.',
+    items: ['Free-tier enabled models', 'Playground + conversation history', 'Community support'],
   },
-  {
-    slug: 'pro', name: 'Pro', price: '₹1,299', yearly: '₹14,029 / year — save 10%', tagline: 'For daily builders.',
-    items: ['200,000 tokens / day', '4M tokens / month', 'All enabled models incl. Pro', '60 requests / minute', 'API keys for programmatic access', 'Priority support'],
-    featured: true,
+  pro: {
+    tagline: 'For daily builders.',
+    items: ['All enabled models', 'API keys for programmatic access', 'Priority support'],
   },
-  {
-    slug: 'business', name: 'Business', price: '₹8,999', yearly: '₹97,189 / year — save 10%', tagline: 'Scale without ceilings.',
-    items: ['2M tokens / day', '40M tokens / month', 'Every enabled model', '300 requests / minute', 'Usage analytics export', 'Dedicated support'],
+  business: {
+    tagline: 'Scale without ceilings.',
+    items: ['Every enabled model', 'Usage analytics export', 'Dedicated support'],
   },
-];
+};
+
+const PLANS = PLAN_FACTS.map((f) => ({
+  slug: f.slug,
+  name: f.name,
+  featured: f.slug === 'pro',
+  price: formatInrRupees(f.priceMonthlyInrPaise),
+  yearly: f.priceYearlyInrPaise !== null
+    ? `${formatInrRupees(f.priceYearlyInrPaise)} / year — save ${YEARLY_DISCOUNT * 100}%`
+    : null,
+  ...PLAN_COPY[f.slug],
+  items: [
+    `${formatTokens(f.dailyTokens)} tokens / day`,
+    `${formatTokens(f.monthlyTokens)} tokens / month`,
+    `${f.requestsPerMin} requests / minute`,
+    ...PLAN_COPY[f.slug].items,
+  ],
+}));
 
 export default async function PricingPage() {
   const claims = await getSessionClaims();
