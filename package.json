@@ -13,7 +13,7 @@
     "deploy": "npm run build && git push origin main",
     "build": "vite build",
     "lint": "oxlint",
-    "test": "node --test",
+    "test": "node --test server.test.js aiGateway.test.js database.test.js database.integration.test.js googleGemini.test.js huzaifaOmni.test.js safeMarkdown.test.js src/modelCatalog.test.js src/chatStorage.test.js src/skillsCatalog.test.js",
     "test:database": "node --test database.integration.test.js",
     "migrate:neon": "node scripts/migrate-local-to-neon.js",
     "prisma:generate": "prisma generate",

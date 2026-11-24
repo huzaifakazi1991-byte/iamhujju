@@ -54,10 +54,12 @@ npm install
 npm run dev
 ```
 
-The Express API listens on `127.0.0.1:3001`; Vite proxies `/api` requests to it.
-`npm run dev:api` and `npm run dev:web` can also be run separately. The API
-remains loopback-bound by default even though its database is hosted by Neon.
-Do not expose it to an untrusted network without a separate deployment and
+The Express API binds to `127.0.0.1:3001` by default; Vite proxies `/api`
+requests to it. The API remains loopback-bound in local development even
+though its database is hosted by Neon. Set `NODE_ENV=production` to bind to
+`0.0.0.0` for cloud deployments, or override the interface explicitly with
+the `HOST` environment variable (e.g. `HOST=0.0.0.0 npm start`). Do not
+expose it to an untrusted network without a separate deployment and
 identity/security review.
 
 ## Existing local account migration
