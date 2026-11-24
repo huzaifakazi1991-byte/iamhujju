@@ -343,8 +343,20 @@ ok(vidFree.status === 403, 'video: pro-gated model refused for free user', Strin
 // NOTE: burst/rate-limit checks live right after makeModel('mock-echo') below —
 // the model must exist before the burst, otherwise a pristine database 404s.
 
-console.log(failures === 0 ? '\\nE2E-ALL-PASS (' + Date.now() + ')' : '\\nE2E-FAILURES=' + failures);
-process.exit(failures === 0 ? 0 : 1);
+// ─── gateway diagnostics: provider API check, model check, limit check ───
+
+const gwBase = `http://127.0.0.1:${mockPort}`;
+let gwProv = await req('/api/admin/providers', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { name: 'mockupstream', baseUrl: gwBase, apiKey: 'test-key-e2e' } });
+if (gwProv.status === 409) {
+  const plist = await req('/api/admin/providers', { auth: adminC.at + '; ' + adminC.rt });
+  const found = plist.data.providers.find((x) => x.name === 'mockupstream');
+  if (found) {
+    await req(`/api/admin/providers/${found.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { baseUrl: gwBase, enabled: true } });
+    gwProv = { status: 200, data: { provider: { id: found.id } } };
+  }
+}
+ok(gwProv.status === 200 && gwProv.data?.provider?.id, 'gateway: mock upstream provider ready', JSON.stringify(gwProv.data));
+const gwProvId = gwProv.data?.provider?.id;
 
 // ── Provider health persistence (test route records lastTest fields) ──
 const healthTest = await req(`/api/admin/providers/${gwProvId}/test`, { method: 'POST', auth: adminC.at + '; ' + adminC.rt });
@@ -387,6 +399,37 @@ ok(rbac.status === 403, 'RBAC blocks non-admin', String(rbac.status));
 // admin users list
 const du = await req('/api/admin/users', { auth: adminC.at + '; ' + adminC.rt });
 ok(du.status === 200 && du.data.users.some(u => u.email === e2eEmail), 'admin user list shows e2e user', JSON.stringify(du.data).slice(0, 200));
+
+// ── admin credit control: add / reduce (clamped at 0) / set exact / validation ──
+const e2eUserId = du.data.users.find(u => u.email === e2eEmail)?.id;
+const grantAnon = await req('/api/admin/grant', { method: 'POST', body: { userId: e2eUserId, amount: 1000 } });
+ok(grantAnon.status === 401 || grantAnon.status === 403, 'grant requires admin auth', String(grantAnon.status));
+
+const gAdd = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, amount: 5000 } });
+ok(gAdd.status === 200 && typeof gAdd.data?.available === 'number', 'admin grant: +5000 applied', JSON.stringify(gAdd.data));
+const afterAdd = gAdd.data?.available;
+
+const gReduce = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, amount: -2000 } });
+ok(gReduce.status === 200 && gReduce.data?.available === afterAdd - 2000, 'admin grant: −2000 reduces', JSON.stringify(gReduce.data));
+
+const gClamp = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, amount: -999_999_999 } });
+ok(gClamp.status === 200 && gClamp.data?.available === 0, 'admin grant: over-reduce clamps at 0 (never negative)', JSON.stringify(gClamp.data));
+
+const gSet = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, setTo: 12345 } });
+ok(gSet.status === 200 && gSet.data?.available === 12345, 'admin grant: setTo sets exact balance', JSON.stringify(gSet.data));
+
+const gSetSame = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, setTo: 12345 } });
+ok(gSetSame.status === 200 && gSetSame.data?.unchanged === true, 'admin grant: setTo to same value is a no-op', JSON.stringify(gSetSame.data));
+
+const gBoth = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, amount: 1, setTo: 5 } });
+ok([400, 422].includes(gBoth.status), 'admin grant: amount + setTo together rejected', String(gBoth.status));
+
+const gNegative = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, setTo: -1 } });
+ok([400, 422].includes(gNegative.status), 'admin grant: negative setTo rejected', String(gNegative.status));
+
+// restore a healthy balance — later sections chat on this user's account
+const gRestore = await req('/api/admin/grant', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { userId: e2eUserId, setTo: 2_000_000 } });
+ok(gRestore.status === 200 && gRestore.data?.available === 2_000_000, 'admin grant: balance restored for later sections', JSON.stringify(gRestore.data));
 
 // ═══ Admin powers: chat logs, force logout, delete user ═══
 const logsUserTry = await req('/api/admin/conversations', { auth: userC.at + '; ' + userC.rt });
@@ -512,20 +555,6 @@ ok(gDelAdmin.status === 200 && gDelAdmin.data?.deleted === gMsgId, 'admin modera
 const presAdm = await req('/api/admin/users', { auth: adminC.at + '; ' + adminC.rt });
 ok(presAdm.status === 200 && presAdm.data.users.every((u) => typeof u.online === 'boolean'), 'admin users table carries online status', String(presAdm.status));
 
-// ─── gateway diagnostics: provider API check, model check, limit check ───
-
-const gwBase = `http://127.0.0.1:${mockPort}`;
-let gwProv = await req('/api/admin/providers', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { name: 'mockupstream', baseUrl: gwBase, apiKey: 'test-key-e2e' } });
-if (gwProv.status === 409) {
-  const plist = await req('/api/admin/providers', { auth: adminC.at + '; ' + adminC.rt });
-  const found = plist.data.providers.find((x) => x.name === 'mockupstream');
-  if (found) {
-    await req(`/api/admin/providers/${found.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { baseUrl: gwBase, enabled: true } });
-    gwProv = { status: 200, data: { provider: { id: found.id } } };
-  }
-}
-ok(gwProv.status === 200 && gwProv.data?.provider?.id, 'gateway: mock upstream provider ready', JSON.stringify(gwProv.data));
-const gwProvId = gwProv.data?.provider?.id;
 
 async function makeModel(slug) {
   let r = await req('/api/admin/models', { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { providerId: gwProvId, slug, displayName: slug, adminEnabled: true, displayOrder: 50 } });
@@ -550,6 +579,14 @@ const burst = await Promise.all(Array.from({ length: 14 }, () => req('/api/chat'
 for (const b of burst) { if (b.status === 429) saw429++; }
 ok(saw429 >= 1, 'gateway: burst enforces requests/min rate limit', `429s=${saw429}/14`);
 ok(burst.every((b) => b.status === 200 || b.status === 429), 'gateway: burst never 500s', JSON.stringify(burst.map((b) => b.status)));
+
+// lift the free plan's per-minute limiter for the rest of the suite — the burst
+// above verified 429 enforcement; dozens of later requests would otherwise all 429
+const liftPlans = await req('/api/admin/plans', { auth: adminC.at + '; ' + adminC.rt });
+const liftPlan = (liftPlans.data?.plans ?? liftPlans.data ?? []).find?.((p) => p.slug === 'free');
+if (liftPlan?.id) {
+  await req(`/api/admin/plans/${liftPlan.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { requestsPerMin: 10000 } });
+}
 await makeModel('mock-missing');
 await makeModel('mock-empty');
 await makeModel('mock-ghost');
@@ -609,3 +646,11 @@ await req(`/api/admin/plans/${freePlan.id}`, { method: 'PATCH', auth: adminC.at 
 
 const restored = await chatStream('mock-echo', userC.at + '; ' + userC.rt);
 ok(restored.status === 200 && restored.text.includes('Gateway pong for mock-echo'), 'gateway: chat works again after limit restored', String(restored.status));
+
+// restore the plan's original per-minute limit (suite hygiene)
+if (liftPlan?.id && typeof liftPlan.requestsPerMin === 'number') {
+  await req(`/api/admin/plans/${liftPlan.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { requestsPerMin: liftPlan.requestsPerMin } });
+}
+
+console.log(failures === 0 ? '\nE2E-ALL-PASS (' + Date.now() + ')' : '\nE2E-FAILURES=' + failures);
+process.exit(failures === 0 ? 0 : 1);

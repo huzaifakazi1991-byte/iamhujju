@@ -10,12 +10,20 @@ type UserRow = {
   createdAt: string; available: number; lifetimeUsed: number; planName: string; online?: boolean;
 };
 
+type CreditMode = 'add' | 'reduce' | 'set';
+
+const QUICK_STEPS = [1_000, 10_000, 50_000, 100_000];
+
 export default function AdminUsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [q, setQ] = useState('');
   const [grant, setGrant] = useState<Record<string, string>>({});
   const [armDelete, setArmDelete] = useState<string | null>(null);
+  const [credits, setCredits] = useState<UserRow | null>(null);
+  const [creditMode, setCreditMode] = useState<CreditMode>('add');
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditBusy, setCreditBusy] = useState(false);
 
   const load = useCallback(async (query = '') => {
     try {
@@ -34,15 +42,41 @@ export default function AdminUsersPage() {
     } catch (err) { toast(err instanceof Error ? err.message : 'Update failed', 'error'); }
   }
 
-  async function doGrant(u: UserRow) {
-    const amount = Number(grant[u.id]);
+  async function doGrant(u: UserRow, amount: number) {
     if (!Number.isFinite(amount) || amount === 0) return;
     try {
       const d = await api<{ available: number }>('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId: u.id, amount }) });
-      toast(`Granted ${amount.toLocaleString()} tokens to ${u.email} (new balance ${d.available.toLocaleString()}).`, 'success');
+      toast(amount < 0
+        ? `Reduced ${u.email} by ${(Math.min(0, amount) * -1).toLocaleString()} tokens (new balance ${d.available.toLocaleString()}).`
+        : `Added ${amount.toLocaleString()} tokens to ${u.email} (new balance ${d.available.toLocaleString()}).`, 'success');
       setGrant((g) => ({ ...g, [u.id]: '' }));
       await load(q);
     } catch (err) { toast(err instanceof Error ? err.message : 'Grant failed', 'error'); }
+  }
+
+  async function applyCredits() {
+    if (!credits || creditBusy) return;
+    const n = Number(creditAmount);
+    if (!Number.isFinite(n) || (creditMode !== 'set' && n === 0) || (creditMode === 'set' && n < 0)) {
+      toast(creditMode === 'set' ? 'Enter a target balance ≥ 0.' : 'Enter a non-zero amount.', 'error');
+      return;
+    }
+    setCreditBusy(true);
+    try {
+      const body = creditMode === 'set'
+        ? { userId: credits.id, setTo: Math.round(n) }
+        : { userId: credits.id, amount: creditMode === 'reduce' ? -Math.round(n) : Math.round(n) };
+      const d = await api<{ available: number; unchanged?: boolean }>('/api/admin/grant', { method: 'POST', body: JSON.stringify(body) });
+      const label = creditMode === 'set'
+        ? d.unchanged ? 'already at that balance' : `balance set to ${d.available.toLocaleString()}`
+        : creditMode === 'reduce'
+          ? `reduced by ${Math.min(n, credits.available).toLocaleString()} → ${d.available.toLocaleString()}`
+          : `added ${Math.round(n).toLocaleString()} → ${d.available.toLocaleString()}`;
+      toast(`${credits.email}: ${label}.`, 'success');
+      setCredits(null);
+      await load(q);
+    } catch (err) { toast(err instanceof Error ? err.message : 'Credit change failed', 'error'); }
+    finally { setCreditBusy(false); }
   }
 
   async function terminate(u: UserRow) {
@@ -78,7 +112,7 @@ export default function AdminUsersPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-      <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Search, inspect chats, grant tokens, suspend/terminate, promote or permanently remove users.</p>
+      <p className="mt-1 mb-6 text-sm text-ink-soft dark:text-white/60">Search, inspect chats, add or reduce credits, suspend/terminate, promote or permanently remove users.</p>
 
       <form className="mb-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); load(q); }}>
         <input className="input max-w-sm" placeholder="Search by email or name…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -93,7 +127,7 @@ export default function AdminUsersPage() {
             <thead>
               <tr className="border-b border-black/5 text-xs uppercase tracking-wide text-ink-soft dark:border-white/10 dark:text-white/50">
                 <th className="px-5 py-3">Email</th><th className="px-5 py-3">Plan</th><th className="px-5 py-3">Balance</th>
-                <th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Grant tokens</th><th className="px-5 py-3" />
+                <th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Quick grant</th><th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -106,7 +140,9 @@ export default function AdminUsersPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3">{u.planName}</td>
-                  <td className="px-5 py-3">{u.available.toLocaleString()}</td>
+                  <td className="px-5 py-3">
+                    <button className="underline decoration-dotted underline-offset-4 hover:text-leaf" onClick={() => { setCredits(u); setCreditMode('add'); setCreditAmount(''); }} title="Edit credits">{u.available.toLocaleString()}</button>
+                  </td>
                   <td className="px-5 py-3">
                     <button className="btn-ghost px-3 py-1 text-xs" onClick={() => patch(u, { role: u.role === 'ADMIN' ? 'USER' : 'ADMIN' })}>{u.role}</button>
                   </td>
@@ -116,9 +152,10 @@ export default function AdminUsersPage() {
                       : <button className="pill pill-active" onClick={() => void terminate(u)} title="Click to terminate access">active</button>}
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex gap-1.5">
-                      <input className="input w-28 py-1 text-xs" type="number" placeholder="±amount" value={grant[u.id] ?? ''} onChange={(e) => setGrant((g) => ({ ...g, [u.id]: e.target.value }))} />
-                      <button className="btn-ghost px-3 py-1 text-xs" onClick={() => doGrant(u)}>Apply</button>
+                    <div className="flex items-center gap-1.5">
+                      <input className="input w-24 py-1 text-xs" type="number" placeholder="±amount" value={grant[u.id] ?? ''} onChange={(e) => setGrant((g) => ({ ...g, [u.id]: e.target.value }))} title="Positive adds credits, negative reduces them" />
+                      <button className="btn-ghost px-3 py-1 text-xs" onClick={() => doGrant(u, Number(grant[u.id]))}>Apply</button>
+                      <button className="btn-leaf px-3 py-1 text-xs" onClick={() => { setCredits(u); setCreditMode('add'); setCreditAmount(''); }}>Credits</button>
                     </div>
                   </td>
                   <td className="px-5 py-3">
@@ -134,6 +171,77 @@ export default function AdminUsersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {credits && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-forest/50 p-4 backdrop-blur-sm"
+          onPointerDown={(e) => { if (e.target === e.currentTarget) setCredits(null); }}
+        >
+          <div className="glass card w-full max-w-md p-6" role="dialog" aria-label={`Edit credits for ${credits.email}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-display text-lg font-bold">Edit credits</h2>
+                <p className="mt-0.5 truncate text-sm text-ink-soft dark:text-white/60">{credits.email}</p>
+              </div>
+              <button className="h-11 w-11 rounded-full text-lg text-body-soft hover:bg-forest/8 dark:hover:bg-white/10" onClick={() => setCredits(null)} aria-label="Close credits editor">✕</button>
+            </div>
+
+            <div className="glass mt-4 rounded-xl p-4 text-sm">
+              <div className="flex justify-between"><span className="text-ink-soft dark:text-white/60">Current balance</span><span className="font-semibold">{credits.available.toLocaleString()} tokens</span></div>
+              <div className="flex justify-between"><span className="text-ink-soft dark:text-white/60">Lifetime used</span><span>{credits.lifetimeUsed.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-ink-soft dark:text-white/60">Plan</span><span>{credits.planName}</span></div>
+            </div>
+
+            <div className="glass mt-3 grid grid-cols-3 gap-1 rounded-full p-1 text-xs font-semibold" role="tablist" aria-label="Credit mode">
+              {(['add', 'reduce', 'set'] as CreditMode[]).map((m) => (
+                <button
+                  key={m}
+                  role="tab"
+                  aria-selected={creditMode === m}
+                  className={`rounded-full px-3 py-2 transition-colors ${creditMode === m ? 'bg-leaf-deep text-cream' : 'hover:bg-forest/8 dark:hover:bg-white/10'}`}
+                  onClick={() => setCreditMode(m)}
+                >
+                  {m === 'add' ? '➕ Add' : m === 'reduce' ? '➖ Reduce' : '🎯 Set exact'}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-soft dark:text-white/50">
+                {creditMode === 'set' ? 'Set balance to' : creditMode === 'add' ? 'Add tokens' : 'Reduce tokens'}
+              </label>
+              <input
+                className="input w-full text-base"
+                type="number"
+                min={creditMode === 'set' ? 0 : 1}
+                placeholder={creditMode === 'set' ? 'e.g. 50000' : 'e.g. 10000'}
+                value={creditAmount}
+                onChange={(e) => setCreditAmount(e.target.value)}
+                autoFocus
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {creditMode === 'set'
+                  ? <button className="btn-ghost px-3 py-1 text-xs" onClick={() => setCreditAmount('0')}>0</button>
+                  : QUICK_STEPS.map((step) => (
+                    <button
+                      key={step}
+                      className="btn-ghost px-3 py-1 text-xs"
+                      onClick={() => setCreditAmount(String(creditMode === 'reduce' ? Math.min(step, credits.available) : step))}
+                    >
+                      {creditMode === 'add' ? '+' : '−'}{step >= 1000 ? `${step / 1000}K` : step}
+                    </button>
+                  ))}
+              </div>
+              {creditMode === 'set' && <p className="mt-2 text-xs text-ink-soft dark:text-white/50">Sets the balance to this exact number (the delta is applied and audited automatically).</p>}
+              {creditMode === 'reduce' && <p className="mt-2 text-xs text-ink-soft dark:text-white/50">Reduction stops at zero — the balance can never go below 0.</p>}
+            </div>
+
+            <button className="btn-primary mt-4 w-full py-2.5 disabled:opacity-60" disabled={creditBusy} onClick={() => void applyCredits()}>
+              {creditBusy ? 'Applying…' : creditMode === 'set' ? 'Set balance' : creditMode === 'add' ? 'Add credits' : 'Reduce credits'}
+            </button>
+          </div>
         </div>
       )}
     </div>
