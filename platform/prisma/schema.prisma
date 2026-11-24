@@ -30,6 +30,12 @@ model User {
   bio           String?   @db.Text
   avatarUrl     String?   @db.Text
   presenceLastSeen DateTime?                  // heartbeat for online dot
+  whatsappPhone        String?                     // E.164, set after WhatsApp verification
+  whatsappVerifiedAt   DateTime?
+  whatsappNotify       Boolean   @default(true)    // user opt-out switch for WhatsApp relay of admin DMs
+  whatsappPendingPhone String?                     // awaiting verification
+  whatsappCodeHash     String?                     // sha256 of the 6-digit verify code
+  whatsappCodeExpires  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -46,6 +52,9 @@ model User {
   verificationTokens VerificationToken[]
   directThread  DirectThread?
   groupMessages GroupMessage[]
+
+  @@index([whatsappCodeHash])
+  @@index([whatsappPhone])
 }
 
 model DirectThread {

@@ -6,14 +6,20 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/client';
 
+type WaState = 'on' | 'muted' | 'off';
 type ThreadRow = {
   id: string;
-  user: { id: string; email: string; name: string | null; avatarUrl: string | null; online: boolean };
+  user: { id: string; email: string; name: string | null; avatarUrl: string | null; online: boolean; whatsapp?: WaState };
   lastMessage: { body: string; senderId: string; createdAt: string } | null;
   unread: number;
 };
 type DirectMessage = { id: string; threadId: string; senderId: string; body: string; createdAt: string };
 type ThreadDetail = { threadId: string; user: ThreadRow['user']; me: string; messages: DirectMessage[]; unreadFromUser: number };
+const WA_HINT: Record<WaState, string> = {
+  on: 'WhatsApp connected — replies are also delivered there',
+  muted: 'WhatsApp connected but user paused notifications',
+  off: 'WhatsApp not connected — user must add their number in Settings',
+};
 
 function AdminMessagesInner() {
   const { toast } = useToast();
@@ -59,9 +65,13 @@ function AdminMessagesInner() {
     setBusy(true);
     try {
       setInput('');
-      await api(`/api/admin/threads/${selected}`, { method: 'POST', body: JSON.stringify({ body }) });
+      const res = await api<{ whatsapp?: { status: string; reason?: string } }>(`/api/admin/threads/${selected}`, { method: 'POST', body: JSON.stringify({ body }) });
       await loadDetail(selected);
       await load(q);
+      const st = res.whatsapp?.status;
+      if (st === 'sent') toast('Delivered in-app + WhatsApp ✅', 'success');
+      else if (st === 'failed') toast(`In-app sent, but WhatsApp failed: ${res.whatsapp?.reason ?? 'unknown error'}`, 'error');
+      else if (st === 'skipped_not_connected' || st === 'skipped_opted_out') toast('Sent in-app only — user has no connected WhatsApp.', 'info');
     } catch (err) {
       setInput(body);
       toast(err instanceof ApiError ? err.message : 'Reply failed.', 'error');
@@ -99,6 +109,7 @@ function AdminMessagesInner() {
                   <span className="block truncate text-[11px] text-ink-soft dark:text-white/50">{t.lastMessage ? t.lastMessage.body.slice(0, 42) : 'No messages yet'}</span>
                 </span>
                 {t.unread > 0 && <span className="shrink-0 rounded-full bg-amber px-1.5 py-0.5 text-[10px] font-bold text-forest dark:text-forest">{t.unread}</span>}
+                <span title={WA_HINT[t.user.whatsapp ?? 'off']} className="shrink-0 text-[11px] opacity-70">{t.user.whatsapp === 'on' ? '📲' : t.user.whatsapp === 'muted' ? '🔕' : ''}</span>
               </button>
             ))}
           </div>
@@ -113,7 +124,7 @@ function AdminMessagesInner() {
               <div className="flex items-center gap-3 border-b border-black/5 px-4 py-3 dark:border-white/10">
                 <span className={`h-2.5 w-2.5 rounded-full ${detail.user.online ? 'bg-green-500' : 'bg-neutral-400'}`} />
                 <div>
-                  <p className="text-sm font-semibold">{detail.user.name?.trim() || detail.user.email}</p>
+                  <p className="text-sm font-semibold">{detail.user.name?.trim() || detail.user.email} {detail.user.whatsapp && detail.user.whatsapp !== 'off' && <span title={WA_HINT[detail.user.whatsapp]} className="text-xs opacity-70">{detail.user.whatsapp === 'on' ? '📲' : '🔕'}</span>}</p>
                   <p className="text-xs text-ink-soft dark:text-white/55">{detail.user.email} · {detail.user.online ? 'online' : 'offline'}</p>
                 </div>
               </div>

@@ -6,6 +6,10 @@ import { api } from '@/lib/client';
 
 type Setting = { key: string; value: boolean };
 type MailLog = { to: string; subject: string; delivered: boolean };
+type WhatsAppInfo = {
+  configured: boolean; webhookReady: boolean; templateReady: boolean; businessNumber: string;
+  connectedUsers: number; mutedUsers: number;
+};
 
 const TOGGLES = [
   { key: 'signupsEnabled', label: 'New sign-ups enabled', help: 'When off, the signup endpoint refuses new accounts with 503.' },
@@ -16,11 +20,12 @@ export default function AdminSettingsPage() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<Setting[] | null>(null);
   const [mailLogs, setMailLogs] = useState<MailLog[] | null>(null);
+  const [whatsapp, setWhatsapp] = useState<WhatsAppInfo | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const d = await api<{ settings: Setting[]; mailLogs: MailLog[] }>('/api/admin/settings');
-      setSettings(d.settings); setMailLogs(d.mailLogs);
+      const d = await api<{ settings: Setting[]; mailLogs: MailLog[]; whatsapp?: WhatsAppInfo }>('/api/admin/settings');
+      setSettings(d.settings); setMailLogs(d.mailLogs); setWhatsapp(d.whatsapp ?? null);
     }
     catch (err) { toast(err instanceof Error ? err.message : 'Load failed', 'error'); }
   }, [toast]);
@@ -57,6 +62,36 @@ export default function AdminSettingsPage() {
             </button>
           </div>
         ))}
+
+        <div className="card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-bold">💬 WhatsApp relay</p>
+              <p className="mt-0.5 text-xs text-ink-soft dark:text-white/55">
+                Mirrors your admin direct messages to connected users' WhatsApp via the Meta Cloud API.
+              </p>
+            </div>
+            <button className="btn-ghost px-4 py-1.5 text-xs" onClick={() => void load()}>Refresh</button>
+          </div>
+          {!whatsapp && <div className="skeleton mt-4 h-20" />}
+          {whatsapp && (
+            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+              <p>Cloud API: <strong className={whatsapp.configured ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{whatsapp.configured ? 'connected ✓' : 'not set up'}</strong></p>
+              <p>Webhook verify token: <strong>{whatsapp.webhookReady ? 'set ✓' : 'missing'}</strong></p>
+              <p>Template fallback: <strong>{whatsapp.templateReady ? 'set ✓' : 'optional'}</strong> <span className="text-xs text-ink-soft dark:text-white/55">(WHATSAPP_TEMPLATE_NAME — needed when the 24h chat window closes)</span></p>
+              <p>Business number: <strong>{whatsapp.businessNumber || 'WHATSAPP_DISPLAY_NUMBER not set'}</strong></p>
+              <p>Users receiving WhatsApp: <strong>{whatsapp.connectedUsers}</strong></p>
+              <p>Users paused: <strong>{whatsapp.mutedUsers}</strong></p>
+            </div>
+          )}
+          {whatsapp && !whatsapp.configured && (
+            <p className="mt-4 rounded-xl bg-amber/15 px-4 py-3 text-xs text-forest dark:text-cream">
+              Setup: create a free Meta WhatsApp Cloud API app → set <code>WHATSAPP_TOKEN</code>, <code>WHATSAPP_PHONE_NUMBER_ID</code>,
+              <code> WHATSAPP_DISPLAY_NUMBER</code> and <code>WHATSAPP_VERIFY_TOKEN</code> on Render → subscribe the webhook
+              <code> https://iamhujju.com/api/webhooks/whatsapp</code>. Users then verify from Settings → 💬 WhatsApp.
+            </p>
+          )}
+        </div>
 
         <div className="card p-6">
           <div className="flex items-center justify-between">

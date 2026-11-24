@@ -11,7 +11,7 @@ export async function GET(req: Request) {
       orderBy: { updatedAt: 'desc' },
       take: 200,
       include: {
-        User: { select: { id: true, email: true, name: true, avatarUrl: true, presenceLastSeen: true } },
+        User: { select: { id: true, email: true, name: true, avatarUrl: true, presenceLastSeen: true, whatsappPhone: true, whatsappVerifiedAt: true, whatsappNotify: true } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
@@ -30,6 +30,7 @@ export async function GET(req: Request) {
         user: {
           id: t.User.id, email: t.User.email, name: t.User.name, avatarUrl: t.User.avatarUrl,
           online: Boolean(t.User.presenceLastSeen && Date.now() - t.User.presenceLastSeen.getTime() < PRESENCE_WINDOW_MS),
+          whatsapp: Boolean(t.User.whatsappPhone && t.User.whatsappVerifiedAt) ? (t.User.whatsappNotify ? 'on' : 'muted') : 'off',
         },
         lastMessage: t.messages[0] ? { body: t.messages[0].body, senderId: t.messages[0].senderId, createdAt: t.messages[0].createdAt } : null,
         unread: unreadByThread.get(t.id) ?? 0,

@@ -11,12 +11,16 @@ export async function GET(req: Request) {
       take: 100,
       select: {
         id: true, email: true, name: true, role: true, suspended: true, createdAt: true, emailVerified: true, presenceLastSeen: true,
+        whatsappPhone: true, whatsappVerifiedAt: true, whatsappNotify: true,
         balance: { select: { available: true, lifetimeUsed: true } },
         subscriptions: { where: { status: { in: ['active', 'trialing'] } }, select: { status: true, Plan: { select: { name: true, slug: true } } }, take: 1 },
       },
     });
     return ok({ users: users.map((u) => ({
       ...u,
+      whatsappCodeHash: undefined,
+      whatsappCodeExpires: undefined,
+      whatsapp: Boolean(u.whatsappPhone && u.whatsappVerifiedAt) ? (u.whatsappNotify ? 'on' : 'muted') : 'off',
       available: Number(u.balance?.available ?? 0),
       lifetimeUsed: Number(u.balance?.lifetimeUsed ?? 0),
       planName: u.subscriptions[0]?.Plan.name ?? 'Free',

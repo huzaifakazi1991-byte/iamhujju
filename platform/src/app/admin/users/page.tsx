@@ -8,6 +8,7 @@ import { api } from '@/lib/client';
 type UserRow = {
   id: string; email: string; name: string | null; role: 'USER' | 'ADMIN'; suspended: boolean;
   createdAt: string; available: number; lifetimeUsed: number; planName: string; online?: boolean;
+  whatsappPhone?: string | null; whatsapp?: 'on' | 'muted' | 'off';
 };
 
 type CreditMode = 'add' | 'reduce' | 'set';
@@ -137,6 +138,7 @@ export default function AdminUsersPage() {
                     <span className="flex items-center gap-2">
                       <span className={`h-2 w-2 shrink-0 rounded-full ${u.online ? 'bg-green-500' : 'bg-neutral-400'}`} title={u.online ? 'Online now' : 'Offline'} />
                       <span className="truncate">{u.email}</span>
+                      {u.whatsappPhone && <span title={`WhatsApp ${u.whatsapp === 'on' ? 'connected' : 'paused'} — DMs are mirrored there`} className="shrink-0 text-xs opacity-70">📲</span>}
                     </span>
                   </td>
                   <td className="px-5 py-3">{u.planName}</td>

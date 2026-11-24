@@ -535,6 +535,56 @@ if (threadRow) {
   ok(adm404.status === 404, 'unknown thread id -> 404', String(adm404.status));
 } else { failures++; console.log('FAIL admin inbox thread row (none)'); }
 
+// ─── WhatsApp relay: verify-by-inbound code + admin DM mirroring ───
+// Server runs with fake WHATSAPP_* env so the integration is "configured"
+// (graph.facebook.com rejects the fake token with 401 → relay 'failed' but the
+// in-app message always delivers first).
+const waAnon = await req('/api/account', { method: 'PATCH', body: { whatsappPhone: '+919810000001' } });
+ok([401, 403].includes(waAnon.status), 'whatsapp verify requires auth', String(waAnon.status));
+
+const waStart = await req('/api/account', { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { whatsappPhone: '98100 00001' } });
+ok(waStart.status === 200 && /^\d{6}$/.test(waStart.data?.whatsappPending?.code ?? ''), 'whatsapp: 6-digit verification code issued', JSON.stringify(waStart.data?.whatsappPending));
+ok((waStart.data?.whatsappPending?.link ?? '').includes('wa.me/919876550000'), 'whatsapp: wa.me deep link targets the business number', waStart.data?.whatsappPending?.link);
+const waCode = waStart.data?.whatsappPending?.code;
+
+const waHookBad = await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: 'HJ 000000' } }] } }] }] } });
+ok(waHookBad.status === 200, 'whatsapp webhook accepts delivery (wrong code is a no-op)', String(waHookBad.status));
+const waMid = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(waMid.data?.whatsapp?.verified === false && Boolean(waMid.data?.whatsapp?.pending), 'whatsapp: still pending after wrong code', JSON.stringify(waMid.data?.whatsapp));
+
+if (waCode) {
+  const waHook = await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: `hj ${waCode}` } }] } }] }] } });
+  ok(waHook.status === 200, 'whatsapp webhook verifies the correct code', String(waHook.status));
+  const waDone = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+  ok(waDone.data?.whatsapp?.verified === true && waDone.data?.whatsapp?.phone === '+91 ••••• 001' && waDone.data?.whatsapp?.notify === true, 'whatsapp: number verified + masked + opted in', JSON.stringify(waDone.data?.whatsapp));
+
+  const waThreads = await req('/api/admin/threads?q=' + encodeURIComponent(e2eEmail), { auth: adminC.at + '; ' + adminC.rt });
+  ok(waThreads.data?.threads?.[0]?.user?.whatsapp === 'on', 'admin inbox shows WhatsApp connected pill', JSON.stringify(waThreads.data?.threads?.[0]?.user));
+
+  const waUsers = await req('/api/admin/users?q=' + encodeURIComponent(e2eEmail), { auth: adminC.at + '; ' + adminC.rt });
+  const waUser = waUsers.data?.users?.[0];
+  ok(waUser?.whatsapp === 'on' && waUser?.whatsappCodeHash === undefined && waUser?.whatsappCodeExpires === undefined, 'admin users list carries whatsapp status without code hashes', JSON.stringify({ wa: waUser?.whatsapp, h: waUser?.whatsappCodeHash, e: waUser?.whatsappCodeExpires }));
+
+  const waMsg = await req('/api/admin/threads/' + threadRow.id, { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { body: 'WhatsApp relay check — reply STOP never needed' } });
+  ok(waMsg.status === 201 && ['sent', 'failed'].includes(waMsg.data?.whatsapp?.status) && typeof waMsg.data?.whatsapp?.reason === 'string', 'admin DM mirrors to WhatsApp (relay attempted, in-app delivered first)', JSON.stringify(waMsg.data?.whatsapp));
+
+  await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: 'stop' } }] } }] }] } });
+  const waMuted = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+  ok(waMuted.data?.whatsapp?.notify === false, 'whatsapp: STOP keyword pauses notifications', JSON.stringify(waMuted.data?.whatsapp));
+  const waMsgMuted = await req('/api/admin/threads/' + threadRow.id, { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { body: 'After STOP this should skip WhatsApp' } });
+  ok(waMsgMuted.status === 201 && waMsgMuted.data?.whatsapp?.status === 'skipped_opted_out', 'admin DM skips opted-out WhatsApp user', JSON.stringify(waMsgMuted.data?.whatsapp));
+  await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: 'start' } }] } }] }] } });
+  const waResumed = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+  ok(waResumed.data?.whatsapp?.notify === true, 'whatsapp: START keyword resumes notifications', JSON.stringify(waResumed.data?.whatsapp));
+}
+
+const waHandshakeBad = await req('/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=123');
+ok(waHandshakeBad.status === 403, 'webhook handshake rejects wrong verify token', String(waHandshakeBad.status));
+const waHandshakeOk = await fetch(`${process.env.E2E_BASE ?? 'http://localhost:3100'}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=e2e-verify-token&hub.challenge=echo-me`);
+ok(waHandshakeOk.status === 200 && (await waHandshakeOk.text()).includes('echo-me'), 'webhook handshake echoes challenge with correct verify token', String(waHandshakeOk.status));
+const waSettings = await req('/api/admin/settings', { auth: adminC.at + '; ' + adminC.rt });
+ok(waSettings.data?.whatsapp?.configured === true && waSettings.data?.whatsapp?.webhookReady === true && waSettings.data?.whatsapp?.connectedUsers >= 1, 'admin settings shows relay summary', JSON.stringify(waSettings.data?.whatsapp));
+
 // community group chat
 const gEmpty = await req('/api/threads/group', { auth: userC.at + '; ' + userC.rt });
 ok(gEmpty.status === 200 && Array.isArray(gEmpty.data?.messages) && Array.isArray(gEmpty.data?.online), 'group chat GET returns messages + online list', JSON.stringify(gEmpty.data).slice(0, 200));
