@@ -245,7 +245,8 @@ model Message {
 model UsageRecord {                     // one per gateway request, success or fail
   id              String   @id @default(cuid())
   userId          String
-  modelId         String
+  modelId         String?  // null when the model was purged; slug below keeps history readable
+  modelSlug       String?
   messageId       String?  @unique
   promptTokens    Int      @default(0)
   completionTokens Int     @default(0)
@@ -255,7 +256,7 @@ model UsageRecord {                     // one per gateway request, success or f
   latencyMs       Int?
   createdAt       DateTime @default(now())
   User            User     @relation(fields: [userId], references: [id])
-  Model           Model    @relation(fields: [modelId], references: [id])
+  Model           Model?   @relation(fields: [modelId], references: [id])
   Message         Message? @relation(fields: [messageId], references: [id])
   @@index([userId, createdAt])
   @@index([modelId, createdAt])

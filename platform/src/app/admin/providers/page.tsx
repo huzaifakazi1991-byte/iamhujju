@@ -20,6 +20,9 @@ export default function AdminProvidersPage() {
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeText, setPurgeText] = useState('');
+  const [purgeBusy, setPurgeBusy] = useState(false);
 
   async function load() {
     try {
@@ -82,6 +85,20 @@ export default function AdminProvidersPage() {
       toast('Provider deleted.', 'success');
       await load();
     } catch (err) { toast(err instanceof Error ? err.message : 'Delete failed', 'error'); }
+  }
+
+  async function purgeAll() {
+    if (purgeBusy) return;
+    if (purgeText !== 'DELETE') { toast('Type DELETE exactly to confirm.', 'error'); return; }
+    setPurgeBusy(true);
+    try {
+      const d = await api<{ providers: number; models: number }>(`/api/admin/catalog`, { method: 'DELETE', body: JSON.stringify({ confirm: purgeText }) });
+      toast(`Purged: ${d.providers} providers, ${d.models} models. Billing history kept.`, 'success');
+      setPurgeOpen(false);
+      setPurgeText('');
+      await load();
+    } catch (err) { toast(err instanceof Error ? err.message : 'Purge failed', 'error'); }
+    finally { setPurgeBusy(false); }
   }
 
   async function preflightById(id: string, name: string) {
@@ -205,6 +222,16 @@ export default function AdminProvidersPage() {
         ))}
       </div>
 
+      <div className="card mt-8 border-red-300/50 p-6">
+        <h2 className="font-bold text-red-600 dark:text-red-300">⚠️ Danger zone</h2>
+        <p className="mt-2 text-sm text-ink-soft dark:text-white/65">
+          Removes <strong>every provider and every model</strong> from the catalog in one step — all user chats stay, billing history stays, balances stay. User chats simply use whichever model is selected next. You cannot undo this; add providers again afterwards.
+        </p>
+        <button className="mt-4 rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50" onClick={() => setPurgeOpen(true)}>
+          🗑️ Delete all providers & models
+        </button>
+      </div>
+
       <div className="card mt-8 p-6">
         <h2 className="font-bold">💡 Adding a provider — tips</h2>
         <ul className="mt-3 list-inside list-disc space-y-1.5 text-sm text-ink-soft dark:text-white/65">
@@ -215,6 +242,24 @@ export default function AdminProvidersPage() {
           <li>Custom providers must be OpenAI-compatible (<code className="font-mono text-xs">POST {'{baseUrl}'}/chat/completions</code> with SSE streaming).</li>
         </ul>
       </div>
+
+      {purgeOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4" onPointerDown={(e) => { if (e.target === e.currentTarget && !purgeBusy) setPurgeOpen(false); }}>
+          <div className="glass-strong w-full max-w-md rounded-3xl p-6" role="dialog" aria-modal="true">
+            <h3 className="font-bold text-red-600 dark:text-red-300">Delete ALL providers & models?</h3>
+            <p className="mt-2 text-sm text-ink-soft dark:text-white/65">
+              This deletes {providers?.reduce((n, p) => n + p.models.length, 0) ?? 0} models across {providers?.length ?? 0} providers. Chats, billing history and balances are kept — but the catalog cannot be restored and must be re-added.
+            </p>
+            <input className="input mt-4" placeholder="Type DELETE" value={purgeText} onChange={(e) => setPurgeText(e.target.value)} disabled={purgeBusy} />
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-ghost px-4 py-2 text-sm" onClick={() => { setPurgeOpen(false); setPurgeText(''); }} disabled={purgeBusy}>Cancel</button>
+              <button className="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50" disabled={purgeText !== 'DELETE' || purgeBusy} onClick={purgeAll}>
+                {purgeBusy ? 'Purging…' : 'Purge everything'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

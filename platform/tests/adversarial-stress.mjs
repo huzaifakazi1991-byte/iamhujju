@@ -25,6 +25,24 @@ const adm = await req('/api/auth/login', { method: 'POST', body: { email: 'admin
 collect(adm, adminC);
 const AC = adminC.at + '; ' + adminC.rt;
 
+// Self-heal: a prior run may have purged the whole catalog. The chat stress
+// checks (A1/A2/A4) need at least the seeded free-tier mock models back.
+{
+  const mdl = await req('/api/models', { auth: AC });
+  if (!(mdl.data?.models ?? []).some((m) => m.slug === 'mock-small')) {
+    let provs = await req('/api/admin/providers', { auth: AC });
+    let pid = provs.data?.providers?.find((p) => p.name === 'mock')?.id;
+    if (!pid) {
+      const made = await req('/api/admin/providers', { method: 'POST', auth: AC, body: { name: 'mock', kind: 'mock' } });
+      pid = made.data?.provider?.id;
+    }
+    for (const [slug, order] of [['mock-small', 0], ['mock-large', 1]]) {
+      await req('/api/admin/models', { method: 'POST', auth: AC, body: { providerId: pid, slug, displayName: slug, adminEnabled: true, displayOrder: order } });
+    }
+    console.log('[setup] re-seeded mock-small / mock-large after catalog purge');
+  }
+}
+
 // [A1] double-click: two rapid identical chats, both settle without balance corruption
 const b1 = await req('/api/usage', { auth: AC });
 const chat = (n) => fetch(BASE + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: AC }, body: JSON.stringify({ model: 'mock-small', messages: [{ role: 'user', content: 'double fire ' + n }] }) });

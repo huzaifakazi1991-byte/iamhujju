@@ -160,6 +160,7 @@ export async function settle(opts: {
         data: {
           userId: opts.userId,
           modelId: opts.modelId,
+          modelSlug: check.modelSlug,
           messageId,
           promptTokens: outcome.promptTokens,
           completionTokens: outcome.completionTokens,

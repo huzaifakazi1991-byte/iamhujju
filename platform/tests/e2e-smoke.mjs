@@ -733,5 +733,26 @@ if (liftPlan?.id && typeof liftPlan.requestsPerMin === 'number') {
   await req(`/api/admin/plans/${liftPlan.id}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { requestsPerMin: liftPlan.requestsPerMin } });
 }
 
+// -- catalog purge: bulk delete all providers & models (must be last; it empties the catalog) --
+
+const purgeAnon = await req('/api/admin/catalog', { method: 'DELETE', auth: userC.at + '; ' + userC.rt, body: { confirm: 'DELETE' } });
+ok(purgeAnon.status === 403, 'purge: non-admin forbidden', String(purgeAnon.status));
+const purgeBad = await req('/api/admin/catalog', { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt, body: { confirm: 'delete' } });
+ok(purgeBad.status === 400, 'purge: wrong confirmation text refused', JSON.stringify(purgeBad.data));
+const providerCountBefore = (await req('/api/admin/providers', { auth: adminC.at + '; ' + adminC.rt })).data.providers.length;
+const purgeUse = await req('/api/usage/recent', { auth: userC.at + '; ' + userC.rt });
+ok(purgeUse.status === 200 && (purgeUse.data.usage?.length ?? 0) > 0, 'purge: usage history exists before purge', JSON.stringify(purgeUse.data).slice(0, 120));
+const purge = await req('/api/admin/catalog', { method: 'DELETE', auth: adminC.at + '; ' + adminC.rt, body: { confirm: 'DELETE' } });
+ok(purge.status === 200 && purge.data.ok === true, 'purge: bulk delete succeeds', JSON.stringify(purge.data).slice(0, 200));
+ok(purge.data.providers === providerCountBefore && purge.data.models >= 4, 'purge: reports deleted counts', JSON.stringify(purge.data));
+const providersAfter = await req('/api/admin/providers', { auth: adminC.at + '; ' + adminC.rt });
+ok(providersAfter.status === 200 && providersAfter.data.providers.length === 0, 'purge: providers list empty', JSON.stringify(providersAfter.data).slice(0, 120));
+const modelsAfter = await req('/api/models', { auth: userC.at + '; ' + userC.rt });
+ok(modelsAfter.status === 200 && (modelsAfter.data.models ?? []).length === 0, 'purge: user-visible model list empty', JSON.stringify(modelsAfter.data).slice(0, 120));
+const usageAfter = await req('/api/usage/recent', { auth: userC.at + '; ' + userC.rt });
+ok(usageAfter.status === 200 && (usageAfter.data.usage?.length ?? 0) > 0, 'purge: billing history preserved after purge', JSON.stringify(usageAfter.data).slice(0, 120));
+const purgeBal = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(purgeBal.status === 200 && typeof purgeBal.data.tokens?.available === 'number', 'purge: user token balance intact', JSON.stringify(purgeBal.data).slice(0, 120));
+
 console.log(failures === 0 ? '\nE2E-ALL-PASS (' + Date.now() + ')' : '\nE2E-FAILURES=' + failures);
 process.exit(failures === 0 ? 0 : 1);

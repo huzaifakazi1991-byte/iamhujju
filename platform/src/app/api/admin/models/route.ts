@@ -13,7 +13,7 @@ export async function GET() {
       }),
       prisma.usageRecord.groupBy({
         by: ['modelId', 'status'],
-        where: { createdAt: { gte: since } },
+        where: { createdAt: { gte: since }, modelId: { not: null } },
         _count: { _all: true },
         _sum: { totalTokens: true },
         _avg: { latencyMs: true },
@@ -22,6 +22,7 @@ export async function GET() {
 
     const statsByModel = new Map<string, { requests24h: number; tokens24h: number; errors24h: number; latencySum: number; latencyCount: number }>();
     for (const row of usage) {
+      if (row.modelId === null) continue;
       const s = statsByModel.get(row.modelId) ?? { requests24h: 0, tokens24h: 0, errors24h: 0, latencySum: 0, latencyCount: 0 };
       s.requests24h += row._count._all;
       s.tokens24h += Number(row._sum.totalTokens ?? 0);
