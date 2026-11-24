@@ -15,9 +15,21 @@ const DUMMY_SALT = '8d417e16f514d4dfe422051741481f41';
 const DUMMY_HASH = scryptSync('invalid-account-password', DUMMY_SALT, PASSWORD_HASH_BYTES);
 const CONNECTED_PROVIDERS = new Set(['openrouter', 'electronhub', 'groq', 'freemodel', 'gemini', 'mistral', 'together', 'cerebras', 'sambanova', 'cohere', 'huggingface']);
 
-export const OWNER_EMAIL = 'huzaifakazi1991@gmail.com';
-export const OWNER_MASTER_KEY = process.env.OWNER_MASTER_KEY || 'sk-hujju-29ad913a79d5ff69580b1dbb9993fe70c5588006e89b5dee';
-export const OWNER_KEY_HASH = '05c7bfb605207e444021a3de161ca28d9b9e9fdad7fb3090cbba08848985f8d3';
+export function getOwnerEmails() {
+  return String(process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function getOwnerEmail() {
+  const [ownerEmail] = getOwnerEmails();
+  return ownerEmail || '';
+}
+
+export function getOwnerMasterKey() {
+  return process.env.OWNER_MASTER_KEY || '';
+}
 export const FALLBACK_ENCRYPTION_SECRET = '6Es939h2qJ7wVNE0vnoWolB3u/jLEIJLfGUDq6NiuRPhCQKtfxVYN5YGi75OfcEg';
 
 function normalizeEmail(email) {
@@ -37,7 +49,7 @@ function validPassword(password) {
 
 function publicUser(user) {
   if (!user) return null;
-  const isOwner = Boolean(user.email && user.email.toLowerCase() === OWNER_EMAIL);
+  const isOwner = Boolean(user.email && getOwnerEmails().includes(user.email.toLowerCase())) || user.role === 'admin';
   return {
     id: user.id,
     email: user.email,
@@ -569,7 +581,8 @@ export function createAccountStore({
       if (typeof rawKey !== 'string' || !rawKey.startsWith('sk-hujju-')) return null;
       const keyHash = createHash('sha256').update(rawKey).digest('hex');
       const tokenCount = Math.max(0, Number(tokens) || 0);
-      const isOwnerMaster = rawKey === OWNER_MASTER_KEY || keyHash === OWNER_KEY_HASH;
+      const ownerMasterKey = getOwnerMasterKey();
+      const isOwnerMaster = Boolean(ownerMasterKey) && (rawKey === ownerMasterKey || keyHash === ownerMasterKey);
 
       let result = null;
       try {
@@ -601,37 +614,40 @@ export function createAccountStore({
 
       // Permanent Master Key bypass/fallback for owner
       if (isOwnerMaster) {
+        const ownerEmail = getOwnerEmail();
         let ownerUser = null;
-        try {
-          const oRes = await db.query(
-            `SELECT id, email, COALESCE(tier, 'owner_unlimited') AS tier, subscription_active, unlocked_all_models, plan_id, credits_balance, expires_at
-             FROM users WHERE email = $1`,
-            [OWNER_EMAIL]
-          );
-          if (oRes.rows[0]) {
-            ownerUser = publicUser(oRes.rows[0]);
-          }
-        } catch {}
+        if (ownerEmail) {
+          try {
+            const oRes = await db.query(
+              `SELECT id, email, COALESCE(tier, 'owner_unlimited') AS tier, subscription_active, unlocked_all_models, plan_id, credits_balance, expires_at
+               FROM users WHERE email = $1`,
+              [ownerEmail]
+            );
+            if (oRes.rows[0]) {
+              ownerUser = publicUser(oRes.rows[0]);
+            }
+          } catch {}
 
-        if (!ownerUser) {
-          ownerUser = publicUser({
-            id: '00000000-0000-0000-0000-000000000001',
-            email: OWNER_EMAIL,
-            tier: 'owner_unlimited',
-            subscription_active: true,
-            unlocked_all_models: true,
-            plan_id: 'owner_unlimited'
-          });
+          if (!ownerUser) {
+            ownerUser = publicUser({
+              id: '00000000-0000-0000-0000-000000000001',
+              email: ownerEmail,
+              tier: 'owner_unlimited',
+              subscription_active: true,
+              unlocked_all_models: true,
+              plan_id: 'owner_unlimited'
+            });
+          }
+          ownerUser.activeKeyId = 'owner-master-key';
+          return ownerUser;
         }
-        ownerUser.activeKeyId = 'owner-master-key';
-        return ownerUser;
       }
 
       return null;
     },
 
     async recordApiKeyTokens(keyId, tokens = 0) {
-      if (!keyId || !tokens) return;
+      if (!keyId || !tokens || keyId === 'owner-master-key') return;
       await db.query(
         `UPDATE api_keys
          SET tokens_used = COALESCE(tokens_used, 0) + $2

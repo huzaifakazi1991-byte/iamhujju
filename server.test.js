@@ -2170,6 +2170,17 @@ test('High-Capacity Multi-Key Load Balancing & Failover: 429 rate limit triggers
 
 test('Universal Gateway: owner master key, auto router, streaming SSE, and no HTML route leaks', async t => {
   const { accountStore } = await createTestStores(t);
+  const previousOwnerMasterKey = process.env.OWNER_MASTER_KEY;
+  const previousAdminEmails = process.env.ADMIN_EMAILS;
+  const masterKey = 'sk-hujju-test-owner-master-key-0123456789abcdefghij';
+  process.env.OWNER_MASTER_KEY = masterKey;
+  process.env.ADMIN_EMAILS = 'owner@example.com';
+  t.after(() => {
+    if (previousOwnerMasterKey === undefined) delete process.env.OWNER_MASTER_KEY;
+    else process.env.OWNER_MASTER_KEY = previousOwnerMasterKey;
+    if (previousAdminEmails === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = previousAdminEmails;
+  });
   const customKeyPool = new KeyPool();
   customKeyPool.registerPool('openrouter', ['sk-openrouter-universal-test']);
 
@@ -2209,8 +2220,6 @@ test('Universal Gateway: owner master key, auto router, streaming SSE, and no HT
 
   const { server, baseUrl } = await listen(app);
   t.after(() => close(server));
-
-  const masterKey = 'sk-hujju-29ad913a79d5ff69580b1dbb9993fe70c5588006e89b5dee';
 
   // 1. GET /v1/models with master key
   const modelsRes = await fetch(`${baseUrl}/v1/models`, {
@@ -2271,4 +2280,257 @@ test('Universal Gateway: owner master key, auto router, streaming SSE, and no HT
   const notFoundData = await notFoundRes.json();
   assert.equal(notFoundData.error.code, 'route_not_found');
   assert.match(notFoundData.error.message, /Route not found/);
+});
+
+test('Phase 1 H1: /api/payment/create-order fails closed with 503 when Razorpay env and UPI fallback are missing', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('unauth-buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: '',
+    razorpayKeySecret: '',
+    officialUpiId: '',
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(`${baseUrl}/api/create-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ planId: 'pro', billingCycle: 'monthly' })
+  });
+  assert.equal(res.status, 503);
+  const data = await res.json();
+  assert.equal(data.error?.code, 'razorpay_not_configured');
+});
+
+test('Phase 1 H1: /api/payment/verify fails closed with 503 when without RAZORPAY_KEY_SECRET', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('verify-buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: '',
+    razorpayKeySecret: '',
+    officialUpiId: 'test@upi',
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(`${baseUrl}/api/payment/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      order_id: 'order_forged_1',
+      payment_id: 'pay_forged_1',
+      signature: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+    })
+  });
+  assert.equal(res.status, 503);
+  const data = await res.json();
+  assert.equal(data.error?.code, 'razorpay_not_configured');
+});
+
+test('Phase 1 H1: manual UPI checkout flow stays functional with OFFICIAL_UPI_ID configured', async t => {
+  const { accountStore } = await createTestStores(t);
+  const user = await accountStore.register('upi-buyer@example.com', 'secure-password-1234');
+  const session = await accountStore.createSession(user.id);
+  const cookie = `iamhujju_session=${session.token}`;
+
+  const app = createApp({
+    accountStore,
+    razorpayKeyId: '',
+    razorpayKeySecret: '',
+    officialUpiId: 'iamhujju@upi',
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const res = await fetch(`${baseUrl}/api/payment/create-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ planId: 'pro', billingCycle: 'monthly' })
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.fallbackToDirectUpi, true);
+  assert.equal(data.upiId, 'iamhujju@upi');
+});
+
+test('Phase 1 H2: media generation and polling require authentication', async t => {
+  const { accountStore } = await createTestStores(t);
+  const app = createApp({
+    accountStore,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const imageRes = await fetch(`${baseUrl}/api/generate/image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'a cat in space' })
+  });
+  assert.equal(imageRes.status, 401);
+  const imageData = await imageRes.json();
+  assert.equal(imageData.error?.code, 'authentication_required');
+
+  const v1ImageRes = await fetch(`${baseUrl}/v1/images/generations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer not-a-hujju-key' },
+    body: JSON.stringify({ prompt: 'a cat in space' })
+  });
+  assert.equal(v1ImageRes.status, 401);
+
+  const videoRes = await fetch(`${baseUrl}/api/generate/video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'a drone over hills', model: 'kling-video-v1' })
+  });
+  assert.equal(videoRes.status, 401);
+
+  const pollRes = await fetch(`${baseUrl}/api/generate/video/vid_00000000-0000-0000-0000-000000000000`);
+  assert.equal(pollRes.status, 401);
+});
+
+test('Phase 1 H2: media generation has a dedicated rate limiter', async t => {
+  const { accountStore } = await createTestStores(t);
+  const app = createApp({
+    accountStore,
+    rateLimits: { media: 2 },
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const statuses = [];
+  for (let i = 0; i < 3; i++) {
+    const res = await fetch(`${baseUrl}/api/generate/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'primitive令我 limited' })
+    });
+    statuses.push(res.status);
+    await res.arrayBuffer().catch(() => {});
+  }
+  assert.deepEqual(statuses, [401, 401, 429]);
+});
+
+test('Phase 1 M2: video tasks use randomUUID ids and polling enforces ownership', async t => {
+  const { accountStore } = await createTestStores(t);
+  const userA = await accountStore.register('creator@example.com', 'secure-password-1234');
+  const userB = await accountStore.register('intruder@example.com', 'secure-password-1234');
+  const sessionA = await accountStore.createSession(userA.id);
+  const sessionB = await accountStore.createSession(userB.id);
+  const cookieA = `iamhujju_session=${sessionA.token}`;
+  const cookieB = `iamhujju_session=${sessionB.token}`;
+
+  const app = createApp({
+    accountStore,
+    fetchImpl: async () => { throw new Error('not used'); }
+  });
+  const { server, baseUrl } = await listen(app);
+  t.after(() => close(server));
+
+  const createRes = await fetch(`${baseUrl}/api/generate/video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookieA },
+    body: JSON.stringify({ prompt: 'primitive tide over cliffs', model: 'kling-video-v1' })
+  });
+  assert.equal(createRes.status, 202);
+  const task = await createRes.json();
+  assert.match(task.id, /^vid_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(task.poll_url, `/api/generate/video/${task.id}`);
+
+  const ownerRes = await fetch(`${baseUrl}/api/generate/video/${task.id}`, {
+    headers: { Cookie: cookieA }
+  });
+  assert.equal(ownerRes.status, 200);
+
+  const intruderRes = await fetch(`${baseUrl}/api/generate/video/${task.id}`, {
+    headers: { Cookie: cookieB }
+  });
+  assert.equal(intruderRes.status, 404);
+
+  const anonRes = await fetch(`${baseUrl}/api/generate/video/${task.id}`);
+  assert.equal(anonRes.status, 401);
+});
+
+test('Phase 1 M3: admin privileges come only from ADMIN_EMAILS env or DB role', async t => {
+  const previousAdminEmails = process.env.ADMIN_EMAILS;
+  const previousOwnerMasterKey = process.env.OWNER_MASTER_KEY;
+  delete process.env.ADMIN_EMAILS;
+  delete process.env.OWNER_MASTER_KEY;
+
+  try {
+    const { accountStore } = await createTestStores(t);
+    const legacyOwnerUser = await accountStore.register('legacy-owner@example.com', 'secure-password-1234');
+    const otherUser = await accountStore.register('other@example.com', 'secure-password-1234');
+    const legacySession = await accountStore.createSession(legacyOwnerUser.id);
+    const otherSession = await accountStore.createSession(otherUser.id);
+
+    const adminPath = '/api/admin/health/providers';
+    const fetchImpl = async (url) => {
+      if (url.includes('chat/completions')) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'Pong' } }] }), {
+          status: 200, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const appWithoutEnv = createApp({ accountStore, keyPool: new KeyPool(), fetchImpl });
+    const { server, baseUrl } = await listen(appWithoutEnv);
+    t.after(() => close(server));
+
+    const deniedRes = await fetch(`${baseUrl}${adminPath}`, {
+      headers: { Cookie: `iamhujju_session=${legacySession.token}` }
+    });
+    assert.equal(deniedRes.status, 403);
+
+    const dbRoleApp = createApp({ accountStore, keyPool: new KeyPool(), fetchImpl });
+    const { server: roleServer, baseUrl: roleBaseUrl } = await listen(dbRoleApp);
+    t.after(() => close(roleServer));
+    const roleRes = await fetch(`${roleBaseUrl}${adminPath}`, {
+      headers: { Cookie: `iamhujju_session=${otherSession.token}` }
+    });
+    assert.equal(roleRes.status, 403);
+
+    process.env.ADMIN_EMAILS = 'legacy-owner@example.com';
+    const privilegedKey = 'sk-hujju-env-owner-master-key-0123456789abcdefghij';
+    process.env.OWNER_MASTER_KEY = privilegedKey;
+
+    const appWithEnv = createApp({ accountStore, keyPool: new KeyPool(), fetchImpl });
+    const { server: envServer, baseUrl: envBaseUrl } = await listen(appWithEnv);
+    t.after(() => close(envServer));
+
+    const envRes = await fetch(`${envBaseUrl}${adminPath}`, {
+      headers: { Cookie: `iamhujju_session=${legacySession.token}` }
+    });
+    assert.equal(envRes.status, 200);
+
+    const masterRes = await fetch(`${envBaseUrl}${adminPath}`, {
+      headers: { Authorization: `Bearer ${privilegedKey}` }
+    });
+    assert.equal(masterRes.status, 200);
+
+    const strangerKeyRes = await fetch(`${envBaseUrl}${adminPath}`, {
+      headers: { Authorization: 'Bearer sk-hujju-ffffffffffffffffffffffffffffffffffffffffffffffff' }
+    });
+    assert.equal(strangerKeyRes.status, 403);
+  } finally {
+    if (previousAdminEmails === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = previousAdminEmails;
+    if (previousOwnerMasterKey === undefined) delete process.env.OWNER_MASTER_KEY;
+    else process.env.OWNER_MASTER_KEY = previousOwnerMasterKey;
+  }
 });

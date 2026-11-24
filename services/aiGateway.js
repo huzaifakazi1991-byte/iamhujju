@@ -1,6 +1,7 @@
 // services/aiGateway.js — Upstream AI Provider Adapter, Schema Normalization, Dynamic Model Discovery & Live Sync
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 export const DEFAULT_OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 export const DEFAULT_GROQ_BASE = 'https://api.groq.com/openai/v1';
@@ -253,8 +254,8 @@ export function detectModelModality(modelId, rawMetadata = {}) {
 // In-Memory Asynchronous Video Generation Task Store
 export const videoGenerationTasks = new Map();
 
-export function createVideoTaskRecord({ prompt, model = 'kling-video-v1', duration = 5, aspect_ratio = '16:9' }) {
-  const taskId = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+export function createVideoTaskRecord({ prompt, model = 'kling-video-v1', duration = 5, aspect_ratio = '16:9', ownerId = null }) {
+  const taskId = `vid_${randomUUID()}`;
   const createdAt = new Date().toISOString();
   
   const sampleVideos = [
@@ -276,16 +277,22 @@ export function createVideoTaskRecord({ prompt, model = 'kling-video-v1', durati
     created_at: createdAt,
     video_url: null,
     final_video_url: videoUrl,
-    start_timestamp: Date.now()
+    start_timestamp: Date.now(),
+    ownerId: ownerId || null
   };
 
   videoGenerationTasks.set(taskId, task);
 
-  setTimeout(() => {
+  const cleanupTimer = setTimeout(() => {
     videoGenerationTasks.delete(taskId);
   }, 3600000);
+  cleanupTimer.unref?.();
 
   return task;
+}
+
+export function getVideoTaskRecord(taskId) {
+  return videoGenerationTasks.get(taskId) || null;
 }
 
 export function getVideoTaskStatus(taskId) {

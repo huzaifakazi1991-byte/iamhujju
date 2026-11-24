@@ -1,7 +1,13 @@
 // scripts/test_all_production_models.mjs
 import fs from 'node:fs';
 
-const MASTER_KEY = 'sk-hujju-29ad913a79d5ff69580b1dbb9993fe70c5588006e89b5dee';
+const MASTER_KEY = process.env.HUJJU_MASTER_KEY;
+if (!MASTER_KEY || !MASTER_KEY.startsWith('sk-hujju-')) {
+  console.error('Error: HUJJU_MASTER_KEY is not set.');
+  console.error('Run: HUJJU_MASTER_KEY=sk-hujju-... node scripts/test_all_production_models.mjs');
+  process.exit(1);
+}
+
 const BASE_URL = 'https://iamhujju.com/v1';
 
 async function main() {
