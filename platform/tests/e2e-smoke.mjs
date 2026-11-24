@@ -6,7 +6,7 @@ let failures = 0;
 // in-process mock OpenAI-compatible upstream for gateway provider tests
 import http from 'node:http';
 const upstreamHits = { streamOptionsSeen: 0 };
-const UPSTREAM_MODELS = ['mock-echo', 'mock-picky-streamopts', 'mock-auto-a', 'mock-auto-b'];
+const UPSTREAM_MODELS = ['mock-echo', 'mock-fail', 'mock-picky-streamopts', 'mock-auto-a', 'mock-auto-b'];
 function sseChunk(obj) { return `data: ${JSON.stringify(obj)}\n\n`; }
 const mockUpstream = http.createServer((rq, rs) => {
   let raw = '';
@@ -24,6 +24,11 @@ const mockUpstream = http.createServer((rq, rs) => {
     if (body.model === 'mock-picky-streamopts' && body.stream_options) {
       rs.writeHead(400, { 'Content-Type': 'application/json' });
       rs.end(JSON.stringify({ error: { message: 'Unknown field: stream_options', status: 'INVALID_ARGUMENT' } }));
+      return;
+    }
+    if (body.model === 'mock-fail') {
+      rs.writeHead(500, { 'Content-Type': 'application/json' });
+      rs.end(JSON.stringify({ error: { message: 'mock-fail upstream is down', type: 'server_error' } }));
       return;
     }
     if (body.model === 'mock-missing') {
@@ -535,6 +540,72 @@ if (threadRow) {
   ok(adm404.status === 404, 'unknown thread id -> 404', String(adm404.status));
 } else { failures++; console.log('FAIL admin inbox thread row (none)'); }
 
+// ─── WhatsApp relay: verify-by-inbound code + admin DM mirroring ───
+// Server runs with fake WHATSAPP_* env so the integration is "configured"
+// (graph.facebook.com rejects the fake token with 401 → relay 'failed' but the
+// in-app message always delivers first).
+const waAnon = await req('/api/account', { method: 'PATCH', body: { whatsappPhone: '+919810000001' } });
+ok([401, 403].includes(waAnon.status), 'whatsapp verify requires auth', String(waAnon.status));
+
+const waStart = await req('/api/account', { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { whatsappPhone: '98100 00001' } });
+ok(waStart.status === 200 && /^\d{6}$/.test(waStart.data?.whatsappPending?.code ?? ''), 'whatsapp: 6-digit verification code issued', JSON.stringify(waStart.data?.whatsappPending));
+ok((waStart.data?.whatsappPending?.link ?? '').includes('wa.me/919876550000'), 'whatsapp: wa.me deep link targets the business number', waStart.data?.whatsappPending?.link);
+const waCode = waStart.data?.whatsappPending?.code;
+
+const waHookBad = await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: 'HJ 000000' } }] } }] }] } });
+ok(waHookBad.status === 200, 'whatsapp webhook accepts delivery (wrong code is a no-op)', String(waHookBad.status));
+const waMid = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(waMid.data?.whatsapp?.verified === false && Boolean(waMid.data?.whatsapp?.pending), 'whatsapp: still pending after wrong code', JSON.stringify(waMid.data?.whatsapp));
+
+if (waCode) {
+  const waHook = await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: `hj ${waCode}` } }] } }] }] } });
+  ok(waHook.status === 200, 'whatsapp webhook verifies the correct code', String(waHook.status));
+  const waDone = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+  ok(waDone.data?.whatsapp?.verified === true && waDone.data?.whatsapp?.phone === '+91 ••••• 001' && waDone.data?.whatsapp?.notify === true, 'whatsapp: number verified + masked + opted in', JSON.stringify(waDone.data?.whatsapp));
+
+  const waThreads = await req('/api/admin/threads?q=' + encodeURIComponent(e2eEmail), { auth: adminC.at + '; ' + adminC.rt });
+  ok(waThreads.data?.threads?.[0]?.user?.whatsapp === 'on', 'admin inbox shows WhatsApp connected pill', JSON.stringify(waThreads.data?.threads?.[0]?.user));
+
+  const waUsers = await req('/api/admin/users?q=' + encodeURIComponent(e2eEmail), { auth: adminC.at + '; ' + adminC.rt });
+  const waUser = waUsers.data?.users?.[0];
+  ok(waUser?.whatsapp === 'on' && waUser?.whatsappCodeHash === undefined && waUser?.whatsappCodeExpires === undefined, 'admin users list carries whatsapp status without code hashes', JSON.stringify({ wa: waUser?.whatsapp, h: waUser?.whatsappCodeHash, e: waUser?.whatsappCodeExpires }));
+
+  const waMsg = await req('/api/admin/threads/' + threadRow.id, { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { body: 'WhatsApp relay check — reply STOP never needed' } });
+  ok(waMsg.status === 201 && ['sent', 'failed'].includes(waMsg.data?.whatsapp?.status) && typeof waMsg.data?.whatsapp?.reason === 'string', 'admin DM mirrors to WhatsApp (relay attempted, in-app delivered first)', JSON.stringify(waMsg.data?.whatsapp));
+
+  await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: 'stop' } }] } }] }] } });
+  const waMuted = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+  ok(waMuted.data?.whatsapp?.notify === false, 'whatsapp: STOP keyword pauses notifications', JSON.stringify(waMuted.data?.whatsapp));
+  const waMsgMuted = await req('/api/admin/threads/' + threadRow.id, { method: 'POST', auth: adminC.at + '; ' + adminC.rt, body: { body: 'After STOP this should skip WhatsApp' } });
+  ok(waMsgMuted.status === 201 && waMsgMuted.data?.whatsapp?.status === 'skipped_opted_out', 'admin DM skips opted-out WhatsApp user', JSON.stringify(waMsgMuted.data?.whatsapp));
+  await req('/api/webhooks/whatsapp', { method: 'POST', body: { entry: [{ changes: [{ value: { messages: [{ from: '919810000001', text: { body: 'start' } }] } }] }] } });
+  const waResumed = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+  ok(waResumed.data?.whatsapp?.notify === true, 'whatsapp: START keyword resumes notifications', JSON.stringify(waResumed.data?.whatsapp));
+}
+
+// ── admin-asserted linking: owner has the numbers offline ──
+const waLinkForbidden = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { whatsappPhone: '+919890000009' } });
+ok([401, 403].includes(waLinkForbidden.status), 'non-admin cannot link a WhatsApp number for a user', String(waLinkForbidden.status));
+const waLinkBad = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { whatsappPhone: '12345' } });
+ok([400, 422].includes(waLinkBad.status), 'admin link with garbage number rejected', String(waLinkBad.status));
+const waLink = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { whatsappPhone: '+91 98900 00001' } });
+ok(waLink.status === 200 && waLink.data?.whatsapp === '+91 9890000001', 'admin links user WhatsApp offline (admin-asserted opt-in)', JSON.stringify(waLink.data));
+const waLinkedAcct = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(waLinkedAcct.data?.whatsapp?.verified === true && waLinkedAcct.data?.whatsapp?.phone === '+91 ••••• 001', 'admin-linked number shows verified + masked on the user side', JSON.stringify(waLinkedAcct.data?.whatsapp));
+const waSettingsLinked = await req('/api/admin/settings', { auth: adminC.at + '; ' + adminC.rt });
+ok(waSettingsLinked.data?.whatsapp?.connectedUsers >= 1 && waSettingsLinked.data?.whatsapp?.configured === true, 'admin settings counts linked users while connected', JSON.stringify(waSettingsLinked.data?.whatsapp));
+const waUnlink = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { whatsappPhone: null } });
+ok(waUnlink.status === 200, 'admin disconnects the WhatsApp number', String(waUnlink.status));
+const waUnlinkCheck = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(waUnlinkCheck.data?.whatsapp?.verified === false && waUnlinkCheck.data?.whatsapp?.phone === null, 'disconnected number clears verification', JSON.stringify(waUnlinkCheck.data?.whatsapp));
+
+const waHandshakeBad = await req('/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=123');
+ok(waHandshakeBad.status === 403, 'webhook handshake rejects wrong verify token', String(waHandshakeBad.status));
+const waHandshakeOk = await fetch(`${process.env.E2E_BASE ?? 'http://localhost:3100'}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=e2e-verify-token&hub.challenge=echo-me`);
+ok(waHandshakeOk.status === 200 && (await waHandshakeOk.text()).includes('echo-me'), 'webhook handshake echoes challenge with correct verify token', String(waHandshakeOk.status));
+const waSettings = await req('/api/admin/settings', { auth: adminC.at + '; ' + adminC.rt });
+ok(waSettings.data?.whatsapp?.configured === true && waSettings.data?.whatsapp?.webhookReady === true && typeof waSettings.data?.whatsapp?.connectedUsers === 'number', 'admin settings shows relay summary', JSON.stringify(waSettings.data?.whatsapp));
+
 // community group chat
 const gEmpty = await req('/api/threads/group', { auth: userC.at + '; ' + userC.rt });
 ok(gEmpty.status === 200 && Array.isArray(gEmpty.data?.messages) && Array.isArray(gEmpty.data?.online), 'group chat GET returns messages + online list', JSON.stringify(gEmpty.data).slice(0, 200));
@@ -591,6 +662,7 @@ await makeModel('mock-missing');
 await makeModel('mock-empty');
 await makeModel('mock-ghost');
 await makeModel('mock-picky-streamopts');
+await makeModel('mock-fail');
 
 async function chatStream(model, auth) {
   const res = await fetch(BASE + '/api/chat', {
@@ -606,14 +678,23 @@ const good = await chatStream('mock-echo', userC.at + '; ' + userC.rt);
 ok(good.status === 200 && good.text.includes('Gateway pong for mock-echo'), 'gateway: provider chat streams text', String(good.status));
 ok(good.text.includes('"type":"done"') && good.text.includes('"usage":{') && /"balance":\d+/.test(good.text), 'gateway: usage metered + done event', JSON.stringify(good.text.slice(-400)));
 
+// With failover active, broken models recover automatically instead of
+// dead-ending the chat — the actionable-error path still exists when no
+// fallback model is enabled.
 const missing = await chatStream('mock-missing', userC.at + '; ' + userC.rt);
-ok(missing.text.includes('was not found on this provider') && missing.text.includes('Sync models'), 'gateway: unknown model id yields actionable error', missing.text.slice(0, 200));
+ok(missing.status === 200 && missing.text.includes('Gateway pong for mock-echo'), 'gateway: unknown model id auto-fails-over instead of dead-ending', missing.text.slice(0, 200));
 
 const empty = await chatStream('mock-empty', userC.at + '; ' + userC.rt);
-ok(empty.text.includes('empty response'), 'gateway: empty response guarded with clear error', empty.text.slice(0, 160));
+ok(empty.status === 200 && empty.text.includes('Gateway pong for mock-echo'), 'gateway: empty response auto-fails-over instead of dead-ending', empty.text.slice(0, 200));
 
 const picky = await chatStream('mock-picky-streamopts', userC.at + '; ' + userC.rt);
 ok(picky.status === 200 && picky.text.includes('Gateway pong for mock-picky-streamopts'), 'gateway: retries without rejected stream_options and succeeds', picky.text.slice(0, 160));
+
+// A dead provider model must not kill the chat: gateway auto-fails-over.
+const failover = await chatStream('mock-fail', userC.at + '; ' + userC.rt);
+ok(failover.status === 200 && failover.text.includes('"type":"notice"'), 'gateway: dead model auto-fails-over with a notice event', failover.text.slice(0, 240));
+ok(failover.text.includes('Gateway pong for mock-echo'), 'gateway: fallback model streams the real answer', failover.text.slice(-300));
+ok(failover.text.includes('"status":"completed"') && !failover.text.includes('mock-fail upstream is down'), 'gateway: final done is clean after failover', failover.text.slice(-300));
 
 ok(upstreamHits.streamOptionsSeen >= 2, 'gateway: upstream saw stream_options requests (baseUrl honored)', JSON.stringify(upstreamHits));
 

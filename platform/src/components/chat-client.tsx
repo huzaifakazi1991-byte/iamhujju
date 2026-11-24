@@ -379,6 +379,10 @@ export function ChatClient() {
             setMessages([...history, { role: 'assistant', content: assistantText }]);
           } else if (type === 'done') {
             handleDone(ev);
+          } else if (type === 'notice') {
+            // The gateway automatically failed over to another model.
+            toast(String(ev.message ?? 'Switched model'), 'info');
+            if (typeof ev.to === 'string') setModelSlug(ev.to);
           } else if (type === 'error') {
             toast(String(ev.message ?? 'Provider error'), 'error');
           }

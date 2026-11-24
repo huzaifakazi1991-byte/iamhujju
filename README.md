@@ -109,8 +109,34 @@ any real provider key is added.
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | optional | Stripe billing (mock checkout when unset) |
 | `REDIS_URL` | optional | Shared rate limiting across instances (in-memory fallback) |
 | `SMTP_URL` | optional | Email verification + receipts |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | optional | WhatsApp Cloud API — mirrors admin DMs to users' WhatsApp |
+| `WHATSAPP_VERIFY_TOKEN` | optional | Shared secret for the Meta webhook GET handshake |
+| `WHATSAPP_APP_SECRET` | optional | Enables x-hub-signature-256 verification on the webhook |
+| `WHATSAPP_DISPLAY_NUMBER` | optional | Human-readable business number, e.g. `+91 90000 00000` (shown to users) |
+| `WHATSAPP_TEMPLATE_NAME` / `WHATSAPP_TEMPLATE_LANG` | optional | Approved template for sends outside Meta's 24h chat window (default `en`) |
 
 Never commit `.env` or any secret.
+
+### WhatsApp relay setup (optional, free tier)
+
+Admin direct messages are mirrored to each user's WhatsApp once the user
+connects their number (Settings → 💬 WhatsApp). Verification is
+possession-proof: the user sends `HJ <code>` from their own WhatsApp to the
+business number; a webhook verifies it.
+
+1. Create a free app at **developers.facebook.com → WhatsApp → API Setup**.
+2. Copy the temporary/permanent access token and the **Phone number ID**.
+3. On Render set `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`,
+   `WHATSAPP_DISPLAY_NUMBER`, `WHATSAPP_VERIFY_TOKEN` (any random string).
+4. In the Meta dashboard → **Configuration → Webhook**: callback URL
+   `https://iamhujju.com/api/webhooks/whatsapp`, verify token as above,
+   subscribe to the **messages** field.
+5. Create one marketing/utility template ("New message from {{1}}: {{2}}")
+   and set `WHATSAPP_TEMPLATE_NAME` so DMs also deliver outside the 24h
+   customer-service window that opens whenever a user messages you.
+
+Users opt in from Settings (with Pause/Disconnect), reply `STOP` to mute and
+`START` to resume, and every admin reply reports delivery per channel.
 
 ---
 

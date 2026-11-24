@@ -16,5 +16,12 @@ export const env = {
   resendApiKey: process.env.RESEND_API_KEY ?? '',
   brevoApiKey: process.env.BREVO_API_KEY ?? '',
   mailFrom: process.env.MAIL_FROM ?? 'IamHujju AI <onboarding@resend.dev>',
+  whatsappToken: process.env.WHATSAPP_TOKEN ?? '',
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
+  whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN ?? '',
+  whatsappAppSecret: process.env.WHATSAPP_APP_SECRET ?? '',
+  whatsappDisplayNumber: process.env.WHATSAPP_DISPLAY_NUMBER ?? '',   // human-readable, e.g. '+91 90000 00000'
+  whatsappTemplateName: process.env.WHATSAPP_TEMPLATE_NAME ?? '',     // optional; needed outside the 24h window
+  whatsappTemplateLang: process.env.WHATSAPP_TEMPLATE_LANG ?? 'en',
   isProd: process.env.NODE_ENV === 'production',
 };

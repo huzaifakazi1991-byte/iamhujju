@@ -1,0 +1,32 @@
+# Render free-tier services spin down after 15 minutes without traffic, and a
+# cold start makes the first real user wait 30-60s ("not responding").
+# This workflow pings the platform health endpoint every 14 minutes so the
+# service stays warm. Runs on GitHub's free schedule; no secrets needed.
+name: keep-alive
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping health endpoint
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://iamhujju.com/api/health || true)
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::warning::health check did not return 200 (HTTP $code)"
+          exit 0  # never fail loudly: absence of traffic must not spam email
