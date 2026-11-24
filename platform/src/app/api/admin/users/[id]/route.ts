@@ -3,11 +3,15 @@ import { prisma } from '@/lib/db';
 import { handleError, ok, requireAdmin, readJson, fail } from '@/lib/api';
 import { z } from 'zod';
 import { revokeAllSessions } from '@/lib/auth';
+import { normalizePhone } from '@/lib/whatsapp';
 
 const schema = z.object({
   suspended: z.boolean().optional(),
   role: z.enum(['USER', 'ADMIN']).optional(),
   forceLogout: z.boolean().optional(),
+  // Admin-asserted WhatsApp connection: the owner confirms the user opted in
+  // (e.g. number collected offline). `null` disconnects.
+  whatsappPhone: z.string().trim().max(24).nullable().optional(),
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -32,10 +36,36 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const data: { suspended?: boolean; role?: 'USER' | 'ADMIN' } = {};
     if (body.suspended !== undefined) data.suspended = body.suspended;
     if (body.role !== undefined) data.role = body.role;
+    let whatsappLinked: string | null | undefined;
+    if (body.whatsappPhone !== undefined) {
+      if (body.whatsappPhone === null || body.whatsappPhone === '') {
+        Object.assign(data, {
+          whatsappPhone: null,
+          whatsappVerifiedAt: null,
+          whatsappNotify: true,
+          whatsappPendingPhone: null,
+          whatsappCodeHash: null,
+          whatsappCodeExpires: null,
+        });
+        whatsappLinked = null;
+      } else {
+        const { e164, conversationId } = normalizePhone(body.whatsappPhone);
+        if (!/^[1-9]\d{7,14}$/.test(e164)) return fail(422, 'Enter a valid WhatsApp number, e.g. +91 98765 43210.');
+        Object.assign(data, {
+          whatsappPhone: e164,
+          whatsappVerifiedAt: new Date(),
+          whatsappNotify: true,
+          whatsappPendingPhone: null,
+          whatsappCodeHash: null,
+          whatsappCodeExpires: null,
+        });
+        whatsappLinked = conversationId;
+      }
+    }
     const updated = await prisma.user.update({ where: { id }, data });
     if (body.suspended) await revokeAllSessions(id);
-    await prisma.adminAction.create({ data: { adminId: admin.id, action: body.suspended !== undefined ? 'suspend_user' : 'update_user', targetType: 'user', targetId: id, details: data as Prisma.InputJsonValue } });
-    return ok({ user: { id: updated.id, email: updated.email, role: updated.role, suspended: updated.suspended } });
+    await prisma.adminAction.create({ data: { adminId: admin.id, action: body.suspended !== undefined ? 'suspend_user' : whatsappLinked !== undefined ? 'link_whatsapp' : 'update_user', targetType: 'user', targetId: id, details: (whatsappLinked !== undefined ? { whatsapp: whatsappLinked ?? 'disconnected' } : data) as Prisma.InputJsonValue } });
+    return ok({ user: { id: updated.id, email: updated.email, role: updated.role, suspended: updated.suspended }, whatsapp: whatsappLinked ?? undefined });
   } catch (err) { return handleError(err); }
 }
 

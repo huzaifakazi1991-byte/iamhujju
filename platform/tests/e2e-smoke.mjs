@@ -578,12 +578,28 @@ if (waCode) {
   ok(waResumed.data?.whatsapp?.notify === true, 'whatsapp: START keyword resumes notifications', JSON.stringify(waResumed.data?.whatsapp));
 }
 
+// ── admin-asserted linking: owner has the numbers offline ──
+const waLinkForbidden = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: userC.at + '; ' + userC.rt, body: { whatsappPhone: '+919890000009' } });
+ok([401, 403].includes(waLinkForbidden.status), 'non-admin cannot link a WhatsApp number for a user', String(waLinkForbidden.status));
+const waLinkBad = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { whatsappPhone: '12345' } });
+ok([400, 422].includes(waLinkBad.status), 'admin link with garbage number rejected', String(waLinkBad.status));
+const waLink = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { whatsappPhone: '+91 98900 00001' } });
+ok(waLink.status === 200 && waLink.data?.whatsapp === '+91 9890000001', 'admin links user WhatsApp offline (admin-asserted opt-in)', JSON.stringify(waLink.data));
+const waLinkedAcct = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(waLinkedAcct.data?.whatsapp?.verified === true && waLinkedAcct.data?.whatsapp?.phone === '+91 ••••• 001', 'admin-linked number shows verified + masked on the user side', JSON.stringify(waLinkedAcct.data?.whatsapp));
+const waSettingsLinked = await req('/api/admin/settings', { auth: adminC.at + '; ' + adminC.rt });
+ok(waSettingsLinked.data?.whatsapp?.connectedUsers >= 1 && waSettingsLinked.data?.whatsapp?.configured === true, 'admin settings counts linked users while connected', JSON.stringify(waSettingsLinked.data?.whatsapp));
+const waUnlink = await req(`/api/admin/users/${e2eUserId}`, { method: 'PATCH', auth: adminC.at + '; ' + adminC.rt, body: { whatsappPhone: null } });
+ok(waUnlink.status === 200, 'admin disconnects the WhatsApp number', String(waUnlink.status));
+const waUnlinkCheck = await req('/api/account', { auth: userC.at + '; ' + userC.rt });
+ok(waUnlinkCheck.data?.whatsapp?.verified === false && waUnlinkCheck.data?.whatsapp?.phone === null, 'disconnected number clears verification', JSON.stringify(waUnlinkCheck.data?.whatsapp));
+
 const waHandshakeBad = await req('/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=123');
 ok(waHandshakeBad.status === 403, 'webhook handshake rejects wrong verify token', String(waHandshakeBad.status));
 const waHandshakeOk = await fetch(`${process.env.E2E_BASE ?? 'http://localhost:3100'}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=e2e-verify-token&hub.challenge=echo-me`);
 ok(waHandshakeOk.status === 200 && (await waHandshakeOk.text()).includes('echo-me'), 'webhook handshake echoes challenge with correct verify token', String(waHandshakeOk.status));
 const waSettings = await req('/api/admin/settings', { auth: adminC.at + '; ' + adminC.rt });
-ok(waSettings.data?.whatsapp?.configured === true && waSettings.data?.whatsapp?.webhookReady === true && waSettings.data?.whatsapp?.connectedUsers >= 1, 'admin settings shows relay summary', JSON.stringify(waSettings.data?.whatsapp));
+ok(waSettings.data?.whatsapp?.configured === true && waSettings.data?.whatsapp?.webhookReady === true && typeof waSettings.data?.whatsapp?.connectedUsers === 'number', 'admin settings shows relay summary', JSON.stringify(waSettings.data?.whatsapp));
 
 // community group chat
 const gEmpty = await req('/api/threads/group', { auth: userC.at + '; ' + userC.rt });

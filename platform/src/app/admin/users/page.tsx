@@ -11,6 +11,8 @@ type UserRow = {
   whatsappPhone?: string | null; whatsapp?: 'on' | 'muted' | 'off';
 };
 
+const waLabel = (s: UserRow['whatsapp']) => s === 'on' ? 'connected' : s === 'muted' ? 'paused by user' : 'not connected';
+
 type CreditMode = 'add' | 'reduce' | 'set';
 
 const QUICK_STEPS = [1_000, 10_000, 50_000, 100_000];
@@ -25,6 +27,9 @@ export default function AdminUsersPage() {
   const [creditMode, setCreditMode] = useState<CreditMode>('add');
   const [creditAmount, setCreditAmount] = useState('');
   const [creditBusy, setCreditBusy] = useState(false);
+  const [waUser, setWaUser] = useState<UserRow | null>(null);
+  const [waPhone, setWaPhone] = useState('');
+  const [waBusy, setWaBusy] = useState(false);
 
   const load = useCallback(async (query = '') => {
     try {
@@ -78,6 +83,21 @@ export default function AdminUsersPage() {
       await load(q);
     } catch (err) { toast(err instanceof Error ? err.message : 'Credit change failed', 'error'); }
     finally { setCreditBusy(false); }
+  }
+
+  async function saveWhatsApp(link: boolean) {
+    if (!waUser || waBusy) return;
+    if (link && waPhone.trim().length < 8) { toast('Enter the user\'s WhatsApp number, e.g. +91 98765 43210.', 'error'); return; }
+    setWaBusy(true);
+    try {
+      const d = await api<{ whatsapp?: string }>(`/api/admin/users/${waUser.id}`, { method: 'PATCH', body: JSON.stringify({ whatsappPhone: link ? waPhone : null }) });
+      toast(link
+        ? `${waUser.email}: WhatsApp connected (${d.whatsapp}). Their DMs will be mirrored there.`
+        : `${waUser.email}: WhatsApp disconnected.`, 'success');
+      setWaUser(null);
+      await load(q);
+    } catch (err) { toast(err instanceof Error ? err.message : 'WhatsApp update failed', 'error'); }
+    finally { setWaBusy(false); }
   }
 
   async function terminate(u: UserRow) {
@@ -138,7 +158,11 @@ export default function AdminUsersPage() {
                     <span className="flex items-center gap-2">
                       <span className={`h-2 w-2 shrink-0 rounded-full ${u.online ? 'bg-green-500' : 'bg-neutral-400'}`} title={u.online ? 'Online now' : 'Offline'} />
                       <span className="truncate">{u.email}</span>
-                      {u.whatsappPhone && <span title={`WhatsApp ${u.whatsapp === 'on' ? 'connected' : 'paused'} — DMs are mirrored there`} className="shrink-0 text-xs opacity-70">📲</span>}
+                      <button
+                        onClick={() => { setWaUser(u); setWaPhone(u.whatsappPhone ?? ''); }}
+                        title={`WhatsApp: ${waLabel(u.whatsapp)} — click to edit`}
+                        className={`shrink-0 text-xs ${u.whatsappPhone ? 'opacity-80' : 'opacity-30 grayscale'} hover:opacity-100`}
+                      >📲</button>
                     </span>
                   </td>
                   <td className="px-5 py-3">{u.planName}</td>
@@ -173,6 +197,51 @@ export default function AdminUsersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {waUser && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-forest/50 p-4 backdrop-blur-sm"
+          onPointerDown={(e) => { if (e.target === e.currentTarget) setWaUser(null); }}
+        >
+          <div className="glass card w-full max-w-md p-6" role="dialog" aria-label={`WhatsApp for ${waUser.email}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-display text-lg font-bold">💬 WhatsApp — {waLabel(waUser.whatsapp)}</h2>
+                <p className="mt-0.5 truncate text-sm text-ink-soft dark:text-white/60">{waUser.email}</p>
+              </div>
+              <button className="h-11 w-11 rounded-full text-lg text-body-soft hover:bg-forest/8 dark:hover:bg-white/10" onClick={() => setWaUser(null)} aria-label="Close WhatsApp editor">✕</button>
+            </div>
+
+            <label className="mt-4 block text-sm font-medium">
+              Their WhatsApp number
+              <input
+                className="input mt-1.5"
+                value={waPhone}
+                onChange={(e) => setWaPhone(e.target.value)}
+                placeholder="+91 98765 43210"
+                inputMode="tel"
+                maxLength={24}
+                autoFocus
+              />
+            </label>
+
+            <p className="mt-3 rounded-xl bg-amber/15 px-3 py-2 text-xs text-forest dark:text-cream">
+              Only add numbers the user agreed to (opt-in — Meta bans numbers that message strangers). The
+              first message to a user who never wrote to your WhatsApp needs an approved template
+              (WHATSAPP_TEMPLATE_NAME); after they reply once, plain messages flow freely for 24h.
+            </p>
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+              {waUser.whatsappPhone
+                ? <button className="btn-ghost px-4 py-2 text-xs text-red-600 dark:text-red-400" disabled={waBusy} onClick={() => void saveWhatsApp(false)}>Disconnect</button>
+                : <span />}
+              <button className="btn-primary px-6 py-2.5 text-sm disabled:opacity-60" disabled={waBusy || waPhone.trim().length < 8} onClick={() => void saveWhatsApp(true)}>
+                {waBusy ? 'Saving…' : waUser.whatsappPhone ? 'Update number' : 'Connect number'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
