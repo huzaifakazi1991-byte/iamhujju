@@ -15,6 +15,7 @@
     "lint": "oxlint",
     "test": "node --test server.test.js aiGateway.test.js database.test.js database.integration.test.js googleGemini.test.js huzaifaOmni.test.js safeMarkdown.test.js src/modelCatalog.test.js src/chatStorage.test.js src/skillsCatalog.test.js",
     "test:database": "node --test database.integration.test.js",
+    "db:seed": "node -e \"console.log('[db:seed] No manual seed required — the server boot migration (migrateDatabase + bootstrapOwnerAccount) creates the schema and seeds the owner account automatically at startup.')\"",
     "migrate:neon": "node scripts/migrate-local-to-neon.js",
     "prisma:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
