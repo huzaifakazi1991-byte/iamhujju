@@ -6,7 +6,7 @@ let failures = 0;
 // in-process mock OpenAI-compatible upstream for gateway provider tests
 import http from 'node:http';
 const upstreamHits = { streamOptionsSeen: 0 };
-const UPSTREAM_MODELS = ['mock-echo', 'mock-picky-streamopts', 'mock-auto-a', 'mock-auto-b'];
+const UPSTREAM_MODELS = ['mock-echo', 'mock-fail', 'mock-picky-streamopts', 'mock-auto-a', 'mock-auto-b'];
 function sseChunk(obj) { return `data: ${JSON.stringify(obj)}\n\n`; }
 const mockUpstream = http.createServer((rq, rs) => {
   let raw = '';
@@ -24,6 +24,11 @@ const mockUpstream = http.createServer((rq, rs) => {
     if (body.model === 'mock-picky-streamopts' && body.stream_options) {
       rs.writeHead(400, { 'Content-Type': 'application/json' });
       rs.end(JSON.stringify({ error: { message: 'Unknown field: stream_options', status: 'INVALID_ARGUMENT' } }));
+      return;
+    }
+    if (body.model === 'mock-fail') {
+      rs.writeHead(500, { 'Content-Type': 'application/json' });
+      rs.end(JSON.stringify({ error: { message: 'mock-fail upstream is down', type: 'server_error' } }));
       return;
     }
     if (body.model === 'mock-missing') {
@@ -657,6 +662,7 @@ await makeModel('mock-missing');
 await makeModel('mock-empty');
 await makeModel('mock-ghost');
 await makeModel('mock-picky-streamopts');
+await makeModel('mock-fail');
 
 async function chatStream(model, auth) {
   const res = await fetch(BASE + '/api/chat', {
@@ -672,14 +678,23 @@ const good = await chatStream('mock-echo', userC.at + '; ' + userC.rt);
 ok(good.status === 200 && good.text.includes('Gateway pong for mock-echo'), 'gateway: provider chat streams text', String(good.status));
 ok(good.text.includes('"type":"done"') && good.text.includes('"usage":{') && /"balance":\d+/.test(good.text), 'gateway: usage metered + done event', JSON.stringify(good.text.slice(-400)));
 
+// With failover active, broken models recover automatically instead of
+// dead-ending the chat — the actionable-error path still exists when no
+// fallback model is enabled.
 const missing = await chatStream('mock-missing', userC.at + '; ' + userC.rt);
-ok(missing.text.includes('was not found on this provider') && missing.text.includes('Sync models'), 'gateway: unknown model id yields actionable error', missing.text.slice(0, 200));
+ok(missing.status === 200 && missing.text.includes('Gateway pong for mock-echo'), 'gateway: unknown model id auto-fails-over instead of dead-ending', missing.text.slice(0, 200));
 
 const empty = await chatStream('mock-empty', userC.at + '; ' + userC.rt);
-ok(empty.text.includes('empty response'), 'gateway: empty response guarded with clear error', empty.text.slice(0, 160));
+ok(empty.status === 200 && empty.text.includes('Gateway pong for mock-echo'), 'gateway: empty response auto-fails-over instead of dead-ending', empty.text.slice(0, 200));
 
 const picky = await chatStream('mock-picky-streamopts', userC.at + '; ' + userC.rt);
 ok(picky.status === 200 && picky.text.includes('Gateway pong for mock-picky-streamopts'), 'gateway: retries without rejected stream_options and succeeds', picky.text.slice(0, 160));
+
+// A dead provider model must not kill the chat: gateway auto-fails-over.
+const failover = await chatStream('mock-fail', userC.at + '; ' + userC.rt);
+ok(failover.status === 200 && failover.text.includes('"type":"notice"'), 'gateway: dead model auto-fails-over with a notice event', failover.text.slice(0, 240));
+ok(failover.text.includes('Gateway pong for mock-echo'), 'gateway: fallback model streams the real answer', failover.text.slice(-300));
+ok(failover.text.includes('"status":"completed"') && !failover.text.includes('mock-fail upstream is down'), 'gateway: final done is clean after failover', failover.text.slice(-300));
 
 ok(upstreamHits.streamOptionsSeen >= 2, 'gateway: upstream saw stream_options requests (baseUrl honored)', JSON.stringify(upstreamHits));
 

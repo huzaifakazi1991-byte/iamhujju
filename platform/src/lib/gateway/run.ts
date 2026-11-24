@@ -235,7 +235,7 @@ export function creditTokens(userId: string, amount: number, reason: string, ref
 
 export type RunResult = { conversationId: string | null };
 
-export async function executeChat(opts: {
+type ChatRunOpts = {
   userId: string;
   isAdmin: boolean;
   modelSlug: string;
@@ -245,17 +245,38 @@ export async function executeChat(opts: {
   maxTokens?: number;
   temperature?: number;
   signal: AbortSignal;
-}): Promise<ReadableStream<Uint8Array>> {
-  const persist = opts.persist ?? true;
-  const check = await preflight({ userId: opts.userId, isAdmin: opts.isAdmin, modelSlug: opts.modelSlug, messages: opts.messages });
+};
 
-  const model = await prisma.model.findUnique({ where: { slug: opts.modelSlug }, include: { Provider: true } });
+type PreparedAttempt = {
+  check: GatewayCheck;
+  model: { id: string; slug: string; displayName: string; providerName: string };
+  conversationId: string | null;
+  assistantMessageId: string | null;
+  stream: ReadableStream<Uint8Array>;
+};
+
+/**
+ * One single-model gateway attempt: preflight → stream → settle.
+ * Throws GatewayError for policy failures (plan/model/provider/rate/balance)
+ * before any streaming begins. Provider errors / timeouts mid-stream arrive
+ * as SSE `error` events inside the returned stream.
+ */
+async function attemptChat(
+  opts: ChatRunOpts,
+  modelSlug: string,
+  conversationIdIn: string | null,
+  promptTokensIn: number | null,
+): Promise<PreparedAttempt> {
+  const persist = opts.persist ?? true;
+  const check = await preflight({ userId: opts.userId, isAdmin: opts.isAdmin, modelSlug, messages: opts.messages });
+
+  const model = await prisma.model.findUnique({ where: { slug: modelSlug }, include: { Provider: true } });
   if (!model) throw new GatewayError(404, 'Model not found.');
 
   const encoder = new TextEncoder();
   const sse = (obj: unknown) => encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
 
-  let conversationId = opts.conversationId ?? null;
+  let conversationId = conversationIdIn;
   if (persist) {
     if (conversationId) {
       const existing = await prisma.conversation.findFirst({ where: { id: conversationId, userId: opts.userId } });
@@ -273,18 +294,12 @@ export async function executeChat(opts: {
 
   let assistantMessageId: string | null = null;
   if (persist) {
-    const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user');
-    if (lastUser) {
-      const msg = await prisma.message.create({
-        data: { conversationId: conversationId!, role: 'user', content: messageText(lastUser.content), tokensIn: check.promptTokens },
-      });
-      void msg;
-      const assistant = await prisma.message.create({
-        data: { conversationId: conversationId!, role: 'assistant', content: '' },
-      });
-      assistantMessageId = assistant.id;
-    }
+    const assistant = await prisma.message.create({
+      data: { conversationId: conversationId!, role: 'assistant', content: '' },
+    });
+    assistantMessageId = assistant.id;
   }
+  void promptTokensIn;
 
   const credential = model.Provider.encryptedKey ? decryptSecret(model.Provider.encryptedKey) : null;
   const adapter = adapterForProvider(model.Provider.name);
@@ -294,7 +309,7 @@ export async function executeChat(opts: {
   let settled = false;
   let closed = false;
 
-  return new ReadableStream<Uint8Array>({
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let outputChars = 0;
       let usage: { promptTokens: number; completionTokens: number } | null = null;
@@ -357,10 +372,6 @@ export async function executeChat(opts: {
       };
       if (status === 'aborted') finalUsage.completionTokens = Math.max(1, Math.ceil(outputChars / 4));
       try {
-        if (persist && assistantMessageId) {
-          await prisma.message.update({ where: { id: assistantMessageId }, data: { content: collected, tokensOut: finalUsage.completionTokens } }).catch((err) => console.error('[gateway] assistant message update skipped', err));
-          await prisma.conversation.update({ where: { id: conversationId! }, data: { updatedAt: new Date() } }).catch(() => undefined);
-        }
         if (!settled) {
           settled = true;
           await settle({
@@ -372,6 +383,14 @@ export async function executeChat(opts: {
             messageId: persist ? assistantMessageId : null,
             latencyMs: Date.now() - startedAt,
           });
+        }
+        // Failed attempts with zero output leave an empty ghost assistant
+        // message — remove it so chat history stays clean.
+        if (persist && assistantMessageId && status === 'error' && collected === '') {
+          await prisma.message.deleteMany({ where: { id: assistantMessageId, content: '' } }).catch(() => undefined);
+        }
+        if (persist && assistantMessageId) {
+          await prisma.conversation.update({ where: { id: conversationId! }, data: { updatedAt: new Date() } }).catch(() => undefined);
         }
       } catch (err) {
         console.error('[gateway] settle failed', err);
@@ -408,4 +427,178 @@ export async function executeChat(opts: {
         }).catch((err) => console.error('[gateway] cancel-settle failed', err));
     },
   });
+
+  return { check, model: { id: model.id, slug: model.slug, displayName: model.displayName, providerName: model.Provider.name }, conversationId, assistantMessageId, stream };
+}
+
+const MAX_GATEWAY_ATTEMPTS = 3;
+
+/**
+ * executeChat: runs the requested model first; if the provider fails before
+ * producing any output (error event, hang/TTFB timeout), it automatically
+ * retries with the next best enabled chat model — same provider first, then
+ * other providers — so one dead key or slow model no longer breaks the chat.
+ */
+export async function executeChat(opts: ChatRunOpts): Promise<ReadableStream<Uint8Array>> {
+  const persist = opts.persist ?? true;
+
+  // First preflight happens OUTSIDE the stream so auth/plan/balance errors
+  // surface as real HTTP codes (402/403/429) and the client's upgrade modal.
+  const first = await attemptChat(opts, opts.modelSlug, opts.conversationId ?? null, null);
+
+  const userMessageId: string | null = await (async () => {
+    if (!persist) return null;
+    const lastUser = [...opts.messages].reverse().find((m) => m.role === 'user');
+    if (!lastUser) return null;
+    const msg = await prisma.message.create({
+      data: { conversationId: first.conversationId!, role: 'user', content: messageText(lastUser.content), tokensIn: first.check.promptTokens },
+    });
+    return msg.id;
+  })();
+  void userMessageId;
+
+  const encoder = new TextEncoder();
+  const sse = (obj: unknown) => encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
+  const decoder = new TextDecoder();
+
+  let closed = false;
+  let activeStream: ReadableStream<Uint8Array> | null = null;
+
+  const stream: ReadableStream<Uint8Array> = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let conversationId = first.conversationId;
+      let metaForwarded = false;
+      let current = first;
+      let attempts = 1;
+      const triedSlugs = new Set<string>([opts.modelSlug]);
+
+      let lastError: string | null = null;
+
+      for (;;) {
+        let deltaSeen = false;
+        let doneSeen = false;
+        let okStatus: string | null = null;
+        activeStream = current.stream;
+        const reader = current.stream.getReader();
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            for (const raw of decoder.decode(value, { stream: true }).split('\n\n')) {
+              if (!raw.startsWith('data: ')) continue;
+              let ev: Record<string, unknown>;
+              try { ev = JSON.parse(raw.slice(6)); } catch { continue; }
+              if (ev.type === 'meta') {
+                if (!metaForwarded) {
+                  metaForwarded = true;
+                  if (typeof ev.conversationId === 'string') conversationId = ev.conversationId;
+                  if (!closed) controller.enqueue(sse(ev));
+                }
+              } else if (ev.type === 'delta') {
+                deltaSeen = true;
+                if (!closed) controller.enqueue(sse(ev));
+              } else if (ev.type === 'done') {
+                doneSeen = true;
+                okStatus = typeof ev.status === 'string' ? ev.status : null;
+                // Hold back an error-done that produced no output — a failover
+                // attempt may follow and will forward its own final done.
+                if (okStatus === 'error' && !deltaSeen) { /* held for failover */ }
+                else if (!closed) controller.enqueue(sse(ev));
+              } else if (ev.type === 'error') {
+                if (deltaSeen) { if (!closed) controller.enqueue(sse(ev)); } // partial output — tell the user
+                else lastError = typeof ev.message === 'string' ? ev.message : 'Provider error';
+              } else {
+                if (!closed) controller.enqueue(sse(ev)); // usage / notice passthrough
+              }
+            }
+          }
+        } finally {
+          try { reader.releaseLock(); } catch { /* lock already released */ }
+        }
+
+        // Success, partial output, or client gone — stop trying models.
+        if (!lastError || deltaSeen || opts.signal.aborted && !doneSeen) {
+          try { controller.close(); } catch { /* already closed */ }
+          return;
+        }
+        if (!doneSeen) { try { controller.close(); } catch { /* closed */ } return; }
+        if (okStatus !== 'error') { return; } // done already forwarded
+
+        // Clean failure with zero output → try another model.
+        if (persist && current.assistantMessageId) {
+          await prisma.message.deleteMany({ where: { id: current.assistantMessageId, content: '' } }).catch(() => undefined);
+        }
+        if (attempts >= MAX_GATEWAY_ATTEMPTS) break;
+
+        const nextSlug = await nextFallbackSlug(opts, current.check.plan, current.model.slug, current.model.providerName, triedSlugs);
+        if (!nextSlug) break;
+        attempts++;
+        triedSlugs.add(nextSlug);
+        if (!closed) {
+          controller.enqueue(sse({
+            type: 'notice',
+            message: `⚠️ ${current.model.displayName} failed — automatically retrying with a different model…`,
+            to: nextSlug,
+          }));
+        }
+        try {
+          current = await attemptChat(opts, nextSlug, conversationId, first.check.promptTokens);
+        } catch (err) {
+          if (!(err instanceof GatewayError)) console.error('[gateway] fallback attempt failed', err);
+          if (!closed) {
+            controller.enqueue(sse({ type: 'error', message: lastError }));
+            controller.enqueue(sse({ type: 'done', status: 'error', usage: null, balance: null, conversationId }));
+          }
+          try { controller.close(); } catch { /* closed */ }
+          return;
+        }
+        continue;
+      }
+
+      // No fallback available — surface the original provider error.
+      if (!closed) {
+        controller.enqueue(sse({ type: 'error', message: lastError ?? 'The provider failed to respond. Please try again shortly.' }));
+        controller.enqueue(sse({ type: 'done', status: 'error', usage: null, balance: null, conversationId }));
+        try { controller.close(); } catch { /* closed */ }
+      }
+    },
+    cancel() {
+      // User aborted: tear down whichever attempt is live (its own cancel
+      // handler settles billing as 'aborted').
+      closed = true;
+      if (activeStream) { try { void activeStream.cancel(); } catch { /* ... */ } }
+    },
+  });
+
+  // If the request aborts without the outer cancel firing, forward it too.
+  opts.signal.addEventListener('abort', () => {
+    closed = true;
+    if (activeStream) { try { void activeStream.cancel(); } catch { /* ... */ } }
+  }, { once: true });
+
+  return stream;
+}
+
+/** Next enabled chat model to try: same provider first, then other providers. */
+async function nextFallbackSlug(
+  opts: ChatRunOpts,
+  plan: PlanRow,
+  failedSlug: string,
+  failedProvider: string,
+  triedSlugs: Set<string>,
+): Promise<string | null> {
+  const candidates = await prisma.model.findMany({
+    where: { adminEnabled: true, capability: 'chat', Provider: { enabled: true } },
+    orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+    include: { Provider: { select: { name: true } } },
+    take: 50,
+  });
+  const eligible = (m: (typeof candidates)[number]) =>
+    !triedSlugs.has(m.slug) && m.slug !== failedSlug
+    && (opts.isAdmin || (TIER_RANK[m.tierRequired] ?? 0) <= (TIER_RANK[plan.slug] ?? 0))
+    && (opts.isAdmin || plan.allowedModels.length === 0 || plan.allowedModels.includes(m.slug));
+  const sameProvider = candidates.find((m) => m.Provider.name === failedProvider && eligible(m));
+  const otherProvider = candidates.find((m) => m.Provider.name !== failedProvider && eligible(m));
+  const pick = sameProvider ?? otherProvider;
+  return pick?.slug ?? null;
 }
