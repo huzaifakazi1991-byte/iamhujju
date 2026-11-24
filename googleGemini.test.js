@@ -15,10 +15,16 @@ test('1. Google AI Studio Key Masking: masks key securely without exposing paylo
 });
 
 test('2. Strict Paid-Tier Access Control: verifyPaidGeminiAccess enforces zero free leakage', () => {
+  const previousAdminEmails = process.env.ADMIN_EMAILS;
+  process.env.ADMIN_EMAILS = 'huzaifakazi1991@gmail.com';
+  try {
   // Admin & Owner
   assert.equal(verifyPaidGeminiAccess({ email: 'huzaifakazi1991@gmail.com', tier: 'free' }), true);
   assert.equal(verifyPaidGeminiAccess({ email: 'other@example.com', role: 'admin' }), true);
   assert.equal(verifyPaidGeminiAccess({ email: 'owner@example.com', tier: 'owner_unlimited' }), true);
+
+  // M3: emails outside ADMIN_EMAILS are rejected even when they look privileged
+  assert.equal(verifyPaidGeminiAccess({ email: 'not-configured-owner@example.com', tier: 'free' }), false);
 
   // Free Tier users - STRICTLY FORBIDDEN
   assert.equal(verifyPaidGeminiAccess(null), false);
@@ -46,6 +52,10 @@ test('2. Strict Paid-Tier Access Control: verifyPaidGeminiAccess enforces zero f
     tier: 'developer',
     hasActiveSubscription: true
   }), true);
+  } finally {
+    if (previousAdminEmails === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = previousAdminEmails;
+  }
 });
 
 test('3. Encrypted System Integrations: AES-256-GCM storage for Google AI Studio key', async () => {

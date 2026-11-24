@@ -23,6 +23,7 @@ import {
   runAdminProviderDiagnostics,
   detectModelModality,
   createVideoTaskRecord,
+  getVideoTaskRecord,
   getVideoTaskStatus,
   generateImageResult
 } from './services/aiGateway.js';
@@ -36,6 +37,7 @@ import {
   streamGeminiChat,
   generateGeminiImage,
   createGeminiVideoTask,
+  getGeminiVideoTaskRecord,
   pollGeminiVideoTask,
   DEFAULT_GEMINI_MODELS
 } from './services/googleGeminiAdapter.js';
@@ -368,8 +370,8 @@ export function createApp({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   accountStore = createAccountStore(),
   conversationStore = createConversationStore(),
-  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U2SqMDjvKttD4X',
-  razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET || 'v0fUbejyGxsXf6OzhaFwBwJI',
+  razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || '',
+  razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET || '',
   razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || '',
   officialUpiId = process.env.OFFICIAL_UPI_ID || '',
   razorpayAccountName = process.env.RAZORPAY_ACCOUNT_NAME || 'iamhujju',
@@ -453,11 +455,34 @@ export function createApp({
     15 * 60 * 1000,
     'Too many provider key checks. Try again later.'
   );
+  const mediaRateLimiter = makeRateLimiter(
+    rateLimits.media || 10,
+    60 * 1000,
+    'Too many media generation requests. Wait a minute before trying again.'
+  );
   const conversationRateLimiter = makeRateLimiter(
     rateLimits.conversations || 60,
     60 * 1000,
     'Too many conversation updates. Try again shortly.'
   );
+
+  const ADMIN_EMAILS = new Set(
+    String(process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  function applyAdminPrivileges(user) {
+    if (user && (ADMIN_EMAILS.has(user.email?.toLowerCase()) || user.role === 'admin')) {
+      user.tier = 'owner_unlimited';
+      user.hasActiveSubscription = true;
+      user.unlockedAllModels = true;
+      user.planId = 'owner_unlimited';
+      user.creditsBalance = 999999999;
+    }
+    return user;
+  }
 
   app.disable('x-powered-by');
   app.use(helmet({
@@ -539,21 +564,7 @@ export function createApp({
   async function getCurrentUser(req) {
     const token = getSessionToken(req);
     const user = token ? await accountStore.getUserForSession(token) : null;
-    if (user && user.email?.toLowerCase() === 'huzaifakazi1991@gmail.com') {
-      user.tier = 'owner_unlimited';
-      user.hasActiveSubscription = true;
-      user.unlockedAllModels = true;
-      user.planId = 'owner_unlimited';
-      user.creditsBalance = 999999999;
-    }
-    if (user && user.email?.toLowerCase() === 'huzaifakazi1991@gmail.com') {
-      user.tier = 'owner_unlimited';
-      user.hasActiveSubscription = true;
-      user.unlockedAllModels = true;
-      user.planId = 'owner_unlimited';
-      user.creditsBalance = 999999999;
-    }
-    return user;
+    return applyAdminPrivileges(user);
   }
 
   async function getApiKeyForRequest(req) {
@@ -581,13 +592,6 @@ export function createApp({
     if (!user) {
       res.status(401).json({ error: { message: 'Sign in to manage API keys.' } });
       return null;
-    }
-    if (user && user.email?.toLowerCase() === 'huzaifakazi1991@gmail.com') {
-      user.tier = 'owner_unlimited';
-      user.hasActiveSubscription = true;
-      user.unlockedAllModels = true;
-      user.planId = 'owner_unlimited';
-      user.creditsBalance = 999999999;
     }
     return user;
   }
@@ -845,10 +849,6 @@ export function createApp({
     modelSyncService.startPeriodicSync();
   }
 
-  const ADMIN_EMAILS = new Set([
-    'huzaifakazi1991@gmail.com',
-    ...(process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase()) : [])
-  ]);
 
   app.get('/api/health', (req, res) => {
     res.json({
@@ -2337,6 +2337,16 @@ What would you like to explore or do right now?
     }
 
     const currency = (body.currency || 'INR').toUpperCase();
+    if ((!razorpayKeyId || !razorpayKeySecret) && !officialUpiId) {
+      console.warn('[Razorpay] Order request rejected: RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not configured and OFFICIAL_UPI_ID has no UPI fallback.');
+      return res.status(503).json({
+        error: {
+          message: 'Payment processing is not configured on the server.',
+          code: 'razorpay_not_configured'
+        }
+      });
+    }
+
     const currentUser = await getCurrentUser(req);
     const customerEmail = currentUser?.email || body.email;
     const customerUid = currentUser?.id || '';
@@ -2417,7 +2427,7 @@ What would you like to explore or do right now?
       amount: amountPaise,
       amountInr,
       currency,
-      keyId: razorpayKeyId || 'rzp_test_U2SqMDjvKttD4X',
+      keyId: razorpayKeyId,
       planId: effectivePlanId,
       planName: plan?.title || plan?.name || 'iamhujju',
       billingCycle: body.billingCycle,
@@ -2468,7 +2478,16 @@ What would you like to explore or do right now?
 
     // 1. Razorpay signature verification
     if (orderId && paymentId && signature) {
-      if (razorpayKeySecret) {
+      if (!razorpayKeySecret) {
+        console.warn('[Razorpay Verify] Rejected: RAZORPAY_KEY_SECRET is not configured on the server.');
+        return res.status(503).json({
+          error: {
+            message: 'Payment verification is not configured on the server.',
+            code: 'razorpay_not_configured'
+          }
+        });
+      }
+      {
         const payload = `${orderId}|${paymentId}`;
         const isValid = verifyHmacSha256(payload, signature, razorpayKeySecret);
 
@@ -2750,14 +2769,26 @@ What would you like to explore or do right now?
       });
       return null;
     }
-    if (user && user.email?.toLowerCase() === 'huzaifakazi1991@gmail.com') {
-      user.tier = 'owner_unlimited';
-      user.hasActiveSubscription = true;
-      user.unlockedAllModels = true;
-      user.planId = 'owner_unlimited';
-      user.creditsBalance = 999999999;
+    return applyAdminPrivileges(user);
+  }
+
+  async function requireMediaGatewayUser(req, res) {
+    setGatewayCors(res);
+    const authHeader = req.headers.authorization || '';
+    if (authHeader.startsWith('Bearer sk-hujju-')) {
+      return gatewayAuth(req, res);
     }
-    return user;
+    const user = await getCurrentUser(req);
+    if (user) {
+      return user;
+    }
+    res.status(401).json({
+      error: {
+        message: 'Authentication required. Sign in or provide a valid API key.',
+        code: 'authentication_required'
+      }
+    });
+    return null;
   }
 
   // OPTIONS preflight for both /v1 and /api/v1 paths
@@ -3235,14 +3266,8 @@ What would you like to explore or do right now?
   // Image Generation Handler
   async function handleImageGeneration(req, res) {
     setGatewayCors(res);
-    const authHeader = req.headers.authorization || '';
-    let user = null;
-    if (authHeader.startsWith('Bearer sk-hujju-')) {
-      user = await gatewayAuth(req, res);
-      if (!user) return;
-    } else {
-      user = await getCurrentUser(req);
-    }
+    const user = await requireMediaGatewayUser(req, res);
+    if (!user) return;
 
     const { prompt, model = 'flux-schnell', size = '1024x1024', aspect_ratio = '1:1', n = 1, response_format = 'url' } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -3304,20 +3329,14 @@ What would you like to explore or do right now?
     }
   }
 
-  app.post(['/v1/images/generations', '/v1/images/generations/'], handleImageGeneration);
-  app.post(['/api/generate/image', '/api/generate/image/'], handleImageGeneration);
+  app.post(['/v1/images/generations', '/v1/images/generations/'], mediaRateLimiter, handleImageGeneration);
+  app.post(['/api/generate/image', '/api/generate/image/'], mediaRateLimiter, handleImageGeneration);
 
   // Video Generation Creation Handler
   async function handleCreateVideo(req, res) {
     setGatewayCors(res);
-    const authHeader = req.headers.authorization || '';
-    let user = null;
-    if (authHeader.startsWith('Bearer sk-hujju-')) {
-      user = await gatewayAuth(req, res);
-      if (!user) return;
-    } else {
-      user = await getCurrentUser(req);
-    }
+    const user = await requireMediaGatewayUser(req, res);
+    if (!user) return;
 
     const { prompt, model = 'kling-video-v1', duration = 5, aspect_ratio = '16:9' } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -3352,6 +3371,7 @@ What would you like to explore or do right now?
         duration,
         aspectRatio: aspect_ratio,
         apiKey: geminiKey,
+        ownerId: user.id,
         fetchImpl
       });
       return res.status(202).json({
@@ -3370,7 +3390,8 @@ What would you like to explore or do right now?
         prompt: prompt.trim(),
         model,
         duration,
-        aspect_ratio
+        aspect_ratio,
+        ownerId: user.id
       });
 
       return res.status(202).json({
@@ -3388,20 +3409,32 @@ What would you like to explore or do right now?
     }
   }
 
-  app.post(['/v1/videos/generations', '/v1/videos/generations/'], handleCreateVideo);
-  app.post(['/api/generate/video', '/api/generate/video/'], handleCreateVideo);
+  app.post(['/v1/videos/generations', '/v1/videos/generations/'], mediaRateLimiter, handleCreateVideo);
+  app.post(['/api/generate/video', '/api/generate/video/'], mediaRateLimiter, handleCreateVideo);
 
   // Video Generation Status Polling Handler
-  function handlePollVideoStatus(req, res) {
+  async function handlePollVideoStatus(req, res) {
     setGatewayCors(res);
+    const user = await requireMediaGatewayUser(req, res);
+    if (!user) return;
+
     const taskId = req.params.taskId;
     if (!taskId) {
       return res.status(400).json({ error: { message: 'taskId parameter is required.' } });
     }
 
     if (typeof taskId === 'string' && taskId.startsWith('veo_')) {
+      const veoRecord = getGeminiVideoTaskRecord(taskId);
+      if (veoRecord && veoRecord.ownerId && veoRecord.ownerId !== user.id) {
+        return res.status(404).json({ error: { message: 'Video generation task not found or expired.' } });
+      }
       const veoStatus = pollGeminiVideoTask(taskId);
       if (veoStatus) return res.json(veoStatus);
+    }
+
+    const taskRecord = getVideoTaskRecord(taskId);
+    if (taskRecord && taskRecord.ownerId && taskRecord.ownerId !== user.id) {
+      return res.status(404).json({ error: { message: 'Video generation task not found or expired.' } });
     }
 
     const taskStatus = getVideoTaskStatus(taskId);

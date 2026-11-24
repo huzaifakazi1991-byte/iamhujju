@@ -210,6 +210,12 @@ test('4. Guaranteed Post-Payment Auto-Activation: activates subscription, unlock
 });
 
 test('5. Admin Diagnostics Telemetry (GET /api/admin/health/providers): rejects non-admin and returns full diagnostic metrics for admin', async t => {
+  const previousAdminEmails = process.env.ADMIN_EMAILS;
+  process.env.ADMIN_EMAILS = 'huzaifakazi1991@gmail.com';
+  t.after(() => {
+    if (previousAdminEmails === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = previousAdminEmails;
+  });
   const { accountStore } = await createTestStores(t);
 
   // 1. Regular user

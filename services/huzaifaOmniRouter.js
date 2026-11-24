@@ -452,7 +452,8 @@ export async function executeHuzaifaOmniChat({
           prompt: intent.extractedPrompt,
           model: 'kling-video-v1',
           duration: 5,
-          aspect_ratio: '16:9'
+          aspect_ratio: '16:9',
+          ownerId: user?.id ?? null
         });
         videoUrl = task.final_video_url;
       }

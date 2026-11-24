@@ -17,12 +17,16 @@ export function maskApiKey(key) {
 }
 
 // Strict Paid-Version Entitlement Check:
-// Only Admin (huzaifakazi1991@gmail.com / role === 'admin') or users with an active, non-expired Paid Subscription can access Gemini
+// Only Admin (env ADMIN_EMAILS / role === 'admin') or users with an active, non-expired Paid Subscription can access Gemini
 export function verifyPaidGeminiAccess(user) {
   if (!user) return false;
   const email = (user.email || '').toLowerCase().trim();
+  const adminEmails = String(process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
   if (
-    email === 'huzaifakazi1991@gmail.com' ||
+    (Boolean(email) && adminEmails.includes(email)) ||
     user.role === 'admin' ||
     user.tier === 'owner_unlimited' ||
     user.planId === 'owner_unlimited'
@@ -552,10 +556,11 @@ export async function createGeminiVideoTask({
   duration = 5,
   aspectRatio = '16:9',
   apiKey,
+  ownerId = null,
   fetchImpl = fetch
 }) {
   const cleanModel = model.replace(/^gemini:/, '').replace(/^google\//, '');
-  const taskId = `veo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const taskId = `veo_${randomUUID()}`;
 
   // High-def sample cinema clips for Veo output delivery
   const sampleVideos = [
@@ -603,17 +608,23 @@ export async function createGeminiVideoTask({
     created_at: new Date().toISOString(),
     start_timestamp: Date.now(),
     video_url: null,
-    final_video_url: videoUrl
+    final_video_url: videoUrl,
+    ownerId: ownerId || null
   };
 
   geminiVideoTasks.set(taskId, taskRecord);
 
   // Auto clean-up after 1 hour
-  setTimeout(() => {
+  const cleanupTimer = setTimeout(() => {
     geminiVideoTasks.delete(taskId);
   }, 3600000);
+  cleanupTimer.unref?.();
 
   return taskRecord;
+}
+
+export function getGeminiVideoTaskRecord(taskId) {
+  return geminiVideoTasks.get(taskId) || null;
 }
 
 // Poll Veo Video Task Status
