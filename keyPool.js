@@ -1,6 +1,6 @@
 // keyPool.js — High-Capacity Multi-Key Load Balancing & Zero-Downtime Failover Engine
 // Provides high-throughput pooling across multiple upstream keys per provider,
-// automatic 60-second cooldown on rate-limits (HTTP 429/402/503), persistent DB key vault,
+// automatic 60-second cooldown on rate-limits (HTTP 403/429/502/503; HTTP 402 → 1 hr quota cooldown), persistent DB key vault,
 // cross-provider fallback chains, and accurate token accounting.
 
 import { createDecipheriv, createHash } from 'node:crypto';
@@ -33,7 +33,7 @@ function decryptVaultCredential(row, encryptionKey) {
 
 export class KeyPool {
   constructor(options = {}) {
-    this.cooldownMs = options.cooldownMs || 60000; // 60s cooldown on 429 / 503
+    this.cooldownMs = options.cooldownMs || 60000; // 60s cooldown on 403 / 429 / 502 / 503
     this.exhaustedCooldownMs = options.exhaustedCooldownMs || 3600000; // 1 hr on 402 exhausted
     this.pools = new Map(); // providerId -> Array of KeyState
     this.initFromEnv();
@@ -248,7 +248,16 @@ export class KeyPool {
               console.log(`[KeyPool Failover] Key hit HTTP 402 (quota). Retrying with next available key in ${providerId} pool...`);
               continue;
             }
-          } else if (response.status === 401 || response.status === 403) {
+          } else if (response.status === 403) {
+            lastResponse = response;
+            if (!candidate.isUserKey) {
+              this.markKeyCooldown(providerId, key, 403);
+            }
+            if (i < attempts - 1) {
+              console.log(`[KeyPool Failover] Key hit HTTP 403 (model/access gate). Cooling down key and retrying with next available key in ${providerId} pool...`);
+              continue;
+            }
+          } else if (response.status === 401) {
             lastResponse = response;
             if (!candidate.isUserKey) {
               this.markKeyInvalid(providerId, key);

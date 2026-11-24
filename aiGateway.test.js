@@ -10,10 +10,12 @@ import { createApp } from './server.js';
 import { KeyPool } from './keyPool.js';
 import {
   PROVIDERS,
+  PROVIDER_FALLBACK_MODELS,
   resolveModelTarget,
   sanitizePayloadForModel,
   computeFallbackChain,
   createModelSyncService,
+  generateImageResult,
   runAdminProviderDiagnostics
 } from './services/aiGateway.js';
 
@@ -255,4 +257,119 @@ test('5. Admin Diagnostics Telemetry (GET /api/admin/health/providers): rejects 
   assert.ok(diagData.providers.openrouter, 'OpenRouter diagnostics must be present');
   assert.equal(diagData.providers.openrouter.statusOk, true);
   assert.ok(typeof diagData.providers.openrouter.latencyMs === 'number');
+});
+
+test('6. Phase 2 M1: Pollinations image fallback is env-gated and annotates actual provider when enabled', async t => {
+  const previousFlag = process.env.ALLOW_POLLINATIONS_FALLBACK;
+  delete process.env.ALLOW_POLLINATIONS_FALLBACK;
+  t.after(() => {
+    if (previousFlag === undefined) delete process.env.ALLOW_POLLINATIONS_FALLBACK;
+    else process.env.ALLOW_POLLINATIONS_FALLBACK = previousFlag;
+  });
+
+  const requestOptions = {
+    prompt: 'a lighthouse at dusk',
+    model: 'flux-schnell',
+    size: '1024x1024',
+    aspect_ratio: '1:1',
+    n: 1,
+    response_format: 'url',
+    activeKey: null,
+    providerBase: null
+  };
+
+  await assert.rejects(
+    () => generateImageResult(requestOptions),
+    err => {
+      assert.equal(err.code, 'upstream_unavailable');
+      assert.equal(err.status, 502);
+      assert.match(err.message, /Pollinations fallback is disabled/);
+      return true;
+    },
+    'Default must fail closed instead of silently sending prompts to Pollinations'
+  );
+  assert.doesNotThrow(() => new URL('https://image.pollinations.ai'), 'no side effects expected on failure path');
+
+  process.env.ALLOW_POLLINATIONS_FALLBACK = 'true';
+  const result = await generateImageResult(requestOptions);
+  assert.equal(result.provider, 'pollinations');
+  assert.equal(result.model, 'flux');
+  assert.match(result.data[0].url, /^https:\/\/image\.pollinations\.ai\/prompt\//);
+  assert.equal(result.data[0].provider, 'pollinations');
+  assert.equal(result.data[0].model, 'flux');
+  assert.equal(result.data[0].revised_prompt, 'a lighthouse at dusk');
+});
+
+test('7. Phase 2 M5/L2: Cohere gains an OpenAI-compatible provider entry and bundled providers have fallback models without 402-gated defaults', () => {
+  assert.equal(PROVIDERS.cohere.base, 'https://api.cohere.com/compatibility/v1');
+  assert.equal(PROVIDERS.cohere.chatUrl, 'https://api.cohere.com/compatibility/v1/chat/completions');
+  assert.equal(PROVIDERS.cohere.modelsUrl, 'https://api.cohere.com/compatibility/v1/models');
+
+  const cohereTarget = resolveModelTarget('cohere:command-a-03-2025');
+  assert.equal(cohereTarget.provider, 'cohere');
+  assert.equal(cohereTarget.sourceModel, 'command-a-03-2025');
+
+  for (const providerId of ['openrouter', 'cerebras', 'sambanova', 'huggingface', 'freellmapi', 'cohere']) {
+    const list = PROVIDER_FALLBACK_MODELS[providerId];
+    assert.ok(Array.isArray(list) && list.length > 0, `PROVIDER_FALLBACK_MODELS.${providerId} must have static entries`);
+    for (const model of list) {
+      assert.ok(model.id, 'fallback model needs an id');
+      assert.ok(model.name, 'fallback model needs a name');
+      assert.ok(!Number.isNaN(Number(model.context_window)), 'fallback model needs a context_window');
+    }
+  }
+
+  const openrouterDefaultIds = PROVIDER_FALLBACK_MODELS.openrouter.map(m => m.id);
+  assert.ok(!openrouterDefaultIds.includes('openrouter/auto'), 'openrouter/auto is HTTP 402 credit-gated and must not be a free-tier default');
+  assert.ok(!openrouterDefaultIds.some(id => id.includes('lyria')), 'lyria models are HTTP 402 credit-gated and must not be free-tier defaults');
+  assert.ok(openrouterDefaultIds.every(id => id === 'openrouter/free' || id.endsWith(':free')), 'OpenRouter defaults must all be free-tier routes');
+
+  const freellmTarget = resolveModelTarget('auto');
+  assert.ok(freellmTarget.provider === 'openrouter' || freellmTarget.provider === 'freellmapi', 'universal auto alias still resolves');
+});
+
+test('8. Phase 2 L2: KeyPool treats HTTP 403 as recoverable cooldown with automatic fallback (no permanent invalidation)', async () => {
+  const customKeyPool = new KeyPool();
+  customKeyPool.registerPool('openrouter', ['sk-phase2-403-key']);
+
+  const attemptedKeys = [];
+  const failedRes = await customKeyPool.executeWithFailover({
+    providerId: 'openrouter',
+    requestFn: async key => {
+      attemptedKeys.push(key);
+      return new Response(JSON.stringify({ error: { message: 'Free-tier access gate' } }), { status: 403 });
+    }
+  });
+  assert.equal(failedRes.status, 403);
+  assert.equal(attemptedKeys.length, 1);
+
+  let status = customKeyPool.getStatus().openrouter;
+  assert.equal(status.inCooldown, 1, 'HTTP 403 must place the key on cooldown');
+  assert.equal(status.invalid, 0, 'HTTP 403 must NOT permanently invalidate the key');
+  assert.equal(status.state, 'recovering');
+
+  const crossProviderKeyPool = new KeyPool();
+  crossProviderKeyPool.registerPool('openrouter', ['sk-phase2-403-primary']);
+  crossProviderKeyPool.registerPool('groq', ['sk-phase2-403-backup']);
+  const attemptedProviders = [];
+  const okRes = await crossProviderKeyPool.executeWithFailover({
+    providerId: 'openrouter',
+    fallbackChain: [{ provider: 'groq', model: 'llama-3.3-70b-versatile' }],
+    requestFn: async (key, provider) => {
+      attemptedProviders.push(provider);
+      if (provider === 'openrouter') {
+        return new Response(JSON.stringify({ error: { message: 'Forbidden' } }), { status: 403 });
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'Fallback after 403' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+  assert.equal(okRes.status, 200);
+  assert.deepEqual(attemptedProviders, ['openrouter', 'groq']);
+  status = crossProviderKeyPool.getStatus();
+  assert.equal(status.openrouter.inCooldown, 1);
+  assert.equal(status.openrouter.invalid, 0);
+  assert.equal(status.groq.healthyKeys, 1);
 });

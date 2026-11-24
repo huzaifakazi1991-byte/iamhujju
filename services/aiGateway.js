@@ -11,7 +11,7 @@ export const DEFAULT_MISTRAL_BASE = 'https://api.mistral.ai/v1';
 export const DEFAULT_TOGETHER_BASE = 'https://api.together.xyz/v1';
 export const DEFAULT_CEREBRAS_BASE = 'https://api.cerebras.ai/v1';
 export const DEFAULT_SAMBANOVA_BASE = 'https://api.sambanova.ai/v1';
-export const DEFAULT_COHERE_BASE = 'https://api.cohere.com/v2';
+export const DEFAULT_COHERE_BASE = 'https://api.cohere.com/compatibility/v1';
 export const DEFAULT_HUGGINGFACE_BASE = 'https://api-inference.huggingface.co/v1';
 export const DEFAULT_FREELLMAPI_BASE = 'http://127.0.0.1:31415/v1';
 
@@ -47,6 +47,16 @@ export const PROVIDERS = {
     modelsUrl: `${DEFAULT_GEMINI_BASE}/models`,
     chatUrl: `${DEFAULT_GEMINI_BASE}/chat/completions`,
     portalUrl: 'https://aistudio.google.com',
+    requiresTerms: false,
+    headers: {}
+  },
+  cohere: {
+    id: 'cohere',
+    name: 'Cohere',
+    base: DEFAULT_COHERE_BASE,
+    modelsUrl: `${DEFAULT_COHERE_BASE}/models`,
+    chatUrl: `${DEFAULT_COHERE_BASE}/chat/completions`,
+    portalUrl: 'https://dashboard.cohere.com',
     requiresTerms: false,
     headers: {}
   },
@@ -133,6 +143,16 @@ export const PROVIDERS = {
 };
 
 export const PROVIDER_FALLBACK_MODELS = {
+  openrouter: [
+    { id: 'openrouter/free', name: 'Free Models Router', owned_by: 'OpenRouter', context_window: 128000 },
+    { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (free)', owned_by: 'DeepSeek', context_window: 64000 },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B Instruct (free)', owned_by: 'Meta', context_window: 128000 },
+    { id: 'baidu/ernie-5.5-flash-preview:free', name: 'ERNIE 5.5 Flash Preview (free)', owned_by: 'Baidu', context_window: 128000 },
+    { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning (free)', owned_by: 'NVIDIA', context_window: 128000 },
+    { id: 'particle-ai/particle-1:free', name: 'Particle-1 (free)', owned_by: 'Particle AI', context_window: 128000 },
+    { id: 'recursive/flint-v1.0:free', name: 'Flint v1.0 (free)', owned_by: 'Recursive', context_window: 128000 },
+    { id: 'liquid/lfm-3-1.7b:free', name: 'LFM 3 1.7B (free)', owned_by: 'LiquidAI', context_window: 8192 }
+  ],
   electronhub: [
     { id: 'gpt-4o', name: 'GPT-4o (Omni)', owned_by: 'OpenAI', context_window: 128000, modality: 'agent', isFree: false },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', owned_by: 'OpenAI', context_window: 128000, modality: 'chat', isFree: true },
@@ -175,6 +195,28 @@ export const PROVIDER_FALLBACK_MODELS = {
   together: [
     { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', name: 'Llama 3.3 70B Turbo', owned_by: 'Meta', context_window: 128000 },
     { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1 Together', owned_by: 'DeepSeek', context_window: 64000 }
+  ],
+  cohere: [
+    { id: 'command-a-03-2025', name: 'Command A', owned_by: 'Cohere', context_window: 256000 },
+    { id: 'command-r-plus-08-2024', name: 'Command R+ (Aug 2024)', owned_by: 'Cohere', context_window: 128000 },
+    { id: 'command-r7b-12-2024', name: 'Command R7B (Dec 2024)', owned_by: 'Cohere', context_window: 128000 }
+  ],
+  cerebras: [
+    { id: 'llama-3.3-70b', name: 'Llama 3.3 70B (Cerebras)', owned_by: 'Meta', context_window: 128000 },
+    { id: 'llama3.1-8b', name: 'Llama 3.1 8B (Cerebras)', owned_by: 'Meta', context_window: 128000 },
+    { id: 'qwen-3-32b', name: 'Qwen 3 32B (Cerebras)', owned_by: 'Alibaba', context_window: 128000 }
+  ],
+  sambanova: [
+    { id: 'Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (SambaNova)', owned_by: 'Meta', context_window: 128000 },
+    { id: 'DeepSeek-R1-Distill-Llama-70B', name: 'DeepSeek R1 Distill Llama 70B (SambaNova)', owned_by: 'DeepSeek', context_window: 128000 },
+    { id: 'Qwen3-32B', name: 'Qwen 3 32B (SambaNova)', owned_by: 'Alibaba', context_window: 128000 }
+  ],
+  huggingface: [
+    { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B (Hugging Face)', owned_by: 'Alibaba', context_window: 32768 },
+    { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B (Hugging Face)', owned_by: 'Meta', context_window: 131072 }
+  ],
+  freellmapi: [
+    { id: 'auto', name: 'FreeLLMAPI Auto Router', owned_by: 'FreeLLMAPI', context_window: 8192 }
   ]
 };
 
@@ -380,17 +422,27 @@ export async function generateImageResult({
     }
   }
 
+  if (process.env.ALLOW_POLLINATIONS_FALLBACK !== 'true') {
+    const error = new Error('Image generation upstream is unavailable and the Pollinations fallback is disabled. Configure an ElectronHub or OpenRouter key, or set ALLOW_POLLINATIONS_FALLBACK=true to enable the Pollinations fallback.');
+    error.code = 'upstream_unavailable';
+    error.status = 502;
+    throw error;
+  }
+
   const seed = Math.floor(Math.random() * 1000000);
   const encodedPrompt = encodeURIComponent(prompt);
   const highResUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`;
 
   return {
     created: Math.floor(Date.now() / 1000),
+    provider: 'pollinations',
+    model: 'flux',
     data: [
       {
         url: highResUrl,
         revised_prompt: prompt,
-        model: cleanModel
+        provider: 'pollinations',
+        model: 'flux'
       }
     ]
   };

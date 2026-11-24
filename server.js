@@ -1574,8 +1574,8 @@ export function createApp({
         mapped.sort((a, b) => {
           if (a.id === 'openrouter:openrouter/free') return -1;
           if (b.id === 'openrouter:openrouter/free') return 1;
-          if (a.id === 'openrouter:openrouter/auto') return -1;
-          if (b.id === 'openrouter:openrouter/auto') return 1;
+          if (a.id === 'openrouter:openrouter/auto') return 1;
+          if (b.id === 'openrouter:openrouter/auto') return -1;
           if (a.isFree && !b.isFree) return -1;
           if (!a.isFree && b.isFree) return 1;
           return 0;
@@ -3300,6 +3300,9 @@ What would you like to explore or do right now?
       return res.json(result);
     } catch (err) {
       console.error('Image generation error:', err);
+      if (err.code === 'upstream_unavailable') {
+        return res.status(502).json({ error: { message: err.message, code: err.code } });
+      }
       return res.status(500).json({ error: { message: 'Image generation failed: ' + err.message } });
     }
   }
@@ -3497,8 +3500,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const pool = getDatabasePool();
   await migrateDatabase(pool);
   await pool.query('SELECT 1');
-  const server = createApp().listen(port, '0.0.0.0', () => {
-    console.log(`iamhujju server listening on port ${port}`);
+  const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+  const server = createApp().listen(port, host, () => {
+    console.log(`iamhujju server listening on ${host}:${port}`);
   });
   const shutdown = async () => {
     server.close(async () => {
