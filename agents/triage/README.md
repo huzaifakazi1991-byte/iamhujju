@@ -19,7 +19,12 @@ GitHub access comes through the `github_app` connector, so every run acts as the
 uv sync
 uv run agents info
 uv run agents chat
+uv run python main.py "Review only the pull requests."
 ```
+
+The last command runs one session with a custom prompt and prints the report;
+when GitHub access is not connected yet it lists the sign-in it is waiting on
+instead of failing silently.
 
 ## Deployment
 

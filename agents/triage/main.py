@@ -1,3 +1,5 @@
+import sys
+
 from mistralai import agents
 
 DEFAULT_REPO = "huzaifakazi1991-byte/iamhujju"
@@ -72,11 +74,25 @@ agent = agents.Agent(
 )
 
 
+def describe_callback(callback: agents.ApprovalRequest | agents.OpenSignIn) -> str:
+    kind = type(callback).__name__
+    name = getattr(callback, "name", None) or getattr(callback, "connector", None) or ""
+    return f"{kind} {name}".strip()
+
+
 async def main() -> None:
+    prompt = " ".join(sys.argv[1:]).strip() or "Triage the repository."
     session = await agent.start_session()
-    state = await session.run("Triage the repository.")
+    state = await session.run(prompt)
     if isinstance(state, agents.Completed):
         print(state.text)
+    elif isinstance(state, agents.Blocked):
+        print(state.text or "The turn is blocked, waiting on callbacks.")
+        for callback in state.callbacks:
+            print(f"- waiting on: {describe_callback(callback)}")
+        print("Connect the connector on Mistral Studio, then rerun or answer the callback.")
+    else:
+        print(state.text or f"The turn ended with {type(state).__name__}.")
     await session.cancel()
 
 
