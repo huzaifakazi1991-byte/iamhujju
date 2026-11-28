@@ -41,6 +41,15 @@ export const GALLERY_FOLDERS: GalleryFolder[] = [
         template:
           'Turn the poster-style photo I attached into a vertical 9:16 reel frame: extend the scene beyond its edges with atmosphere — drifting dust particles, subtle motion streaks, dramatic lighting bloom — keeping my subject perfectly intact in the center. Cinematic, poster-quality, ready for an intro clip. Attach your own photo with the 📎 button, then send.',
       },
+      {
+        file: 'sunset-beach-couple-reel.mp4',
+        kind: 'video',
+        title: 'Golden hour shoreline — lifestyle reel',
+        why: 'A warm, cinematic sunset beach walk captured in vertical 9:16 framing — soft golden-hour backlight, gentle ocean waves, and natural storytelling motion for brand or personal reels.',
+        madeWith: 'AI video model — golden-hour lighting & smooth pullback camera',
+        template:
+          'Create a vertical 9:16 golden-hour beach video from my attached photo: warm sunset glow reflecting on wet sand, gentle ocean waves rolling in, smooth slow-motion camera pullback as the subjects walk toward the horizon. Cinematic film grade. Attach your own photo with the 📎 button, then send.',
+      },
     ],
   },
   {
@@ -56,6 +65,52 @@ export const GALLERY_FOLDERS: GalleryFolder[] = [
         madeWith: 'LLM image model (Gemini · Nano Banana) — cinematography directed by text',
         template:
           'Using the vehicle or subject in the photo I attached, recreate a cinematic poster: the subject frozen mid-jump in the air, dust and debris kicked up below, dramatic sky with god rays, motion blur on the wheels, high-contrast color grade, vertical 9:16 composition for a reel thumbnail. Keep my subject 100% recognizable. Attach your own photo with the 📎 button, then send.',
+      },
+      {
+        file: 'ford-raptor-snap-reel.mp4',
+        kind: 'video',
+        poster: 'car-jump-poster.jpg',
+        title: 'Ford Raptor snap — stunt reel',
+        why: 'The car-jump poster brought to full life: seated calmly in a golden field, a single finger snap launches a roaring orange Ford Raptor mid-air through a wall of dust behind the subject.',
+        madeWith: 'AI video model (Veo / Gemini motion) — timed VFX reveal on snap',
+        template:
+          'Turn my attached portrait into a vertical 9:16 stunt reel: the subject sits calmly in a folding chair in a dry golden field, checks their watch, and snaps their fingers as a massive off-road truck launches mid-air through a dramatic dust cloud right behind them. High-impact cinematic lighting. Attach your own photo with the 📎 button, then send.',
+      },
+      {
+        file: 'phoenix-ember-poster-reel.mp4',
+        kind: 'video',
+        title: 'Fire & feathers — spoken-word VFX reel',
+        why: 'A vertical 9:16 dark-fantasy poster in motion: glowing embers, a hovering bald eagle, and a flaming skull conjured in-hand, paired with dramatic voiceover narration.',
+        madeWith: 'AI video model (Veo) — ember particles & atmospheric audio',
+        template:
+          'Using the person in the photo I attached, generate a vertical 9:16 dark-fantasy VFX reel: dramatic crimson backlight, swirling glowing ember sparks rising in slow motion, a fiery aura around the outstretched hand, high-contrast cinematic grade. Keep the face 100% identical to my attached photo. Attach your own photo with the 📎 button, then send.',
+      },
+      {
+        file: 'action-teaser-reel.mp4',
+        kind: 'video',
+        title: 'Neon city — action trailer cut',
+        why: 'A fast-paced cinematic teaser cut: tight eye close-ups, neon-lit city streets, bruised knuckles, and an explosive fiery skyline standoff — all storyboarded and rendered from prompts.',
+        madeWith: 'AI video model — multi-shot action montage & dramatic color grade',
+        template:
+          'Using the person in the photo I attached, create a cinematic action trailer sequence: tight dramatic eye close-up transitioning to a rain-slicked neon city street at night, intense expression, dark jacket, fiery explosion backdrop in the final shot. Keep the face 100% identical. Attach your own photo with the 📎 button, then send.',
+      },
+      {
+        file: 'classroom-action-scene.mp4',
+        kind: 'video',
+        title: 'Golden-hour classroom — choreography scene',
+        why: 'A continuous, dynamic fight choreography sequence inside a sunlit classroom — warm afternoon window rays, chalkboards, flying desks, and a clean walk-off exit.',
+        madeWith: 'AI video model — continuous multi-character action & volumetric light',
+        template:
+          'Using the person in the photo I attached, generate a cinematic action scene in a sunlit classroom: sharp black suit with loosened tie, warm golden-hour sunbeams streaming through tall windows, dynamic wide-angle camera tracking fast action choreography. Keep the face 100% identical. Attach your own photo with the 📎 button, then send.',
+      },
+      {
+        file: 'market-night-rider-scene.mp4',
+        kind: 'video',
+        title: 'Night market to inferno — VFX rider scene',
+        why: 'From grounded street-market choreography to full supernatural VFX: the hero mounts a motorcycle that erupts in flames and rides a blazing stallion through a volcanic portal.',
+        madeWith: 'AI video model — street choreography + fire/lava VFX transformation',
+        template:
+          'Using the person in the photo I attached, create an epic night-market-to-inferno VFX sequence: lantern-lit street market brawl transitioning onto a motorcycle with blazing fire wheels and a dramatic volcanic portal finale. Keep the face 100% identical. Attach your own photo with the 📎 button, then send.',
       },
     ],
   },
