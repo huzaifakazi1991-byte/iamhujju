@@ -533,29 +533,35 @@ export function ChatClient() {
         <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-black/5 px-3 py-2.5 sm:px-4 dark:border-white/10">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <button className="btn-ghost shrink-0 px-2.5 py-1.5 text-sm md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)} aria-expanded={sidebarOpen} aria-label="Conversations menu">☰</button>
-            <div className="flex overflow-hidden rounded-lg border border-black/8 text-xs dark:border-white/10">
-              {([['chat', '💬'], ['image', '🖼'], ['video', '🎬']] as const).map(([key, icon]) => (
+            {([
+              ['chat', '💬', 'Chat', 'Chat models'],
+              ['image', '🖼', 'Create image', 'Jump straight to image generation — just type a prompt'],
+              ['video', '🎬', 'Create video', 'Jump straight to video generation — just type a prompt'],
+            ] as const).map(([key, icon, label, title]) => {
+              const active = mode === key;
+              const available = models.some((m) => (key === 'chat' ? (m.capability ?? 'chat') === 'chat' : m.capability === key));
+              return (
                 <button
                   key={key}
                   type="button"
-                  className={`px-3 py-1.5 transition-colors ${mode === key ? 'bg-leaf/16 font-semibold text-leaf-deep dark:text-leaf-glow' : 'text-ink-soft hover:bg-forest/6 dark:text-white/50 dark:hover:bg-leaf/8'} ${models.some((m) => m.capability === key) ? '' : 'opacity-40'}`}
-                  onClick={() => { if (streaming) cancelRun(); switchMode(key); }}
-                  title={key === 'chat' ? 'Chat models' : key === 'image' ? 'Image generation models' : 'Video generation models'}
-                >{icon} {key}</button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="btn-leaf px-2.5 py-1.5 text-xs sm:px-3"
-              onClick={() => openCapability('image')}
-              title="Jump straight to image generation — just type a prompt"
-            ><span className="sm:hidden">🖼</span><span className="hidden sm:inline">🖼 Create image</span></button>
-            <button
-              type="button"
-              className="btn-leaf px-2.5 py-1.5 text-xs sm:px-3"
-              onClick={() => openCapability('video')}
-              title="Jump straight to video generation — just type a prompt"
-            ><span className="sm:hidden">🎬</span><span className="hidden sm:inline">🎬 Create video</span></button>
+                  className={`${active ? 'btn-leaf' : 'btn-ghost'} shrink-0 px-2.5 py-1.5 text-xs sm:px-3 ${available ? '' : 'opacity-40'}`}
+                  onClick={() => {
+                    if (key === 'chat') {
+                      if (streaming) cancelRun();
+                      switchMode('chat');
+                      composerRef.current?.focus();
+                    } else {
+                      openCapability(key);
+                    }
+                  }}
+                  aria-pressed={active}
+                  title={title}
+                >
+                  <span className="sm:hidden">{icon}</span>
+                  <span className="hidden sm:inline">{icon} {label}</span>
+                </button>
+              );
+            })}
             <select
               className="input w-auto max-w-40 min-w-0 flex-1 py-1.5 text-sm sm:flex-none sm:max-w-64"
               value={modelSlug}
