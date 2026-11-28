@@ -1,0 +1,23 @@
+name: agents-ci
+
+on:
+  push:
+    branches: [main]
+    paths: [agents/**, .github/workflows/agents-ci.yml]
+  pull_request:
+    paths: [agents/**, .github/workflows/agents-ci.yml]
+
+jobs:
+  triage-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --frozen
+        working-directory: agents/triage
+      - name: Agent definition check
+        run: uv run agents info
+        working-directory: agents/triage
